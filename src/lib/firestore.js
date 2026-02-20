@@ -33,7 +33,7 @@ export const ensureUserProfile = async (user) => {
 }
 
 export const subscribeUserProfile = (userId, onData, onError) => {
-  if (!userId) return () => {}
+  if (!userId) return () => { }
   const userRef = doc(db, 'users', userId)
   return onSnapshot(
     userRef,
@@ -46,7 +46,7 @@ export const addTransaction = async ({ userId, type, amount, categoryId }) => {
   const now = new Date()
   const category = getCategoryById(categoryId)
 
-  return addDoc(collection(db, 'transactions'), {
+  return addDoc(collection(db, 'users', userId, 'transactions'), {
     userId,
     type,
     amount,
@@ -59,11 +59,10 @@ export const addTransaction = async ({ userId, type, amount, categoryId }) => {
 }
 
 export const subscribeTransactions = (userId, onData, onError) => {
-  if (!userId) return () => {}
-  const transactionsRef = collection(db, 'transactions')
+  if (!userId) return () => { }
+  const transactionsRef = collection(db, 'users', userId, 'transactions')
   const q = query(
     transactionsRef,
-    where('userId', '==', userId),
     orderBy('timestamp', 'desc'),
   )
 
@@ -90,7 +89,7 @@ export const seedBudgets = async (userId, monthKey) => {
   const batch = writeBatch(db)
 
   DEFAULT_BUDGETS.forEach((budget) => {
-    const budgetRef = doc(db, 'budgets', `${userId}_${monthKey}_${budget.categoryId}`)
+    const budgetRef = doc(db, 'users', userId, 'budgets', `${userId}_${monthKey}_${budget.categoryId}`)
     batch.set(budgetRef, {
       userId,
       monthKey,
@@ -104,11 +103,10 @@ export const seedBudgets = async (userId, monthKey) => {
 }
 
 export const subscribeBudgets = (userId, monthKey, onData, onError) => {
-  if (!userId || !monthKey) return () => {}
-  const budgetsRef = collection(db, 'budgets')
+  if (!userId || !monthKey) return () => { }
+  const budgetsRef = collection(db, 'users', userId, 'budgets')
   const q = query(
     budgetsRef,
-    where('userId', '==', userId),
     where('monthKey', '==', monthKey),
   )
 
