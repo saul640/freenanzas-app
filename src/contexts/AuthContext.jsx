@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
@@ -9,12 +9,7 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-
-const AuthContext = createContext();
-
-export function useAuth() {
-    return useContext(AuthContext);
-}
+import { AuthContext } from './AuthContext';
 
 export function AuthProvider({ children }) {
     const [currentUser, setCurrentUser] = useState(null);
@@ -75,7 +70,7 @@ export function AuthProvider({ children }) {
     useEffect(() => {
         if (!auth) {
             console.warn("Autenticación no inicializada. Posible falta de variables de entorno.");
-            setLoading(false);
+            Promise.resolve().then(() => setLoading(false));
             return;
         }
 

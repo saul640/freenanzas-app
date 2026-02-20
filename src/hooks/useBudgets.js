@@ -9,13 +9,9 @@ export const useBudgets = (userId, monthKey) => {
   const hasSeeded = useRef(false)
 
   useEffect(() => {
-    if (!userId || !monthKey) {
-      setBudgets(DEFAULT_BUDGETS)
-      setLoading(false)
-      return
-    }
+    if (!userId || !monthKey) return
 
-    setLoading(true)
+    Promise.resolve().then(() => setLoading(true))
     const unsubscribe = subscribeBudgets(
       userId,
       monthKey,
@@ -37,7 +33,11 @@ export const useBudgets = (userId, monthKey) => {
       },
     )
 
-    return () => unsubscribe?.()
+    return () => {
+      unsubscribe?.()
+      setBudgets(DEFAULT_BUDGETS)
+      setLoading(false)
+    }
   }, [userId, monthKey])
 
   return { budgets, loading, error }

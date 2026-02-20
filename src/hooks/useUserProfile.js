@@ -7,13 +7,9 @@ export const useUserProfile = (userId) => {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    if (!userId) {
-      setProfile(null)
-      setLoading(false)
-      return
-    }
+    if (!userId) return
 
-    setLoading(true)
+    Promise.resolve().then(() => setLoading(true))
     const unsubscribe = subscribeUserProfile(
       userId,
       (data) => {
@@ -26,7 +22,11 @@ export const useUserProfile = (userId) => {
       },
     )
 
-    return () => unsubscribe?.()
+    return () => {
+      unsubscribe?.()
+      setProfile(null)
+      setLoading(false)
+    }
   }, [userId])
 
   return { profile, loading, error }

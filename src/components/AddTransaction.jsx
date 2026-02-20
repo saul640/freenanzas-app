@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 const expenseCategories = [
     { name: 'Comida', icon: 'shopping_cart' },
@@ -41,7 +41,7 @@ export default function AddTransaction() {
 
     React.useEffect(() => {
         setCategory(currentCategories[0].name);
-    }, [type]);
+    }, [type, currentCategories]);
 
     const handleAmountChange = (e) => {
         let val = e.target.value;

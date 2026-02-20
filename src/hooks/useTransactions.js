@@ -7,13 +7,9 @@ export const useTransactions = (userId) => {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    if (!userId) {
-      setTransactions([])
-      setLoading(false)
-      return
-    }
+    if (!userId) return
 
-    setLoading(true)
+    Promise.resolve().then(() => setLoading(true))
     const unsubscribe = subscribeTransactions(
       userId,
       (data) => {
@@ -26,7 +22,11 @@ export const useTransactions = (userId) => {
       },
     )
 
-    return () => unsubscribe?.()
+    return () => {
+      unsubscribe?.()
+      setTransactions([])
+      setLoading(false)
+    }
   }, [userId])
 
   return { transactions, loading, error }
