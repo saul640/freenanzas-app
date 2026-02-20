@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../hooks/useAuth';
+import Tesseract from 'tesseract.js';
 
 const expenseCategories = [
     { name: 'Comida', icon: 'shopping_cart' },
@@ -35,9 +36,80 @@ export default function AddTransaction() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [showAllCats, setShowAllCats] = useState(false);
+    const [scanning, setScanning] = useState(false);
+    const [scanProgress, setScanProgress] = useState('');
 
     const currentCategories = type === 'expense' ? expenseCategories : incomeCategories;
     const visibleCategories = showAllCats ? currentCategories : currentCategories.slice(0, 6);
+
+    const handleCameraCapture = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+            setScanning(true);
+            setScanProgress('Iniciando escáner...');
+            setError('');
+
+            const result = await Tesseract.recognize(
+                file,
+                'spa',
+                {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            setScanProgress(`Manejador OCR: ${Math.round(m.progress * 100)}%`);
+                        }
+                    }
+                }
+            );
+
+            const text = result.data.text;
+            console.log("OCR Result:", text);
+            setScanProgress('Analizando monto...');
+
+            const lines = text.split('\n').map(l => l.trim().toUpperCase());
+            let foundAmount = 0;
+
+            // Prioridad a palabras clave "TOTAL"
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].includes('TOTAL') && !lines[i].includes('SUBTOTAL')) {
+                    const match = lines[i].match(/\d+[.,]\d{2}/) || (lines[i + 1] && lines[i + 1].match(/\d+[.,]\d{2}/));
+                    if (match) {
+                        foundAmount = parseFloat(match[0].replace(',', '.'));
+                        break;
+                    }
+                }
+            }
+
+            // Fallback si no hay "TOTAL" explícito: buscar el número decimal más alto
+            if (!foundAmount) {
+                const currencyRegex = /\d{1,3}(?:[.,]\d{3})*[.,]\d{2}/g;
+                let maxVal = 0;
+                let match;
+                while ((match = currencyRegex.exec(text)) !== null) {
+                    const cleanNum = parseFloat(match[0].replace(/,/g, '').replace('.', '.')); // Considera comas como separadores de miles
+                    if (!isNaN(cleanNum) && cleanNum > maxVal) {
+                        maxVal = cleanNum;
+                    }
+                }
+                foundAmount = maxVal;
+            }
+
+            if (foundAmount > 0) {
+                setAmount(foundAmount.toString());
+                // Setear alguna sugerencia de categoría si quieres, o dejar en Comida.
+                setNote('Factura escaneada con IA');
+            } else {
+                setError('No se pudo encontrar un monto claro en la imagen.');
+            }
+        } catch (err) {
+            console.error('OCR Error:', err);
+            setError('Error al procesar la imagen con OCR.');
+        } finally {
+            setScanning(false);
+            setScanProgress('');
+        }
+    };
 
     React.useEffect(() => {
         setCategory(currentCategories[0].name);
@@ -126,20 +198,51 @@ export default function AddTransaction() {
                     </div>
 
                     {/* Amount Display */}
-                    <div className="text-center py-4">
+                    <div className="text-center py-4 relative">
                         <p className="text-xs text-primary font-semibold tracking-widest uppercase mb-2">Monto</p>
-                        <div className="flex items-baseline justify-center">
-                            <span className="text-4xl font-bold text-gray-800 mr-1">RD$</span>
+
+                        <div className="absolute right-0 top-1/2 -translate-y-1/2">
                             <input
-                                type="text"
-                                inputMode="decimal"
-                                value={amount}
-                                onChange={handleAmountChange}
-                                placeholder="0"
-                                className="text-5xl font-bold bg-transparent border-none outline-none text-center w-40 p-0 focus:ring-0 placeholder:text-gray-300"
-                                autoFocus
-                                required
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                id="cameraInput"
+                                className="hidden"
+                                onChange={handleCameraCapture}
+                                disabled={scanning}
                             />
+                            <label
+                                htmlFor="cameraInput"
+                                className={`flex flex-col items-center justify-center w-14 h-14 rounded-2xl border border-gray-100 shadow-sm transition-all cursor-[pointer] ${scanning ? 'bg-primary/10 border-primary/20 pointer-events-none' : 'bg-white hover:bg-gray-50 active:scale-95'}`}
+                            >
+                                <span className={`material-symbols-rounded ${scanning ? 'animate-pulse text-primary' : 'text-gray-400'}`}>
+                                    {scanning ? 'document_scanner' : 'photo_camera'}
+                                </span>
+                                <span className={`text-[8px] font-bold uppercase tracking-wider mt-1 ${scanning ? 'text-primary' : 'text-gray-400'}`}>
+                                    {scanning ? 'OCR' : 'Scan'}
+                                </span>
+                            </label>
+                        </div>
+
+                        <div className="flex flex-col items-center justify-center">
+                            <div className="flex items-baseline justify-center">
+                                <span className="text-4xl font-bold text-gray-800 mr-1">RD$</span>
+                                <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={amount}
+                                    onChange={handleAmountChange}
+                                    placeholder="0"
+                                    className={`text-5xl font-bold bg-transparent border-none outline-none text-center w-40 p-0 focus:ring-0 placeholder:text-gray-300 ${scanning ? 'animate-pulse text-gray-300' : ''}`}
+                                    autoFocus
+                                    required
+                                />
+                            </div>
+                            {scanProgress && (
+                                <p className="text-xs text-primary font-medium mt-2 animate-pulse bg-primary/10 px-3 py-1 rounded-full">
+                                    {scanProgress}
+                                </p>
+                            )}
                         </div>
                     </div>
 

@@ -4,6 +4,8 @@ import Onboarding from './components/Onboarding';
 import Dashboard from './components/Dashboard';
 import AddTransaction from './components/AddTransaction';
 import BudgetsGoals from './components/BudgetsGoals';
+import Transactions from './components/Transactions';
+import Profile from './components/Profile';
 import { AuthProvider } from './contexts/AuthContextProvider';
 import PrivateRoute from './components/PrivateRoute';
 
@@ -18,6 +20,8 @@ function App() {
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/add" element={<PrivateRoute><AddTransaction /></PrivateRoute>} />
               <Route path="/budgets" element={<PrivateRoute><BudgetsGoals /></PrivateRoute>} />
+              <Route path="/transactions" element={<PrivateRoute><Transactions /></PrivateRoute>} />
+              <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
             </Routes>
           </main>
         </div>

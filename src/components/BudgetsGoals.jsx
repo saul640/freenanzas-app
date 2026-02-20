@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
+import BottomNav from './BottomNav';
 
 const budgetCategories = [
     { name: 'Comida', icon: 'restaurant', color: 'bg-blue-500', bgColor: 'bg-blue-50 text-blue-600', mapped: ['Comida', 'Supermercado y Despensa'] },
@@ -262,25 +263,7 @@ export default function BudgetsGoals() {
             </div>
 
             {/* Bottom Navigation */}
-            <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white px-6 py-3 flex justify-between items-center border-t border-gray-100 z-10" style={{ paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}>
-                <button onClick={() => navigate('/')} className="flex flex-col items-center gap-0.5 text-gray-400">
-                    <span className="material-symbols-rounded text-[22px]">home</span>
-                    <span className="text-[10px]">Inicio</span>
-                </button>
-                <button className="flex flex-col items-center gap-0.5 text-gray-400">
-                    <span className="material-symbols-rounded text-[22px]">swap_horiz</span>
-                    <span className="text-[10px]">Transacciones</span>
-                </button>
-                <div className="w-16" />
-                <button className="flex flex-col items-center gap-0.5 text-primary">
-                    <span className="material-symbols-rounded text-[22px]">donut_small</span>
-                    <span className="text-[10px] font-semibold">Presupuestos</span>
-                </button>
-                <button className="flex flex-col items-center gap-0.5 text-gray-400">
-                    <span className="material-symbols-rounded text-[22px]">person</span>
-                    <span className="text-[10px]">Perfil</span>
-                </button>
-            </nav>
+            <BottomNav />
         </div>
     );
 }

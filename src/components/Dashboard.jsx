@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
+import BottomNav from './BottomNav';
+import { formatMoney, formatDate, getCategoryIcon, getCategoryColor } from '../utils/format';
 
 export default function Dashboard() {
     const navigate = useNavigate();
@@ -37,64 +39,6 @@ export default function Dashboard() {
 
         return unsubscribe;
     }, [currentUser]);
-
-    const formatMoney = (amount) => {
-        return new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
-    };
-
-    const formatDate = (timestamp) => {
-        if (!timestamp) return 'Reciente';
-        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-        const today = new Date();
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-
-        if (date.toDateString() === today.toDateString()) {
-            return `Hoy, ${date.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
-        }
-        if (date.toDateString() === yesterday.toDateString()) {
-            return `Ayer, ${date.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
-        }
-        return date.toLocaleDateString('es-DO', { day: 'numeric', month: 'short' });
-    };
-
-    const getCategoryIcon = (category) => {
-        const map = {
-            'Comida': 'shopping_cart',
-            'Supermercado y Despensa': 'shopping_cart',
-            'Transporte': 'directions_car',
-            'Renta': 'home',
-            'Vivienda/Alquiler': 'home',
-            'Servicios': 'bolt',
-            'Servicios Básicos': 'bolt',
-            'Ocio': 'sports_esports',
-            'Ocio y Entretenimiento': 'sports_esports',
-            'Salud': 'health_and_safety',
-            'Educación': 'school',
-            'Ahorro e Inversión': 'savings',
-            'Salario Quincenal': 'payments',
-            'Freelance': 'work',
-            'Rendimientos': 'trending_up',
-        };
-        return map[category] || 'receipt_long';
-    };
-
-    const getCategoryColor = (category) => {
-        const map = {
-            'Comida': 'bg-orange-50 text-orange-500',
-            'Supermercado y Despensa': 'bg-orange-50 text-orange-500',
-            'Transporte': 'bg-blue-50 text-blue-500',
-            'Renta': 'bg-purple-50 text-purple-500',
-            'Vivienda/Alquiler': 'bg-purple-50 text-purple-500',
-            'Servicios': 'bg-yellow-50 text-yellow-600',
-            'Servicios Básicos': 'bg-yellow-50 text-yellow-600',
-            'Ocio': 'bg-pink-50 text-pink-500',
-            'Ocio y Entretenimiento': 'bg-red-50 text-red-500',
-            'Salud': 'bg-green-50 text-green-600',
-            'Ahorro e Inversión': 'bg-emerald-50 text-emerald-600',
-        };
-        return map[category] || 'bg-gray-50 text-gray-500';
-    };
 
     const userName = currentUser?.displayName?.split(' ')[0] || 'Usuario';
     const budgetUsed = balance.income > 0 ? Math.min(Math.round((balance.expense / balance.income) * 100), 100) : 0;
@@ -221,36 +165,8 @@ export default function Dashboard() {
                 </section>
             </div>
 
-            {/* Floating Add Button */}
-            <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-20">
-                <button
-                    onClick={() => navigate('/add')}
-                    className="w-16 h-16 bg-primary text-black rounded-2xl flex items-center justify-center shadow-xl shadow-primary/30 active:scale-90 transition-transform border-4 border-white"
-                >
-                    <span className="material-symbols-rounded text-3xl">qr_code_scanner</span>
-                </button>
-            </div>
-
             {/* Bottom Navigation */}
-            <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white px-6 py-3 flex justify-between items-center border-t border-gray-100 z-10" style={{ paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}>
-                <button className="flex flex-col items-center gap-0.5 text-primary">
-                    <span className="material-symbols-rounded text-[22px]">home</span>
-                    <span className="text-[10px] font-semibold">Inicio</span>
-                </button>
-                <button className="flex flex-col items-center gap-0.5 text-gray-400">
-                    <span className="material-symbols-rounded text-[22px]">swap_horiz</span>
-                    <span className="text-[10px]">Movimientos</span>
-                </button>
-                <div className="w-16" /> {/* spacer for center FAB */}
-                <button onClick={() => navigate('/budgets')} className="flex flex-col items-center gap-0.5 text-gray-400">
-                    <span className="material-symbols-rounded text-[22px]">donut_small</span>
-                    <span className="text-[10px]">Presupuesto</span>
-                </button>
-                <button className="flex flex-col items-center gap-0.5 text-gray-400">
-                    <span className="material-symbols-rounded text-[22px]">person</span>
-                    <span className="text-[10px]">Perfil</span>
-                </button>
-            </nav>
+            <BottomNav />
         </div>
     );
 }
