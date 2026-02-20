@@ -1,0 +1,6 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="112" fill="#0df259"/>
+  <circle cx="256" cy="256" r="168" fill="#0bb842"/>
+  <path d="M154 182C154 162.118 170.118 146 190 146H322C341.882 146 358 162.118 358 182V330C358 349.882 341.882 366 322 366H190C170.118 366 154 349.882 154 330V182Z" fill="#102216"/>
+  <text x="256" y="275" text-anchor="middle" font-size="72" font-family="Inter, Arial, sans-serif" font-weight="700" fill="#f5f8f6">RD$</text>
+</svg>
