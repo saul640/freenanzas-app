@@ -4,7 +4,7 @@ import Onboarding from './components/Onboarding';
 import Dashboard from './components/Dashboard';
 import AddTransaction from './components/AddTransaction';
 import BudgetsGoals from './components/BudgetsGoals';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider } from './contexts/AuthContextProvider';
 import PrivateRoute from './components/PrivateRoute';
 
 function App() {

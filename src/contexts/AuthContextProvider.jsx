@@ -9,7 +9,7 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { AuthContext } from './AuthContext';
+import { AuthContext } from './AuthContext.js';
 
 export function AuthProvider({ children }) {
     const [currentUser, setCurrentUser] = useState(null);
