@@ -36,7 +36,7 @@ const BottomNav = () => {
           onClick={() => navigate('/')}
           className={`flex flex-col items-center gap-1 transition-colors ${isActive('/') ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}
         >
-          <span className={`${isActive('/') ? 'material-symbols-rounded' : 'material-symbols-outlined'} text-[24px]`}>home</span>
+          <span className={`material-symbols-rounded text-[24px]`}>home</span>
           <span className={`text-[10px] ${isActive('/') ? 'font-semibold' : 'font-medium'}`}>Inicio</span>
         </button>
 
@@ -45,7 +45,7 @@ const BottomNav = () => {
           onClick={() => navigate('/transactions')}
           className={`flex flex-col items-center gap-1 transition-colors ${isActive('/transactions') ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}
         >
-          <span className={`${isActive('/transactions') ? 'material-symbols-rounded' : 'material-symbols-outlined'} text-[24px]`}>swap_horiz</span>
+          <span className={`material-symbols-rounded text-[24px]`}>swap_horiz</span>
           <span className={`text-[10px] ${isActive('/transactions') ? 'font-semibold' : 'font-medium'}`}>Movimientos</span>
         </button>
 
@@ -55,7 +55,7 @@ const BottomNav = () => {
           onClick={() => navigate('/budgets')}
           className={`flex flex-col items-center gap-1 transition-colors ${isActive('/budgets') ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}
         >
-          <span className={`${isActive('/budgets') ? 'material-symbols-rounded' : 'material-symbols-outlined'} text-[24px]`}>donut_small</span>
+          <span className={`material-symbols-rounded text-[24px]`}>donut_small</span>
           <span className={`text-[10px] ${isActive('/budgets') ? 'font-semibold' : 'font-medium'}`}>Presupuesto</span>
         </button>
 
@@ -63,7 +63,7 @@ const BottomNav = () => {
           onClick={() => navigate('/profile')}
           className={`flex flex-col items-center gap-1 transition-colors ${isActive('/profile') ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}
         >
-          <span className={`${isActive('/profile') ? 'material-symbols-rounded' : 'material-symbols-outlined'} text-[24px]`}>person</span>
+          <span className={`material-symbols-rounded text-[24px]`}>person</span>
           <span className={`text-[10px] ${isActive('/profile') ? 'font-semibold' : 'font-medium'}`}>Perfil</span>
         </button>
       </nav>
