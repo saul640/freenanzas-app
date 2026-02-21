@@ -58,6 +58,7 @@ export default function Dashboard() {
                     <div>
                         <p className="text-sm text-gray-500">Bienvenido de nuevo,</p>
                         <h1 className="text-2xl font-bold">Hola, {userName} 👋</h1>
+                        <p className="text-xs text-emerald-700/70 mt-1">Construyendo tu libertad financiera</p>
                     </div>
                     <button onClick={handleLogout} className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center overflow-hidden">
                         {currentUser?.photoURL ? (
@@ -73,26 +74,40 @@ export default function Dashboard() {
             <div className="flex-1 overflow-y-auto px-6 space-y-5 pb-28">
 
                 {/* Balance Card */}
-                <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-                    <div className="flex justify-between items-center mb-1">
-                        <p className="text-xs text-gray-400 font-semibold tracking-wider uppercase">Saldo Total</p>
-                        <button onClick={() => setShowBalance(!showBalance)} className="text-primary">
+                <div className="relative overflow-hidden rounded-3xl p-6 shadow-xl border border-white/10 bg-gradient-to-br from-[#0df259] to-emerald-800">
+                    <div className="absolute -top-16 -right-10 w-40 h-40 bg-white/20 rounded-full blur-3xl" aria-hidden="true"></div>
+                    <div className="absolute -bottom-20 -left-16 w-52 h-52 bg-emerald-900/30 rounded-full blur-3xl" aria-hidden="true"></div>
+                    <div className="absolute inset-0 bg-white/10 backdrop-blur-[2px]" aria-hidden="true"></div>
+                    <div className="relative z-10 flex justify-between items-center mb-1">
+                        <p className="text-xs text-white/80 font-semibold tracking-wider uppercase">Saldo Total</p>
+                        <button onClick={() => setShowBalance(!showBalance)} className="text-white/90 hover:text-white transition-colors">
                             <span className="material-symbols-rounded text-xl">{showBalance ? 'visibility' : 'visibility_off'}</span>
                         </button>
                     </div>
-                    <h2 className="text-4xl font-bold">
+                    <h2 className="relative z-10 text-4xl font-bold text-white">
                         {showBalance ? (
-                            <>RD$ {formatMoney(balance.total)}<span className="text-xl text-gray-400">.00</span></>
+                            <>RD$ {formatMoney(balance.total)}<span className="text-xl text-white/70">.00</span></>
                         ) : (
                             'RD$ ••••••'
                         )}
                     </h2>
                     {balance.income > 0 && (
-                        <p className="text-sm text-primary mt-2 flex items-center gap-1">
+                        <p className="relative z-10 text-sm text-white/90 mt-2 inline-flex items-center gap-1 bg-white/15 px-2.5 py-1 rounded-full">
                             <span className="material-symbols-rounded text-sm">trending_up</span>
                             Activo
                         </p>
                     )}
+                </div>
+
+                {/* Insight del día */}
+                <div className="flex items-start gap-3 rounded-2xl border border-amber-100 bg-gradient-to-r from-amber-50 via-amber-50 to-emerald-50 p-4 shadow-sm">
+                    <div className="w-11 h-11 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shadow-sm">
+                        <span className="material-symbols-rounded">lightbulb</span>
+                    </div>
+                    <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700/80">Insight del dia</p>
+                        <p className="text-sm text-amber-900">El 1% administra su dinero en frio, antes de gastarlo.</p>
+                    </div>
                 </div>
 
                 {/* Quick Actions */}
@@ -169,7 +184,7 @@ export default function Dashboard() {
                     ) : (
                         <div className="space-y-3">
                             {transactions.slice(0, 5).map(tx => (
-                                <div key={tx.id} className="flex items-center justify-between bg-white rounded-2xl p-4 shadow-sm border border-gray-50">
+                                <div key={tx.id} className="flex items-center justify-between bg-white rounded-2xl p-4 shadow-md border border-gray-50 transition-transform duration-200 hover:-translate-y-1 hover:shadow-lg">
                                     <div className="flex items-center gap-3">
                                         <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${getCategoryColor(tx.category)}`}>
                                             <span className="material-symbols-rounded text-xl">{getCategoryIcon(tx.category)}</span>
