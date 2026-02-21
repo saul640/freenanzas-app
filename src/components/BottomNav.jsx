@@ -29,7 +29,7 @@ const BottomNav = () => {
       {/* Bottom Navigation */}
       {/* Agregamos pb-6 o env(safe-area-inset-bottom) como un div contenedor o inline style seguro para no cortar íconos en iOS */}
       <nav
-        className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white px-6 pt-3 pb-5 flex justify-between items-center border-t border-gray-100 z-10"
+        className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/75 backdrop-blur-lg px-6 pt-3 pb-5 flex justify-between items-center border-t border-gray-100/50 z-10 shadow-[0_-8px_30px_rgba(0,0,0,0.03)]"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 20px) + 12px)' }}
       >
         <button
@@ -37,34 +37,33 @@ const BottomNav = () => {
           className={`flex flex-col items-center gap-1 transition-colors ${isActive('/') ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}
         >
           <span className={`material-symbols-rounded text-[24px]`}>home</span>
-          <span className={`text-[10px] ${isActive('/') ? 'font-semibold' : 'font-medium'}`}>Inicio</span>
+          <span className={`text-[10px] ${isActive('/') ? 'font-bold' : 'font-medium uppercase'}`}>INICIO</span>
         </button>
-
-        {/* Acción para 'Movimientos' o Historial. Si no hay ruta aún, redirigiremos al inicio con foco o crearemos view */}
-        <button
-          onClick={() => navigate('/transactions')}
-          className={`flex flex-col items-center gap-1 transition-colors ${isActive('/transactions') ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}
-        >
-          <span className={`material-symbols-rounded text-[24px]`}>swap_horiz</span>
-          <span className={`text-[10px] ${isActive('/transactions') ? 'font-semibold' : 'font-medium'}`}>Movimientos</span>
-        </button>
-
-        <div className="w-16" /> {/* Espaciador central debajo del FAB */}
 
         <button
           onClick={() => navigate('/budgets')}
           className={`flex flex-col items-center gap-1 transition-colors ${isActive('/budgets') ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}
         >
-          <span className={`material-symbols-rounded text-[24px]`}>donut_small</span>
-          <span className={`text-[10px] ${isActive('/budgets') ? 'font-semibold' : 'font-medium'}`}>Presupuesto</span>
+          <span className={`material-symbols-rounded text-[24px]`}>pie_chart</span>
+          <span className={`text-[10px] ${isActive('/budgets') ? 'font-bold uppercase' : 'font-medium uppercase'}`}>ANÁLISIS</span>
+        </button>
+
+        <div className="w-16" /> {/* Espaciador central debajo del FAB */}
+
+        <button
+          onClick={() => navigate('/transactions')}
+          className={`flex flex-col items-center gap-1 transition-colors ${isActive('/transactions') ? 'text-gray-800' : 'text-gray-400 hover:text-gray-600'}`}
+        >
+          <span className={`material-symbols-rounded text-[24px]`}>account_balance_wallet</span>
+          <span className={`text-[10px] ${isActive('/transactions') ? 'font-bold' : 'font-medium uppercase'}`}>CARTERA</span>
         </button>
 
         <button
           onClick={() => navigate('/profile')}
-          className={`flex flex-col items-center gap-1 transition-colors ${isActive('/profile') ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}
+          className={`flex flex-col items-center gap-1 transition-colors ${isActive('/profile') ? 'text-gray-800' : 'text-gray-400 hover:text-gray-600'}`}
         >
           <span className={`material-symbols-rounded text-[24px]`}>person</span>
-          <span className={`text-[10px] ${isActive('/profile') ? 'font-semibold' : 'font-medium'}`}>Perfil</span>
+          <span className={`text-[10px] ${isActive('/profile') ? 'font-bold' : 'font-medium uppercase'}`}>PERFIL</span>
         </button>
       </nav>
     </>

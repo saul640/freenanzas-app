@@ -1,268 +1,220 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from './BottomNav';
 
-const budgetCategories = [
-    { name: 'Comida', icon: 'restaurant', color: 'bg-blue-500', bgColor: 'bg-blue-50 text-blue-600', mapped: ['Comida', 'Supermercado y Despensa'] },
-    { name: 'Transporte', icon: 'directions_car', color: 'bg-red-500', bgColor: 'bg-red-50 text-red-600', mapped: ['Transporte'] },
-    { name: 'Entretenimiento', icon: 'sports_esports', color: 'bg-blue-400', bgColor: 'bg-indigo-50 text-indigo-600', mapped: ['Ocio', 'Ocio y Entretenimiento'] },
-    { name: 'Servicios', icon: 'bolt', color: 'bg-yellow-500', bgColor: 'bg-yellow-50 text-yellow-600', mapped: ['Servicios', 'Servicios Básicos'] },
-];
-
-export default function BudgetsGoals() {
+export default function Analytics() {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
-    const [activeTab, setActiveTab] = useState('presupuestos');
+    const [periodTab, setPeriodTab] = useState('mensual');
 
     const [totalIncome, setTotalIncome] = useState(0);
-    const [categorySpending, setCategorySpending] = useState({});
-    const [totalSavings, setTotalSavings] = useState(0);
+    const [totalExpense, setTotalExpense] = useState(0);
+    const [categorySpending, setCategorySpending] = useState([]);
 
     useEffect(() => {
         if (!currentUser || !db) return;
-
         const q = query(collection(db, 'transactions'), where('userId', '==', currentUser.uid));
-
         const unsubscribe = onSnapshot(q, (snapshot) => {
             let income = 0;
-            let spending = {};
-            let savings = 0;
-
-            budgetCategories.forEach(c => { spending[c.name] = 0; });
+            let expense = 0;
+            let catMap = {};
 
             snapshot.docs.forEach(doc => {
                 const data = doc.data();
                 if (data.type === 'income') {
                     income += data.amount;
                 } else {
-                    budgetCategories.forEach(cat => {
-                        if (cat.mapped.includes(data.category)) {
-                            spending[cat.name] += data.amount;
-                        }
-                    });
-
-                    if (['Ahorro e Inversión', 'Ahorro'].includes(data.category)) {
-                        savings += data.amount;
+                    expense += data.amount;
+                    if (!catMap[data.category]) {
+                        catMap[data.category] = {
+                            name: data.category,
+                            amount: 0,
+                            count: 0
+                        };
                     }
+                    catMap[data.category].amount += data.amount;
+                    catMap[data.category].count += 1;
                 }
             });
 
-            setTotalIncome(income);
-            setCategorySpending(spending);
-            setTotalSavings(savings);
-        });
+            const topCategories = Object.values(catMap).sort((a, b) => b.amount - a.amount);
 
+            setTotalIncome(income);
+            setTotalExpense(expense);
+            setCategorySpending(topCategories);
+        });
         return unsubscribe;
     }, [currentUser]);
 
     const formatMoney = (amount) => {
-        return new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
+        return new Intl.NumberFormat('es-DO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
     };
 
-    // Budget limits as percentage of income
-    const getBudgetLimit = (catName) => {
-        const limits = { 'Comida': 0.22, 'Transporte': 0.18, 'Entretenimiento': 0.11, 'Servicios': 0.11 };
-        return totalIncome * (limits[catName] || 0.10);
+    const getIconData = (catName) => {
+        const mapping = {
+            'Comida': { icon: 'restaurant', color: 'text-orange-500', bg: 'bg-orange-100', bar: 'bg-orange-500' },
+            'Supermercado y Despensa': { icon: 'shopping_cart', color: 'text-orange-500', bg: 'bg-orange-100', bar: 'bg-orange-500' },
+            'Transporte': { icon: 'directions_car', color: 'text-blue-500', bg: 'bg-blue-100', bar: 'bg-blue-500' },
+            'Servicios': { icon: 'bolt', color: 'text-purple-500', bg: 'bg-purple-100', bar: 'bg-purple-500' },
+            'Servicios Básicos': { icon: 'bolt', color: 'text-purple-500', bg: 'bg-purple-100', bar: 'bg-purple-500' },
+        };
+        return mapping[catName] || { icon: 'category', color: 'text-gray-500', bg: 'bg-gray-100', bar: 'bg-gray-400' };
     };
 
-    const getUsagePercent = (spent, limit) => {
-        if (limit === 0) return 0;
-        return Math.round((spent / limit) * 100);
-    };
-
-    const getStatusLabel = (percent) => {
-        if (percent > 100) return { text: 'Cuidado', color: 'text-red-500' };
-        if (percent > 85) return { text: 'Atención', color: 'text-yellow-600' };
-        if (percent > 60) return { text: '¡Vas bien!', color: 'text-green-600' };
-        return { text: 'Excelente', color: 'text-green-600' };
-    };
-
-    const getBarColor = (percent) => {
-        if (percent > 100) return 'bg-red-500';
-        if (percent > 85) return 'bg-yellow-500';
-        return 'bg-primary';
-    };
-
-    const totalBudget = budgetCategories.reduce((sum, cat) => sum + getBudgetLimit(cat.name), 0);
-    const emergencyGoal = 100000;
-    const emergencyPercent = Math.min(Math.round((totalSavings / emergencyGoal) * 100), 100);
+    const percentSpent = totalIncome > 0 ? Math.min(Math.round((totalExpense / totalIncome) * 100), 100) : 0;
+    const balanceAvailable = totalIncome - totalExpense;
 
     return (
-        <div className="flex flex-col min-h-screen bg-[#f7f9f8]">
-            {/* Header */}
-            <header className="px-6 pt-5 pb-3 flex items-center justify-between">
-                <button onClick={() => navigate(-1)} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
-                    <span className="material-symbols-rounded text-xl">arrow_back</span>
+        <div className="flex flex-col min-h-screen bg-[#f5f7f6]">
+            {/* Header Mirror/iOS Style */}
+            <header className="fixed top-0 left-0 right-0 max-w-md mx-auto z-20 bg-[#f5f7f6]/90 backdrop-blur-md px-6 pt-12 pb-4 flex items-center justify-between">
+                <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-black/5 active:scale-95 transition-all">
+                    <span className="material-symbols-rounded text-2xl text-gray-800">arrow_back_ios_new</span>
                 </button>
-                <h1 className="text-lg font-bold">Mis Finanzas</h1>
-                <button className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
-                    <span className="material-symbols-rounded text-xl">more_horiz</span>
+                <h1 className="text-xl font-bold text-gray-900">Análisis Mensual</h1>
+                <button className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-black/5 active:scale-95 transition-all">
+                    <span className="material-symbols-rounded text-2xl text-gray-800">more_horiz</span>
                 </button>
             </header>
 
-            {/* Tabs */}
-            <div className="px-6 mb-4">
-                <div className="flex p-1 bg-gray-100 rounded-xl">
+            {/* Content Spacer */}
+            <div className="pt-28 pb-28 px-5 space-y-5">
+
+                {/* Tabs Switcher */}
+                <div className="bg-white/50 border border-gray-200/50 p-1.5 rounded-2xl flex max-w-[280px] mx-auto shadow-sm">
                     <button
-                        onClick={() => setActiveTab('presupuestos')}
-                        className={`flex-1 py-2.5 font-semibold rounded-lg transition-all text-sm ${activeTab === 'presupuestos' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400'}`}
+                        onClick={() => setPeriodTab('mensual')}
+                        className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 ${periodTab === 'mensual' ? 'bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)] text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
                     >
-                        Presupuestos
+                        Mensual
                     </button>
                     <button
-                        onClick={() => setActiveTab('metas')}
-                        className={`flex-1 py-2.5 font-semibold rounded-lg transition-all text-sm ${activeTab === 'metas' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400'}`}
+                        onClick={() => setPeriodTab('semanal')}
+                        className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 ${periodTab === 'semanal' ? 'bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)] text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
                     >
-                        Metas
+                        Semanal
                     </button>
                 </div>
-            </div>
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto px-6 pb-28 space-y-5">
-
-                {activeTab === 'presupuestos' && (
-                    <>
-                        {/* Total Header */}
-                        <div className="flex justify-between items-end">
-                            <div>
-                                <p className="text-sm text-gray-400">Total Presupuestado</p>
-                                <h2 className="text-3xl font-bold">RD$ {formatMoney(totalBudget)}</h2>
-                            </div>
-                            <span className="text-primary text-sm font-semibold">Mes Actual</span>
+                {/* Resumen Cards */}
+                <div className="grid grid-cols-2 gap-4">
+                    {/* Ingresos */}
+                    <div className="bg-white rounded-3xl p-5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-white">
+                        <div className="flex items-center gap-1.5 mb-2">
+                            <span className="material-symbols-rounded text-primary font-bold text-[18px]">arrow_downward</span>
+                            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Ingresos</span>
                         </div>
+                        <h2 className="text-xl font-extrabold text-gray-900 mb-1">RD$ {formatMoney(totalIncome)}</h2>
+                        <p className="text-[10px] font-semibold text-primary">+12% vs mes ant.</p>
+                    </div>
 
-                        {totalIncome === 0 ? (
-                            <div className="text-center py-10 bg-white rounded-2xl border border-dashed border-gray-200">
-                                <span className="material-symbols-rounded text-4xl text-gray-300">account_balance_wallet</span>
-                                <p className="text-gray-400 text-sm mt-3">Registra un ingreso para activar tus presupuestos.</p>
-                                <button onClick={() => navigate('/add')} className="mt-4 text-primary font-medium text-sm">+ Agregar Ingreso</button>
+                    {/* Gastos */}
+                    <div className="bg-white rounded-3xl p-5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-white">
+                        <div className="flex items-center gap-1.5 mb-2">
+                            <span className="material-symbols-rounded text-red-500 font-bold text-[18px]">arrow_upward</span>
+                            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Gastos</span>
+                        </div>
+                        <h2 className="text-xl font-extrabold text-gray-900 mb-1">RD$ {formatMoney(totalExpense)}</h2>
+                        <p className="text-[10px] font-semibold text-gray-400">-5% vs mes ant.</p>
+                    </div>
+                </div>
+
+                {/* Gráfico Principal */}
+                <div className="bg-white rounded-[32px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
+                    {/* Donut Chart SVG */}
+                    <div className="flex justify-center mb-6 mt-2 relative">
+                        <div className="w-40 h-40 relative">
+                            <svg className="w-full h-full -rotate-90 drop-shadow-sm" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="42" fill="none" stroke="#e6fceb" strokeWidth="12" />
+                                <circle
+                                    cx="50" cy="50" r="42" fill="none"
+                                    stroke="currentColor" strokeWidth="12"
+                                    strokeLinecap="round"
+                                    className="text-primary transition-all duration-1000 ease-in-out drop-shadow-[0_0_8px_rgba(13,242,89,0.5)]"
+                                    strokeDasharray={`${percentSpent * 2.638} 263.8`}
+                                />
+                            </svg>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Gastado</span>
+                                <span className="text-2xl font-extrabold text-gray-900 leading-none">{percentSpent}%</span>
                             </div>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-between items-end mb-4 relative z-10">
+                        <div>
+                            <p className="text-sm font-semibold text-gray-500 mb-1">Balance Disponible</p>
+                            <h2 className="text-3xl font-extrabold text-gray-900">RD$ {formatMoney(balanceAvailable)}</h2>
+                        </div>
+                        <div className="bg-[#e6fceb] px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border border-primary/10">
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                            <span className="text-xs font-bold text-primary-dark">Saludable</span>
+                        </div>
+                    </div>
+
+                    {/* Trend line graphic */}
+                    <div className="relative mt-6 mb-2">
+                        <svg className="w-full h-12" preserveAspectRatio="none" viewBox="0 0 200 40">
+                            <path
+                                d="M0,35 Q20,30 40,35 T80,25 T120,40 T160,10 T200,30"
+                                fill="none"
+                                stroke="#0df259"
+                                strokeWidth="4"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="drop-shadow-[0_4px_6px_rgba(13,242,89,0.3)]"
+                            />
+                        </svg>
+                        <p className="text-[10px] font-bold text-gray-400 absolute bottom-[-5px] right-0 bg-white pl-2">Tendencia de ahorro +4%</p>
+                    </div>
+                </div>
+
+                {/* Listado de Categorías */}
+                <div>
+                    <div className="flex justify-between items-end mb-4 px-2">
+                        <h3 className="text-[17px] font-bold text-gray-900">Categorías con más gastos</h3>
+                        <button className="text-sm font-bold text-primary active:scale-95 transition-transform">Ver todas</button>
+                    </div>
+
+                    <div className="space-y-3">
+                        {categorySpending.length === 0 ? (
+                            <p className="text-center text-sm text-gray-400 py-6">No hay gastos registrados aún.</p>
                         ) : (
-                            <div className="space-y-3">
-                                {budgetCategories.map(cat => {
-                                    const limit = getBudgetLimit(cat.name);
-                                    const spent = categorySpending[cat.name] || 0;
-                                    const remaining = Math.max(limit - spent, 0);
-                                    const percent = getUsagePercent(spent, limit);
-                                    const status = getStatusLabel(percent);
-                                    const exceeds = percent > 100;
+                            categorySpending.slice(0, 4).map((cat, index) => {
+                                const { icon, color, bg, bar } = getIconData(cat.name);
+                                const progress = Math.min((cat.amount / totalExpense) * 100, 100);
 
-                                    return (
-                                        <div key={cat.name} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-50">
-                                            <div className="flex justify-between items-start mb-3">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${cat.bgColor}`}>
-                                                        <span className="material-symbols-rounded text-lg">{cat.icon}</span>
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-semibold text-sm">{cat.name}</p>
-                                                        <p className={`text-xs mt-0.5 ${exceeds ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
-                                                            {exceeds ? `RD$ ${formatMoney(spent - limit)} excedido` : `RD$ ${formatMoney(remaining)} restante`}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="font-bold text-sm">RD$ {formatMoney(spent)}</p>
-                                                    <p className="text-[10px] text-gray-400">de RD$ {formatMoney(limit)}</p>
-                                                </div>
+                                return (
+                                    <div key={index} className="bg-white rounded-[24px] p-5 shadow-[0_4px_15px_-4px_rgba(0,0,0,0.03)] border border-white">
+                                        <div className="flex items-center gap-4 mb-3">
+                                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${bg}`}>
+                                                <span className={`material-symbols-rounded text-2xl ${color}`}>{icon}</span>
                                             </div>
-
-                                            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden mb-2">
-                                                <div
-                                                    className={`h-full rounded-full transition-all duration-1000 ${getBarColor(percent)}`}
-                                                    style={{ width: `${Math.min(percent, 100)}%` }}
-                                                />
+                                            <div className="flex-1">
+                                                <h4 className="font-bold text-gray-900 leading-tight">{cat.name}</h4>
+                                                <p className="text-xs font-medium text-gray-400 mt-0.5">{cat.count} {cat.count === 1 ? 'transacción' : 'transacciones'}</p>
                                             </div>
-
-                                            <div className="flex justify-between text-xs">
-                                                <span className={exceeds ? 'text-red-500 font-medium' : 'text-gray-400'}>{percent}% usado</span>
-                                                <span className={status.color + ' font-medium'}>{status.text}</span>
+                                            <div className="text-right">
+                                                <p className="font-extrabold text-gray-900">RD$ {formatMoney(cat.amount)}</p>
                                             </div>
                                         </div>
-                                    );
-                                })}
-                            </div>
+
+                                        {/* Progress Bar Lineal */}
+                                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden mt-2">
+                                            <div className={`h-full rounded-full ${bar}`} style={{ width: `${progress}%` }} />
+                                        </div>
+                                    </div>
+                                );
+                            })
                         )}
-                    </>
-                )}
+                    </div>
+                </div>
 
-                {activeTab === 'metas' && (
-                    <>
-                        <h2 className="text-xl font-bold">Mis Metas</h2>
-
-                        {/* Emergency Fund */}
-                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-50">
-                            <div className="flex items-start gap-4">
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <span className="material-symbols-rounded text-primary">shield</span>
-                                        <h3 className="font-bold">Fondo de Emergencia</h3>
-                                    </div>
-                                    <p className="text-xs text-gray-400 mb-2">Ahorrado hasta ahora</p>
-                                    <p className="text-2xl font-bold">RD$ {formatMoney(totalSavings)}</p>
-                                    <p className="text-xs text-gray-400 mt-1">Meta: RD$ {formatMoney(emergencyGoal)}</p>
-                                    <button className="text-primary text-sm font-medium mt-2 flex items-center gap-1">
-                                        Ver detalles <span className="material-symbols-rounded text-sm">arrow_forward</span>
-                                    </button>
-                                </div>
-
-                                {/* Circular Progress */}
-                                <div className="relative w-20 h-20">
-                                    <svg className="w-20 h-20 -rotate-90" viewBox="0 0 72 72">
-                                        <circle cx="36" cy="36" r="30" fill="none" stroke="#e8f5e9" strokeWidth="6" />
-                                        <circle
-                                            cx="36" cy="36" r="30" fill="none"
-                                            stroke="#0df259" strokeWidth="6"
-                                            strokeLinecap="round"
-                                            strokeDasharray={`${emergencyPercent * 1.884} 188.4`}
-                                        />
-                                    </svg>
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <span className="text-sm font-bold">{emergencyPercent}%</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Second Goal */}
-                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-50">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                                        <span className="material-symbols-rounded text-blue-500">flight</span>
-                                    </div>
-                                    <div>
-                                        <h3 className="font-bold text-sm">Viaje a Punta Cana</h3>
-                                        <p className="text-xs text-gray-400">RD$ 10,000 / RD$ 25,000</p>
-                                    </div>
-                                </div>
-                                <div className="relative w-12 h-12">
-                                    <svg className="w-12 h-12 -rotate-90" viewBox="0 0 48 48">
-                                        <circle cx="24" cy="24" r="20" fill="none" stroke="#e3f2fd" strokeWidth="4" />
-                                        <circle cx="24" cy="24" r="20" fill="none" stroke="#42a5f5" strokeWidth="4" strokeLinecap="round" strokeDasharray="50.26 125.66" />
-                                    </svg>
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <span className="text-[10px] font-bold">40%</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Add Goal FAB */}
-                        <div className="flex justify-end">
-                            <button className="w-14 h-14 bg-primary text-black rounded-full flex items-center justify-center shadow-lg shadow-primary/30 active:scale-90 transition-transform">
-                                <span className="material-symbols-rounded text-2xl">add</span>
-                            </button>
-                        </div>
-                    </>
-                )}
             </div>
 
-            {/* Bottom Navigation */}
             <BottomNav />
         </div>
     );
