@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { collection, addDoc, onSnapshot, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from './BottomNav';
 
@@ -18,22 +18,109 @@ function getUserTimezone() {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return 'America/Santo_Domingo'; }
 }
 
-function getNextDate(startDate, frequency) {
-    const d = new Date(startDate);
-    const now = new Date();
+/** Generate a month key like "2026-02" */
+function monthKey(year, month) {
+    return `${year}-${String(month + 1).padStart(2, '0')}`;
+}
+
+/** Get current month key */
+function currentMonthKey() {
+    const d = new Date();
+    return monthKey(d.getFullYear(), d.getMonth());
+}
+
+/**
+ * Get all due month keys for a recurring item from its start date until a target month.
+ * This handles weekly/biweekly/monthly frequencies properly.
+ */
+function getDueMonthKeys(startDate, frequency, upToYear, upToMonth) {
+    const result = new Set();
+    const start = new Date(startDate + 'T12:00:00');
     const freq = FREQUENCIES.find(f => f.id === frequency);
-    if (!freq) return d;
-    while (d <= now) { d.setDate(d.getDate() + freq.days); }
-    return d;
+    if (!freq) return result;
+    const d = new Date(start);
+    const limit = new Date(upToYear, upToMonth + 1, 0); // last day of target month
+    for (let i = 0; i < 500 && d <= limit; i++) {
+        result.add(monthKey(d.getFullYear(), d.getMonth()));
+        d.setDate(d.getDate() + freq.days);
+    }
+    return result;
+}
+
+/**
+ * Calculate the carry-over (unpaid months count) for a recurring item.
+ * Checks all months from startDate up to (but NOT including) the current month.
+ * Any past month that is NOT in paidMonths is considered "unpaid" and carries over.
+ */
+function calcCarryOver(item) {
+    const now = new Date();
+    const curKey = currentMonthKey();
+    const start = item.startDate ? new Date(item.startDate + 'T12:00:00') : null;
+    if (!start) return { count: 0, amount: 0 };
+
+    const paidSet = new Set(item.paidMonths || []);
+    const dueKeys = getDueMonthKeys(item.startDate, item.frequency, now.getFullYear(), now.getMonth());
+
+    let unpaid = 0;
+    dueKeys.forEach(mk => {
+        // Only count PAST months, not the current month
+        if (mk < curKey && !paidSet.has(mk)) unpaid++;
+    });
+
+    return { count: unpaid, amount: unpaid * (item.amount || 0) };
+}
+
+/**
+ * Determine the payment status for a recurring item in the CURRENT month
+ * Returns: 'paid' | 'pending' | 'overdue'
+ */
+function getPaymentStatus(item) {
+    if (!item.active) return 'inactive';
+    const curKey = currentMonthKey();
+    const paidSet = new Set(item.paidMonths || []);
+
+    if (paidSet.has(curKey)) return 'paid';
+
+    // Check if item is due this month
+    const now = new Date();
+    const startStr = item.startDate || now.toISOString().split('T')[0];
+    const freq = item.frequency || 'monthly';
+    const dueKeys = getDueMonthKeys(startStr, freq, now.getFullYear(), now.getMonth());
+
+    // For monthly items, always consider them due every month after start
+    if (!dueKeys.has(curKey)) {
+        // Fallback: if item is monthly and start month <= current month, consider it due
+        const startDate = new Date(startStr + 'T12:00:00');
+        if (freq === 'monthly' && startDate <= now) {
+            // monthly items are always due
+        } else {
+            return 'not-due';
+        }
+    }
+
+    // Due this month but not paid — check if overdue
+    const rawDueDay = item.dueDay !== undefined && item.dueDay !== null ? Number(item.dueDay) : null;
+    const dueDay = (rawDueDay && rawDueDay >= 1 && rawDueDay <= 31) ? rawDueDay : 15;
+    const todayDay = now.getDate();
+    if (todayDay > dueDay) return 'overdue';
+
+    return 'pending';
 }
 
 function getMonthDays(year, month) {
     const first = new Date(year, month, 1);
     const last = new Date(year, month + 1, 0);
-    const startDay = first.getDay();
-    const totalDays = last.getDate();
-    return { startDay, totalDays };
+    return { startDay: first.getDay(), totalDays: last.getDate() };
 }
+
+// ─── Status styling helpers ───
+const STATUS_CONFIG = {
+    paid: { label: 'Pagado', bg: 'bg-green-100', text: 'text-green-700', icon: 'check_circle', dot: 'bg-green-500' },
+    pending: { label: 'Pendiente', bg: 'bg-amber-100', text: 'text-amber-700', icon: 'schedule', dot: 'bg-amber-500' },
+    overdue: { label: 'Vencido', bg: 'bg-red-100', text: 'text-red-700', icon: 'error', dot: 'bg-red-500' },
+    inactive: { label: 'Pausado', bg: 'bg-gray-100', text: 'text-gray-400', icon: 'pause_circle', dot: 'bg-gray-400' },
+    'not-due': { label: 'No aplica', bg: 'bg-gray-50', text: 'text-gray-400', icon: 'remove_circle', dot: 'bg-gray-300' },
+};
 
 export default function RecurringExpenses() {
     const navigate = useNavigate();
@@ -41,8 +128,10 @@ export default function RecurringExpenses() {
 
     const [recurring, setRecurring] = useState([]);
     const [showForm, setShowForm] = useState(false);
-    const [formData, setFormData] = useState({ name: '', amount: '', category: 'Servicios', frequency: 'monthly', startDate: new Date().toISOString().split('T')[0] });
+    const [editingItem, setEditingItem] = useState(null);
+    const [formData, setFormData] = useState({ name: '', amount: '', category: 'Servicios', frequency: 'monthly', startDate: new Date().toISOString().split('T')[0], dueDay: '15' });
     const [saving, setSaving] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(null);
 
     const today = new Date();
     const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -58,23 +147,32 @@ export default function RecurringExpenses() {
         return unsub;
     }, [currentUser]);
 
-    // ─── Calculate calendar dots ───
+    // ─── Calculate enriched items with status and carry-over (memoized) ───
+    const enrichedItems = useMemo(() => {
+        return recurring.map(item => {
+            const status = getPaymentStatus(item);
+            const carryOver = calcCarryOver(item);
+            const totalDue = (item.amount || 0) + carryOver.amount;
+            return { ...item, status, carryOver, totalDue };
+        });
+    }, [recurring]);
+
+    // ─── Calendar dots with overdue coloring ───
     const calendarDots = useMemo(() => {
         const dots = {};
         const { totalDays } = getMonthDays(viewYear, viewMonth);
-        recurring.forEach(r => {
+        enrichedItems.forEach(r => {
             if (!r.active) return;
             const start = r.startDate ? new Date(r.startDate + 'T12:00:00') : new Date();
             const freq = FREQUENCIES.find(f => f.id === r.frequency);
             if (!freq) return;
             const d = new Date(start);
-            // Search forward from start, but limit to reasonable iterations
             for (let i = 0; i < 200; i++) {
                 if (d.getFullYear() === viewYear && d.getMonth() === viewMonth) {
                     const day = d.getDate();
                     if (day >= 1 && day <= totalDays) {
                         if (!dots[day]) dots[day] = [];
-                        dots[day].push({ name: r.name, amount: r.amount, category: r.category });
+                        dots[day].push({ name: r.name, amount: r.amount, status: r.status, category: r.category });
                     }
                 }
                 if (d.getFullYear() > viewYear || (d.getFullYear() === viewYear && d.getMonth() > viewMonth)) break;
@@ -82,39 +180,123 @@ export default function RecurringExpenses() {
             }
         });
         return dots;
-    }, [recurring, viewMonth, viewYear]);
+    }, [enrichedItems, viewMonth, viewYear]);
 
     const { startDay, totalDays } = getMonthDays(viewYear, viewMonth);
 
+    const formatMoney = useCallback(n => new Intl.NumberFormat('es-DO').format(n), []);
+
+    const resetForm = () => {
+        setFormData({ name: '', amount: '', category: 'Servicios', frequency: 'monthly', startDate: new Date().toISOString().split('T')[0], dueDay: '15' });
+        setEditingItem(null);
+        setShowForm(false);
+    };
+
+    // ─── Open edit mode ───
+    const startEdit = (item) => {
+        setEditingItem(item);
+        setFormData({
+            name: item.name || '',
+            amount: String(item.amount || ''),
+            category: item.category || 'Servicios',
+            frequency: item.frequency || 'monthly',
+            startDate: item.startDate || new Date().toISOString().split('T')[0],
+            dueDay: String(item.dueDay || '15'),
+        });
+        setShowForm(true);
+    };
+
+    // ─── Save (create or update) ───
     const handleSave = async () => {
         if (!formData.name.trim() || !formData.amount || !currentUser) return;
         setSaving(true);
         try {
-            await addDoc(collection(db, 'users', currentUser.uid, 'recurring'), {
+            const payload = {
                 name: formData.name.trim(),
                 amount: parseFloat(formData.amount),
                 category: formData.category,
                 frequency: formData.frequency,
                 startDate: formData.startDate,
+                dueDay: parseInt(formData.dueDay) || 15,
                 timezone: getUserTimezone(),
-                active: true,
-                createdAt: serverTimestamp(),
-            });
-            setShowForm(false);
-            setFormData({ name: '', amount: '', category: 'Servicios', frequency: 'monthly', startDate: new Date().toISOString().split('T')[0] });
-        } catch (e) { console.error(e); }
+            };
+
+            if (editingItem) {
+                await updateDoc(doc(db, 'users', currentUser.uid, 'recurring', editingItem.id), payload);
+            } else {
+                await addDoc(collection(db, 'users', currentUser.uid, 'recurring'), {
+                    ...payload,
+                    active: true,
+                    paidMonths: [],
+                    createdAt: serverTimestamp(),
+                });
+            }
+            resetForm();
+        } catch (e) { /* intentionally empty */ }
         setSaving(false);
     };
 
+    // ─── Delete recurring ───
+    const handleDelete = async (itemId) => {
+        if (!currentUser || !db) return;
+        await deleteDoc(doc(db, 'users', currentUser.uid, 'recurring', itemId));
+        setConfirmDelete(null);
+    };
+
+    // ─── Toggle active/paused ───
     const toggleActive = async (item) => {
         if (!currentUser || !db) return;
         await updateDoc(doc(db, 'users', currentUser.uid, 'recurring', item.id), { active: !item.active });
     };
 
+    // ─── Mark as paid/unpaid for current month ───
+    const togglePaid = async (item) => {
+        if (!currentUser || !db) return;
+        const curKey = currentMonthKey();
+        const paidMonths = [...(item.paidMonths || [])];
+
+        if (paidMonths.includes(curKey)) {
+            // Unmark paid
+            const idx = paidMonths.indexOf(curKey);
+            paidMonths.splice(idx, 1);
+        } else {
+            // Mark paid
+            paidMonths.push(curKey);
+        }
+
+        await updateDoc(doc(db, 'users', currentUser.uid, 'recurring', item.id), { paidMonths });
+    };
+
+    // ─── Mark all previous months as paid (clear carry-over) ───
+    const payAllCarryOver = async (item) => {
+        if (!currentUser || !db || item.carryOver.count === 0) return;
+        const now = new Date();
+        const curKey = currentMonthKey();
+        const dueKeys = getDueMonthKeys(item.startDate || now.toISOString().split('T')[0], item.frequency, now.getFullYear(), now.getMonth());
+        const paidMonths = new Set(item.paidMonths || []);
+
+        dueKeys.forEach(mk => {
+            if (mk < curKey) paidMonths.add(mk);
+        });
+
+        await updateDoc(doc(db, 'users', currentUser.uid, 'recurring', item.id), { paidMonths: Array.from(paidMonths) });
+    };
+
     const prevMonth = () => { if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1); } else setViewMonth(viewMonth - 1); };
     const nextMonth = () => { if (viewMonth === 11) { setViewMonth(0); setViewYear(viewYear + 1); } else setViewMonth(viewMonth + 1); };
 
-    const totalMonthly = useMemo(() => recurring.filter(r => r.active).reduce((s, r) => s + (r.amount || 0), 0), [recurring]);
+    // ─── Totals (memoized) ───
+    const { totalMonthly, totalCarryOver, totalPending, overdueCount } = useMemo(() => {
+        let monthly = 0, carry = 0, pending = 0, overdue = 0;
+        enrichedItems.forEach(r => {
+            if (!r.active) return;
+            monthly += r.amount || 0;
+            carry += r.carryOver.amount;
+            if (r.status === 'pending' || r.status === 'overdue') pending += r.totalDue;
+            if (r.status === 'overdue') overdue++;
+        });
+        return { totalMonthly: monthly, totalCarryOver: carry, totalPending: pending, overdueCount: overdue };
+    }, [enrichedItems]);
 
     return (
         <div className="flex flex-col min-h-screen bg-[#f5f7f6]">
@@ -123,7 +305,7 @@ export default function RecurringExpenses() {
                     <span className="material-symbols-rounded text-2xl text-gray-800">arrow_back_ios_new</span>
                 </button>
                 <h1 className="text-xl font-bold text-gray-900">Pagos Recurrentes</h1>
-                <button onClick={() => setShowForm(!showForm)} className="w-10 h-10 flex items-center justify-center rounded-xl bg-primary/10 hover:bg-primary/20 active:scale-95 transition-all">
+                <button onClick={() => { if (showForm) resetForm(); else setShowForm(true); }} className="w-10 h-10 flex items-center justify-center rounded-xl bg-primary/10 hover:bg-primary/20 active:scale-95 transition-all">
                     <span className="material-symbols-rounded text-2xl text-primary">{showForm ? 'close' : 'add'}</span>
                 </button>
             </header>
@@ -142,19 +324,22 @@ export default function RecurringExpenses() {
                         {WEEKDAYS.map(d => <div key={d} className="text-center text-[11px] font-bold text-gray-400 uppercase">{d}</div>)}
                     </div>
 
-                    {/* Days grid */}
+                    {/* Days grid — dots colored by status */}
                     <div className="grid grid-cols-7 gap-1">
                         {Array.from({ length: startDay }).map((_, i) => <div key={`e-${i}`} />)}
                         {Array.from({ length: totalDays }).map((_, i) => {
                             const day = i + 1;
                             const isToday = day === today.getDate() && viewMonth === today.getMonth() && viewYear === today.getFullYear();
-                            const hasDots = calendarDots[day];
+                            const dotItems = calendarDots[day];
+                            const hasOverdue = dotItems?.some(d => d.status === 'overdue');
                             return (
-                                <div key={day} className={`relative flex flex-col items-center justify-center h-10 rounded-xl text-sm font-semibold transition-colors ${isToday ? 'bg-primary text-black' : hasDots ? 'bg-indigo-50 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}>
+                                <div key={day} className={`relative flex flex-col items-center justify-center h-10 rounded-xl text-sm font-semibold transition-colors ${isToday ? 'bg-primary text-black' : hasOverdue ? 'bg-red-50 text-red-700 ring-1 ring-red-200' : dotItems ? 'bg-indigo-50 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}>
                                     {day}
-                                    {hasDots && (
+                                    {dotItems && (
                                         <div className="flex gap-0.5 absolute bottom-0.5">
-                                            {hasDots.slice(0, 3).map((_, di) => <span key={di} className={`w-1 h-1 rounded-full ${isToday ? 'bg-black/60' : 'bg-indigo-400'}`} />)}
+                                            {dotItems.slice(0, 3).map((d, di) => (
+                                                <span key={di} className={`w-1.5 h-1.5 rounded-full ${d.status === 'overdue' ? 'bg-red-500' : d.status === 'paid' ? 'bg-green-500' : isToday ? 'bg-black/60' : 'bg-indigo-400'}`} />
+                                            ))}
                                         </div>
                                     )}
                                 </div>
@@ -163,17 +348,36 @@ export default function RecurringExpenses() {
                     </div>
                 </div>
 
-                {/* Summary */}
-                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-3xl p-5 shadow-lg">
+                {/* Summary Card */}
+                <div className={`rounded-3xl p-5 shadow-lg ${overdueCount > 0 ? 'bg-gradient-to-r from-red-500 to-rose-600' : 'bg-gradient-to-r from-indigo-500 to-purple-600'}`}>
                     <p className="text-white/80 text-xs font-bold uppercase tracking-wider mb-1">Total Comprometido Mensual</p>
-                    <p className="text-3xl font-extrabold text-white">RD$ {new Intl.NumberFormat('es-DO').format(totalMonthly)}</p>
-                    <p className="text-white/70 text-xs mt-1">{recurring.filter(r => r.active).length} pagos activos · TZ: {getUserTimezone()}</p>
+                    <p className="text-3xl font-extrabold text-white">RD$ {formatMoney(totalMonthly)}</p>
+                    <p className="text-white/70 text-xs mt-1">{enrichedItems.filter(r => r.active).length} pagos activos · TZ: {getUserTimezone()}</p>
+
+                    {totalCarryOver > 0 && (
+                        <div className="mt-3 bg-white/15 rounded-xl px-4 py-2">
+                            <div className="flex justify-between items-center">
+                                <span className="text-white/90 text-xs font-bold">⚠️ Saldo vencido arrastrado</span>
+                                <span className="text-white text-sm font-extrabold">+ RD$ {formatMoney(totalCarryOver)}</span>
+                            </div>
+                            <p className="text-white/70 text-[10px] mt-0.5">De meses anteriores no pagados</p>
+                        </div>
+                    )}
+                    {totalCarryOver > 0 && (
+                        <div className="mt-2 bg-white/10 rounded-xl px-4 py-2 flex justify-between items-center">
+                            <span className="text-white text-xs font-bold">Total pendiente real:</span>
+                            <span className="text-white text-lg font-extrabold">RD$ {formatMoney(totalMonthly + totalCarryOver)}</span>
+                        </div>
+                    )}
+                    {overdueCount > 0 && (
+                        <p className="text-white text-xs font-bold mt-2">🔴 {overdueCount} pago{overdueCount > 1 ? 's' : ''} vencido{overdueCount > 1 ? 's' : ''} este mes</p>
+                    )}
                 </div>
 
                 {/* Create Form */}
                 {showForm && (
                     <div className="bg-white rounded-[28px] p-5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] space-y-4 animate-in slide-in-from-top duration-300">
-                        <h3 className="font-bold text-gray-900">Nuevo Pago Recurrente</h3>
+                        <h3 className="font-bold text-gray-900">{editingItem ? 'Editar Pago Recurrente' : 'Nuevo Pago Recurrente'}</h3>
                         <input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="Nombre (ej. Netflix, Luz)" className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-primary/30 outline-none border-none" />
                         <input type="number" value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} placeholder="Monto (RD$)" className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-primary/30 outline-none border-none" />
                         <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-primary/30 outline-none border-none">
@@ -184,33 +388,100 @@ export default function RecurringExpenses() {
                                 <button key={f.id} type="button" onClick={() => setFormData({ ...formData, frequency: f.id })} className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${formData.frequency === f.id ? 'bg-primary text-black' : 'bg-gray-100 text-gray-500'}`}>{f.label}</button>
                             ))}
                         </div>
-                        <input type="date" value={formData.startDate} onChange={e => setFormData({ ...formData, startDate: e.target.value })} className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-primary/30 outline-none border-none" />
-                        <button onClick={handleSave} disabled={saving || !formData.name.trim() || !formData.amount} className="w-full bg-primary text-black font-bold py-3.5 rounded-2xl disabled:opacity-50 active:scale-[0.98] transition-transform">{saving ? 'Guardando...' : 'Guardar Recurrente'}</button>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block px-1">Fecha inicio</label>
+                                <input type="date" value={formData.startDate} onChange={e => setFormData({ ...formData, startDate: e.target.value })} className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-primary/30 outline-none border-none" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block px-1">Día límite pago</label>
+                                <input type="number" min="1" max="31" value={formData.dueDay} onChange={e => setFormData({ ...formData, dueDay: e.target.value })} placeholder="15" className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-primary/30 outline-none border-none" />
+                            </div>
+                        </div>
+                        <button onClick={handleSave} disabled={saving || !formData.name.trim() || !formData.amount} className="w-full bg-primary text-black font-bold py-3.5 rounded-2xl disabled:opacity-50 active:scale-[0.98] transition-transform">{saving ? 'Guardando...' : editingItem ? 'Actualizar' : 'Guardar Recurrente'}</button>
+                        {editingItem && <button onClick={resetForm} className="w-full text-gray-400 font-bold py-2 text-sm">Cancelar</button>}
                     </div>
                 )}
 
-                {/* List */}
+                {/* List with statuses */}
                 <div>
                     <h3 className="text-[17px] font-bold text-gray-900 mb-3 px-1">Mis Pagos</h3>
-                    {recurring.length === 0 ? (
+                    {enrichedItems.length === 0 ? (
                         <p className="text-center text-sm text-gray-400 py-8">Aún no tienes pagos recurrentes.</p>
                     ) : (
                         <div className="space-y-3">
-                            {recurring.map(r => (
-                                <div key={r.id} className={`bg-white rounded-[24px] p-5 shadow-sm flex items-center gap-4 transition-opacity ${r.active ? '' : 'opacity-50'}`}>
-                                    <div className="w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center">
-                                        <span className="material-symbols-rounded text-indigo-500 text-2xl">event_repeat</span>
+                            {enrichedItems.map(r => {
+                                const cfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending;
+                                const isPaidThisMonth = r.status === 'paid';
+                                const isOverdue = r.status === 'overdue';
+                                const hasCarryOver = r.carryOver.count > 0;
+
+                                return (
+                                    <div key={r.id} className={`bg-white rounded-[24px] p-5 shadow-sm transition-all ${isOverdue ? 'ring-2 ring-red-300 bg-red-50/40' : isPaidThisMonth ? 'ring-1 ring-green-200 bg-green-50/30' : ''} ${!r.active ? 'opacity-50' : ''}`}>
+                                        <div className="flex items-center gap-4">
+                                            {/* Pay checkbox */}
+                                            <button onClick={() => togglePaid(r)} disabled={!r.active || r.status === 'not-due'} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all shrink-0 active:scale-90 ${isPaidThisMonth ? 'bg-green-100' : isOverdue ? 'bg-red-100' : 'bg-indigo-100'}`}>
+                                                <span className={`material-symbols-rounded text-2xl ${isPaidThisMonth ? 'text-green-600' : isOverdue ? 'text-red-500' : 'text-indigo-500'}`}>
+                                                    {isPaidThisMonth ? 'check_circle' : 'radio_button_unchecked'}
+                                                </span>
+                                            </button>
+
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="font-bold text-gray-900 truncate">{r.name}</h4>
+                                                <p className="text-xs text-gray-400">{FREQUENCIES.find(f => f.id === r.frequency)?.label || r.frequency} · {r.category} · Vence día {r.dueDay || '15'}</p>
+                                                {/* Status badge */}
+                                                <span className={`inline-flex items-center gap-1 mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                                                    {cfg.label}
+                                                </span>
+                                            </div>
+
+                                            <div className="text-right shrink-0">
+                                                <p className={`font-extrabold ${isOverdue ? 'text-red-600' : 'text-gray-900'}`}>RD$ {formatMoney(r.amount)}</p>
+                                                <div className="flex gap-1 mt-1 justify-end">
+                                                    <button onClick={() => startEdit(r)} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 active:scale-95">Editar</button>
+                                                    <button onClick={() => setConfirmDelete(r.id)} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500 active:scale-95">
+                                                        <span className="material-symbols-rounded text-[14px] leading-none">delete</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Carry-over display */}
+                                        {hasCarryOver && r.active && (
+                                            <div className="mt-3 bg-red-50 rounded-xl px-4 py-3 border border-red-100">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <p className="text-[10px] text-red-600 font-bold uppercase">Arrastre de saldo vencido</p>
+                                                        <p className="text-xs text-red-800 mt-0.5">
+                                                            Cuota actual: <b>RD$ {formatMoney(r.amount)}</b>
+                                                        </p>
+                                                        <p className="text-xs text-red-800">
+                                                            Saldo anterior ({r.carryOver.count} mes{r.carryOver.count > 1 ? 'es' : ''}): <b>RD$ {formatMoney(r.carryOver.amount)}</b>
+                                                        </p>
+                                                        <p className="text-sm text-red-900 font-extrabold mt-1">
+                                                            Total a pagar: RD$ {formatMoney(r.totalDue)}
+                                                        </p>
+                                                    </div>
+                                                    <button onClick={() => payAllCarryOver(r)} className="bg-red-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-xl active:scale-95 transition-transform shrink-0 mt-1">
+                                                        Saldar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {/* Delete confirmation */}
+                                        {confirmDelete === r.id && (
+                                            <div className="mt-3 bg-red-50 rounded-xl px-4 py-3 border border-red-200 flex items-center justify-between">
+                                                <p className="text-xs text-red-700 font-bold">¿Eliminar este pago?</p>
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => setConfirmDelete(null)} className="text-xs font-bold px-3 py-1 rounded-lg bg-gray-200 text-gray-600">No</button>
+                                                    <button onClick={() => handleDelete(r.id)} className="text-xs font-bold px-3 py-1 rounded-lg bg-red-600 text-white active:scale-95">Sí, eliminar</button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="flex-1">
-                                        <h4 className="font-bold text-gray-900">{r.name}</h4>
-                                        <p className="text-xs text-gray-400">{FREQUENCIES.find(f => f.id === r.frequency)?.label || r.frequency} · {r.category}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="font-extrabold text-gray-900">RD$ {new Intl.NumberFormat('es-DO').format(r.amount)}</p>
-                                        <button onClick={() => toggleActive(r)} className={`text-[10px] font-bold mt-1 px-2 py-0.5 rounded-full ${r.active ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>{r.active ? 'Activo' : 'Pausado'}</button>
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>
