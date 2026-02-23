@@ -6,12 +6,47 @@ import { db } from '../firebase';
 import BottomNav from './BottomNav';
 import CategoryDetailModal from './CategoryDetailModal';
 
+// ─── Color mapping: Firestore color id → hex + tailwind ───
+const COLOR_MAP = {
+    blue: { hex: '#3b82f6', text: 'text-blue-500', bg: 'bg-blue-100', bar: 'bg-blue-500' },
+    purple: { hex: '#a855f7', text: 'text-purple-500', bg: 'bg-purple-100', bar: 'bg-purple-500' },
+    pink: { hex: '#ec4899', text: 'text-pink-500', bg: 'bg-pink-100', bar: 'bg-pink-500' },
+    red: { hex: '#ef4444', text: 'text-red-500', bg: 'bg-red-100', bar: 'bg-red-500' },
+    orange: { hex: '#f97316', text: 'text-orange-500', bg: 'bg-orange-100', bar: 'bg-orange-500' },
+    yellow: { hex: '#eab308', text: 'text-yellow-500', bg: 'bg-yellow-100', bar: 'bg-yellow-500' },
+    green: { hex: '#22c55e', text: 'text-green-500', bg: 'bg-green-100', bar: 'bg-green-500' },
+    emerald: { hex: '#10b981', text: 'text-emerald-500', bg: 'bg-emerald-100', bar: 'bg-emerald-500' },
+    teal: { hex: '#14b8a6', text: 'text-teal-500', bg: 'bg-teal-100', bar: 'bg-teal-500' },
+    cyan: { hex: '#06b6d4', text: 'text-cyan-500', bg: 'bg-cyan-100', bar: 'bg-cyan-500' },
+    indigo: { hex: '#6366f1', text: 'text-indigo-500', bg: 'bg-indigo-100', bar: 'bg-indigo-500' },
+    gray: { hex: '#6b7280', text: 'text-gray-500', bg: 'bg-gray-100', bar: 'bg-gray-400' },
+};
+
+// ─── Default icon+color mapping for built-in categories ───
+const DEFAULT_CAT_MAP = {
+    'Comida': { icon: 'restaurant', colorId: 'orange' },
+    'Supermercado y Despensa': { icon: 'shopping_cart', colorId: 'orange' },
+    'Transporte': { icon: 'directions_car', colorId: 'blue' },
+    'Servicios': { icon: 'bolt', colorId: 'purple' },
+    'Servicios Básicos': { icon: 'bolt', colorId: 'purple' },
+    'Renta': { icon: 'home', colorId: 'indigo' },
+    'Vivienda/Alquiler': { icon: 'home', colorId: 'indigo' },
+    'Ocio': { icon: 'sports_esports', colorId: 'pink' },
+    'Ocio y Entretenimiento': { icon: 'sports_esports', colorId: 'red' },
+    'Salud': { icon: 'health_and_safety', colorId: 'green' },
+    'Educación': { icon: 'school', colorId: 'cyan' },
+    'Ahorro': { icon: 'savings', colorId: 'emerald' },
+    'Ahorro e Inversión': { icon: 'savings', colorId: 'emerald' },
+    'Otros': { icon: 'more_horiz', colorId: 'gray' },
+};
+
 export default function Analytics() {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
     const [periodTab, setPeriodTab] = useState('mensual');
 
     const [allTransactions, setAllTransactions] = useState([]);
+    const [customCategories, setCustomCategories] = useState([]);
     const [showAllCats, setShowAllCats] = useState(false);
 
     // ─── Drill-down modal state ───
@@ -27,6 +62,40 @@ export default function Analytics() {
         });
         return unsubscribe;
     }, [currentUser]);
+
+    // ─── Fetch custom categories ───
+    useEffect(() => {
+        if (!currentUser || !db) return;
+        const categoriesRef = collection(db, 'users', currentUser.uid, 'categories');
+        const unsubscribe = onSnapshot(categoriesRef, (snapshot) => {
+            const cats = snapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() }))
+                .filter(item => item?.name);
+            setCustomCategories(cats);
+        });
+        return unsubscribe;
+    }, [currentUser]);
+
+    // ─── Build a lookup Map: categoryName → { icon, colorId } ───
+    const categoryLookup = useMemo(() => {
+        const lookup = { ...DEFAULT_CAT_MAP };
+        customCategories.forEach(cat => {
+            if (!lookup[cat.name]) {
+                lookup[cat.name] = {
+                    icon: cat.icon || 'label',
+                    colorId: cat.color || 'teal',
+                };
+            }
+        });
+        return lookup;
+    }, [customCategories]);
+
+    // ─── Resolve full icon data for a category name ───
+    const getIconData = useCallback((catName) => {
+        const entry = categoryLookup[catName] || { icon: 'label', colorId: 'teal' };
+        const colors = COLOR_MAP[entry.colorId] || COLOR_MAP.teal;
+        return { icon: entry.icon, color: colors.text, bg: colors.bg, bar: colors.bar, hex: colors.hex };
+    }, [categoryLookup]);
 
     // ─── Memoized computations ───
     const { totalIncome, totalExpense, categorySpending } = useMemo(() => {
@@ -55,28 +124,23 @@ export default function Analytics() {
         return new Intl.NumberFormat('es-DO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
     }, []);
 
-    const getIconData = useCallback((catName) => {
-        const mapping = {
-            'Comida': { icon: 'restaurant', color: 'text-orange-500', bg: 'bg-orange-100', bar: 'bg-orange-500' },
-            'Supermercado y Despensa': { icon: 'shopping_cart', color: 'text-orange-500', bg: 'bg-orange-100', bar: 'bg-orange-500' },
-            'Transporte': { icon: 'directions_car', color: 'text-blue-500', bg: 'bg-blue-100', bar: 'bg-blue-500' },
-            'Servicios': { icon: 'bolt', color: 'text-purple-500', bg: 'bg-purple-100', bar: 'bg-purple-500' },
-            'Servicios Básicos': { icon: 'bolt', color: 'text-purple-500', bg: 'bg-purple-100', bar: 'bg-purple-500' },
-            'Renta': { icon: 'home', color: 'text-indigo-500', bg: 'bg-indigo-100', bar: 'bg-indigo-500' },
-            'Vivienda/Alquiler': { icon: 'home', color: 'text-indigo-500', bg: 'bg-indigo-100', bar: 'bg-indigo-500' },
-            'Ocio': { icon: 'sports_esports', color: 'text-pink-500', bg: 'bg-pink-100', bar: 'bg-pink-500' },
-            'Ocio y Entretenimiento': { icon: 'sports_esports', color: 'text-red-500', bg: 'bg-red-100', bar: 'bg-red-500' },
-            'Salud': { icon: 'health_and_safety', color: 'text-green-600', bg: 'bg-green-100', bar: 'bg-green-500' },
-            'Educación': { icon: 'school', color: 'text-cyan-600', bg: 'bg-cyan-100', bar: 'bg-cyan-500' },
-            'Ahorro': { icon: 'savings', color: 'text-emerald-600', bg: 'bg-emerald-100', bar: 'bg-emerald-500' },
-            'Ahorro e Inversión': { icon: 'savings', color: 'text-emerald-600', bg: 'bg-emerald-100', bar: 'bg-emerald-500' },
-            'Otros': { icon: 'more_horiz', color: 'text-gray-500', bg: 'bg-gray-100', bar: 'bg-gray-400' },
-        };
-        return mapping[catName] || { icon: 'label', color: 'text-teal-500', bg: 'bg-teal-100', bar: 'bg-teal-400' };
-    }, []);
-
     const percentSpent = totalIncome > 0 ? Math.min(Math.round((totalExpense / totalIncome) * 100), 100) : 0;
     const balanceAvailable = totalIncome - totalExpense;
+
+    // ─── Donut chart segments (memoized) ───
+    const CIRCUMFERENCE = 2 * Math.PI * 42; // ~263.89
+    const donutSegments = useMemo(() => {
+        if (totalExpense === 0 || categorySpending.length === 0) return [];
+        let accumulated = 0;
+        return categorySpending.map(cat => {
+            const pct = cat.amount / totalExpense;
+            const dash = pct * CIRCUMFERENCE;
+            const offset = -accumulated * CIRCUMFERENCE;
+            accumulated += pct;
+            const { hex } = getIconData(cat.name);
+            return { name: cat.name, dash, offset, hex };
+        });
+    }, [categorySpending, totalExpense, getIconData, CIRCUMFERENCE]);
 
     // ─── Visible categories (show all or top 4) ───
     const visibleCategories = showAllCats ? categorySpending : categorySpending.slice(0, 4);
@@ -147,20 +211,29 @@ export default function Analytics() {
                     </div>
                 </div>
 
-                {/* Gráfico Principal */}
+                {/* Gráfico Principal — Donut Segmentado por Categorías */}
                 <div className="bg-white rounded-[32px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
-                    {/* Donut Chart SVG */}
+                    {/* Donut Chart SVG — Multi-segment */}
                     <div className="flex justify-center mb-6 mt-2 relative">
-                        <div className="w-40 h-40 relative">
+                        <div className="w-44 h-44 relative">
                             <svg className="w-full h-full -rotate-90 drop-shadow-sm" viewBox="0 0 100 100">
-                                <circle cx="50" cy="50" r="42" fill="none" stroke="#e6fceb" strokeWidth="12" />
-                                <circle
-                                    cx="50" cy="50" r="42" fill="none"
-                                    stroke="currentColor" strokeWidth="12"
-                                    strokeLinecap="round"
-                                    className="text-primary transition-all duration-1000 ease-in-out drop-shadow-[0_0_8px_rgba(13,242,89,0.5)]"
-                                    strokeDasharray={`${percentSpent * 2.638} 263.8`}
-                                />
+                                {/* Background ring */}
+                                <circle cx="50" cy="50" r="42" fill="none" stroke="#f1f5f4" strokeWidth="13" />
+                                {/* Category segments */}
+                                {donutSegments.map((seg, i) => (
+                                    <circle
+                                        key={seg.name}
+                                        cx="50" cy="50" r="42" fill="none"
+                                        stroke={seg.hex}
+                                        strokeWidth="13"
+                                        strokeDasharray={`${seg.dash} ${CIRCUMFERENCE}`}
+                                        strokeDashoffset={seg.offset}
+                                        className="transition-all duration-700 ease-out"
+                                        style={{
+                                            filter: `drop-shadow(0 0 4px ${seg.hex}40)`,
+                                        }}
+                                    />
+                                ))}
                             </svg>
                             <div className="absolute inset-0 flex flex-col items-center justify-center">
                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Gastado</span>
@@ -169,14 +242,28 @@ export default function Analytics() {
                         </div>
                     </div>
 
+                    {/* Leyenda de colores compacta */}
+                    {donutSegments.length > 0 && (
+                        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 mb-5">
+                            {donutSegments.slice(0, 5).map(seg => (
+                                <div key={seg.name} className="flex items-center gap-1.5">
+                                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: seg.hex }} />
+                                    <span className="text-[11px] font-semibold text-gray-500 truncate max-w-[80px]">{seg.name}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
                     <div className="flex justify-between items-end mb-4 relative z-10">
                         <div>
                             <p className="text-sm font-semibold text-gray-500 mb-1">Balance Disponible</p>
                             <h2 className="text-3xl font-extrabold text-gray-900">RD$ {formatMoney(balanceAvailable)}</h2>
                         </div>
-                        <div className="bg-[#e6fceb] px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border border-primary/10">
-                            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
-                            <span className="text-xs font-bold text-primary-dark">Saludable</span>
+                        <div className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border ${balanceAvailable >= 0 ? 'bg-[#e6fceb] border-primary/10' : 'bg-red-50 border-red-100'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${balanceAvailable >= 0 ? 'bg-primary' : 'bg-red-500'}`}></span>
+                            <span className={`text-xs font-bold ${balanceAvailable >= 0 ? 'text-primary-dark' : 'text-red-600'}`}>
+                                {balanceAvailable >= 0 ? 'Saludable' : 'Déficit'}
+                            </span>
                         </div>
                     </div>
 

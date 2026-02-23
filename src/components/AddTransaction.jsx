@@ -24,6 +24,21 @@ const incomeCategories = [
     { name: 'Otros', icon: 'more_horiz' },
 ];
 
+const CATEGORY_COLORS = [
+    { id: 'blue', bgClass: 'bg-blue-500' },
+    { id: 'purple', bgClass: 'bg-purple-500' },
+    { id: 'pink', bgClass: 'bg-pink-500' },
+    { id: 'red', bgClass: 'bg-red-500' },
+    { id: 'orange', bgClass: 'bg-orange-500' },
+    { id: 'yellow', bgClass: 'bg-yellow-500' },
+    { id: 'green', bgClass: 'bg-green-500' },
+    { id: 'emerald', bgClass: 'bg-emerald-500' },
+    { id: 'teal', bgClass: 'bg-teal-500' },
+    { id: 'cyan', bgClass: 'bg-cyan-500' },
+    { id: 'indigo', bgClass: 'bg-indigo-500' },
+    { id: 'gray', bgClass: 'bg-gray-500' },
+];
+
 const normalizeCategoryName = (value) => value.trim().toLowerCase();
 
 export default function AddTransaction() {
@@ -50,6 +65,7 @@ export default function AddTransaction() {
     const [customCategories, setCustomCategories] = useState([]);
     const [showCategoryCreator, setShowCategoryCreator] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
+    const [newCategoryColor, setNewCategoryColor] = useState('blue');
     const [creatingCategory, setCreatingCategory] = useState(false);
 
     const baseCategories = type === 'expense' ? expenseCategories : incomeCategories;
@@ -129,6 +145,7 @@ export default function AddTransaction() {
                     name: item.name,
                     type: item.type || 'expense',
                     icon: item.icon || 'label',
+                    color: item.color || 'gray',
                 })));
             },
             (err) => {
@@ -194,10 +211,12 @@ export default function AddTransaction() {
                 name: trimmedName,
                 type,
                 icon: 'label',
+                color: newCategoryColor,
                 createdAt: serverTimestamp(),
             });
             setCategory(trimmedName);
             setNewCategoryName('');
+            setNewCategoryColor('blue');
             setShowCategoryCreator(false);
         } catch (err) {
             console.error('Error creando categoria', err);
@@ -380,21 +399,41 @@ export default function AddTransaction() {
                             )}
                         </div>
                         {showCategoryCreator && (
-                            <div className="mt-3 bg-white border border-gray-100 rounded-2xl p-3 flex items-center gap-2">
-                                <input
-                                    type="text"
-                                    value={newCategoryName}
-                                    onChange={(e) => setNewCategoryName(e.target.value)}
-                                    placeholder="Nombre de categoria"
-                                    className="flex-1 bg-transparent border-none p-0 focus:ring-0 font-medium placeholder:text-gray-300 text-sm"
-                                />
+                            <div className="mt-3 bg-white border border-gray-100 rounded-2xl p-4 flex flex-col gap-3 shadow-sm">
+                                <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+                                    <input
+                                        type="text"
+                                        value={newCategoryName}
+                                        onChange={(e) => setNewCategoryName(e.target.value)}
+                                        placeholder="Nombre de categoria"
+                                        className="flex-1 bg-transparent border-none p-0 focus:ring-0 font-medium text-gray-800 placeholder:text-gray-300 text-sm"
+                                        autoFocus
+                                    />
+                                </div>
+
+                                <div>
+                                    <p className="text-xs font-semibold text-gray-500 mb-2">Color representativo</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {CATEGORY_COLORS.map(c => (
+                                            <button
+                                                key={c.id}
+                                                type="button"
+                                                onClick={() => setNewCategoryColor(c.id)}
+                                                className={`w-8 h-8 rounded-full ${c.bgClass} flex items-center justify-center transition-transform hover:scale-110 active:scale-95 ${newCategoryColor === c.id ? 'ring-2 ring-offset-2 ring-gray-900 scale-110' : 'opacity-80'}`}
+                                            >
+                                                {newCategoryColor === c.id && <span className="material-symbols-rounded text-white text-[16px] font-bold">check</span>}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
                                 <button
                                     type="button"
                                     onClick={handleCreateCategory}
-                                    disabled={creatingCategory}
-                                    className="bg-primary text-black text-xs font-semibold px-3 py-2 rounded-xl disabled:opacity-60"
+                                    disabled={creatingCategory || !newCategoryName.trim()}
+                                    className="mt-2 w-full bg-primary text-black text-sm font-bold py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
                                 >
-                                    {creatingCategory ? 'Creando...' : 'Crear'}
+                                    {creatingCategory ? 'Creando...' : 'Guardar Categoría'}
                                 </button>
                             </div>
                         )}
