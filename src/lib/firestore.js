@@ -46,7 +46,7 @@ export const addTransaction = async ({ userId, type, amount, categoryId }) => {
   const now = new Date()
   const category = getCategoryById(categoryId)
 
-  return addDoc(collection(db, 'users', userId, 'transactions'), {
+  return addDoc(collection(db, 'transactions'), {
     userId,
     type,
     amount,
@@ -60,9 +60,10 @@ export const addTransaction = async ({ userId, type, amount, categoryId }) => {
 
 export const subscribeTransactions = (userId, onData, onError) => {
   if (!userId) return () => { }
-  const transactionsRef = collection(db, 'users', userId, 'transactions')
+  const transactionsRef = collection(db, 'transactions')
   const q = query(
     transactionsRef,
+    where('userId', '==', userId),
     orderBy('timestamp', 'desc'),
   )
 
