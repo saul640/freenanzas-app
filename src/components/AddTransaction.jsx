@@ -69,7 +69,6 @@ export default function AddTransaction() {
             setScanning(true);
             setScanProgress('Analizando con IA...');
             setError('');
-            setPendingScan(null);
 
             const scanResult = await scanReceiptWithAI(file);
             console.log('AI Scan Result:', scanResult);
@@ -99,7 +98,7 @@ export default function AddTransaction() {
         } catch (err) {
             console.error('AI Scan Error:', err);
             if (err.message?.includes('API key')) {
-                setError('Error de configuración de IA. Verifica tu Firebase API key.');
+                setError('Error de configuración de IA. Verifica tu Gemini API key.');
             } else if (err.message?.includes('quota') || err.message?.includes('rate')) {
                 setError('Límite de uso de IA alcanzado. Intenta más tarde.');
             } else {
@@ -490,7 +489,7 @@ export default function AddTransaction() {
                 <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto p-6 bg-[#f7f9f8]">
                     <button
                         type="submit"
-                        disabled={loading || scanning || creatingCategory || !!pendingScan}
+                        disabled={loading || scanning || creatingCategory}
                         className="w-full bg-primary hover:bg-primary-dark text-black font-bold py-4 rounded-2xl transition-all active:scale-[0.98] disabled:opacity-50 text-base shadow-lg shadow-primary/20"
                     >
                         {loading ? (
