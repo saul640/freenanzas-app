@@ -40,7 +40,13 @@ export default function AddTransaction() {
     const [showAllCats, setShowAllCats] = useState(false);
     const [scanning, setScanning] = useState(false);
     const [scanProgress, setScanProgress] = useState('');
-    const [pendingScan, setPendingScan] = useState(null);
+    const [merchant, setMerchant] = useState('');
+    const [rnc, setRnc] = useState('');
+    const [ticketNumber, setTicketNumber] = useState('');
+    const [operator, setOperator] = useState('');
+    const [location, setLocation] = useState('');
+    const [details, setDetails] = useState('');
+    const [showExtraFields, setShowExtraFields] = useState(false);
     const [customCategories, setCustomCategories] = useState([]);
     const [showCategoryCreator, setShowCategoryCreator] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
@@ -72,20 +78,21 @@ export default function AddTransaction() {
 
             if (scanResult.amount && scanResult.amount > 0) {
                 const bestCategory = getBestCategory(scanResult.suggestedCategories);
-                setPendingScan({
-                    amount: scanResult.amount,
-                    currency: scanResult.currency || 'DOP',
-                    merchant: scanResult.merchant,
-                    category: bestCategory,
-                    date: scanResult.date,
-                    time: scanResult.time,
-                    rnc: scanResult.rnc,
-                    ticketNumber: scanResult.ticketNumber,
-                    operator: scanResult.operator,
-                    location: scanResult.location,
-                    details: scanResult.details,
-                    confidence: scanResult.confidence,
-                });
+                setAmount(scanResult.amount.toString());
+                if (bestCategory && mergedCategories.some((cat) => cat.name === bestCategory)) {
+                    setCategory(bestCategory);
+                }
+                if (scanResult.date) setDate(scanResult.date);
+                if (scanResult.merchant) setMerchant(scanResult.merchant);
+                if (scanResult.rnc) setRnc(scanResult.rnc);
+                if (scanResult.ticketNumber) setTicketNumber(scanResult.ticketNumber);
+                if (scanResult.operator) setOperator(scanResult.operator);
+                if (scanResult.location) setLocation(scanResult.location);
+                if (scanResult.details) setDetails(scanResult.details);
+
+                if (scanResult.merchant || scanResult.rnc || scanResult.ticketNumber || scanResult.operator || scanResult.location || scanResult.details) {
+                    setShowExtraFields(true);
+                }
             } else {
                 setError('No se pudo detectar un monto en la imagen. Intenta con otra foto.');
             }
@@ -153,39 +160,15 @@ export default function AddTransaction() {
             val = parts[0] + '.' + parts.slice(1).join('');
         }
         setAmount(val);
-        if (pendingScan) setPendingScan(null);
         if (error) setError('');
     };
 
     const handleCategorySelect = (value) => {
         setCategory(value);
-        if (pendingScan) setPendingScan(null);
         if (error) setError('');
     };
 
-    const handleApplyScan = () => {
-        if (!pendingScan) return;
-        setAmount(pendingScan.amount.toString());
-        if (pendingScan.category && mergedCategories.some((cat) => cat.name === pendingScan.category)) {
-            setCategory(pendingScan.category);
-        }
-        // Auto-fill date if detected
-        if (pendingScan.date) {
-            setDate(pendingScan.date);
-        }
-        // Auto-fill note with merchant info
-        const noteItems = [];
-        if (pendingScan.merchant) noteItems.push(pendingScan.merchant);
-        if (pendingScan.ticketNumber) noteItems.push(`#${pendingScan.ticketNumber}`);
-        if (!note.trim() && noteItems.length > 0) {
-            setNote(noteItems.join(' — '));
-        }
-        setPendingScan(null);
-    };
 
-    const handleDismissScan = () => {
-        setPendingScan(null);
-    };
 
     const handleCreateCategory = async () => {
         const trimmedName = newCategoryName.trim();
@@ -232,10 +215,6 @@ export default function AddTransaction() {
             setError('Por favor ingresa un monto mayor a 0.');
             return;
         }
-        if (pendingScan) {
-            setError('Confirma el monto detectado o edita manualmente antes de guardar.');
-            return;
-        }
         if (!category) {
             setError('Por favor selecciona una categoría.');
             return;
@@ -253,6 +232,12 @@ export default function AddTransaction() {
                     category,
                     date,
                     note: note.trim(),
+                    merchant: merchant.trim(),
+                    rnc: rnc.trim(),
+                    ticketNumber: ticketNumber.trim(),
+                    operator: operator.trim(),
+                    location: location.trim(),
+                    details: details.trim(),
                     timestamp: serverTimestamp()
                 });
             }
@@ -347,122 +332,7 @@ export default function AddTransaction() {
                                 </p>
                             )}
 
-                            {/* ─── AI Scan Results Card ─── */}
-                            {pendingScan && (
-                                <div className="mt-4 bg-white border border-primary/20 rounded-2xl p-4 text-left shadow-sm w-full">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <span className="material-symbols-rounded text-primary text-lg">auto_awesome</span>
-                                        <p className="text-[10px] uppercase tracking-wider font-semibold text-primary">
-                                            Datos detectados por IA
-                                        </p>
-                                        {pendingScan.confidence > 0 && (
-                                            <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full ${pendingScan.confidence >= 0.8 ? 'bg-green-100 text-green-700' :
-                                                    pendingScan.confidence >= 0.5 ? 'bg-yellow-100 text-yellow-700' :
-                                                        'bg-red-100 text-red-700'
-                                                }`}>
-                                                {Math.round(pendingScan.confidence * 100)}%
-                                            </span>
-                                        )}
-                                    </div>
 
-                                    {/* Amount */}
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <span className="material-symbols-rounded text-gray-400 text-base">payments</span>
-                                        <p className="text-base font-bold text-gray-800">
-                                            {pendingScan.currency === 'DOP' || pendingScan.currency === 'RD$' ? 'RD$' : pendingScan.currency}{' '}
-                                            {pendingScan.amount.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
-                                        </p>
-                                    </div>
-
-                                    {/* Merchant */}
-                                    {pendingScan.merchant && (
-                                        <div className="flex items-center gap-2 mb-1.5">
-                                            <span className="material-symbols-rounded text-gray-400 text-base">store</span>
-                                            <p className="text-sm font-medium text-gray-700">{pendingScan.merchant}</p>
-                                        </div>
-                                    )}
-
-                                    {/* RNC */}
-                                    {pendingScan.rnc && (
-                                        <div className="flex items-center gap-2 mb-1.5">
-                                            <span className="material-symbols-rounded text-gray-400 text-base">badge</span>
-                                            <p className="text-xs text-gray-500">RNC: {pendingScan.rnc}</p>
-                                        </div>
-                                    )}
-
-                                    {/* Date & Time */}
-                                    {(pendingScan.date || pendingScan.time) && (
-                                        <div className="flex items-center gap-2 mb-1.5">
-                                            <span className="material-symbols-rounded text-gray-400 text-base">calendar_today</span>
-                                            <p className="text-xs text-gray-500">
-                                                {pendingScan.date && new Date(pendingScan.date + 'T12:00:00').toLocaleDateString('es-DO', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                                {pendingScan.time && ` • ${pendingScan.time}`}
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    {/* Ticket Number */}
-                                    {pendingScan.ticketNumber && (
-                                        <div className="flex items-center gap-2 mb-1.5">
-                                            <span className="material-symbols-rounded text-gray-400 text-base">receipt_long</span>
-                                            <p className="text-xs text-gray-500">Ticket: {pendingScan.ticketNumber}</p>
-                                        </div>
-                                    )}
-
-                                    {/* Location */}
-                                    {pendingScan.location && (
-                                        <div className="flex items-center gap-2 mb-1.5">
-                                            <span className="material-symbols-rounded text-gray-400 text-base">location_on</span>
-                                            <p className="text-xs text-gray-500">{pendingScan.location}</p>
-                                        </div>
-                                    )}
-
-                                    {/* Operator */}
-                                    {pendingScan.operator && (
-                                        <div className="flex items-center gap-2 mb-1.5">
-                                            <span className="material-symbols-rounded text-gray-400 text-base">person</span>
-                                            <p className="text-xs text-gray-500">Operador: {pendingScan.operator}</p>
-                                        </div>
-                                    )}
-
-                                    {/* Details */}
-                                    {pendingScan.details && (
-                                        <div className="flex items-center gap-2 mb-1.5">
-                                            <span className="material-symbols-rounded text-gray-400 text-base">info</span>
-                                            <p className="text-xs text-gray-500">{pendingScan.details}</p>
-                                        </div>
-                                    )}
-
-                                    {/* Category suggestion */}
-                                    {pendingScan.category && (
-                                        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
-                                            <span className="material-symbols-rounded text-gray-400 text-base">category</span>
-                                            <p className="text-xs text-gray-500">
-                                                Categoría sugerida: <span className="font-semibold text-primary">{pendingScan.category}</span>
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    {/* Action buttons */}
-                                    <div className="flex gap-2 mt-3">
-                                        <button
-                                            type="button"
-                                            onClick={handleApplyScan}
-                                            className="flex-1 bg-primary text-black font-semibold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1"
-                                        >
-                                            <span className="material-symbols-rounded text-sm">check</span>
-                                            Aplicar todo
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleDismissScan}
-                                            className="flex-1 bg-gray-100 text-gray-600 font-semibold text-xs py-2.5 rounded-xl"
-                                        >
-                                            Editar manual
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     </div>
 
@@ -564,6 +434,56 @@ export default function AddTransaction() {
                             className="w-full bg-transparent border-none p-0 focus:ring-0 font-medium placeholder:text-gray-300 text-sm"
                         />
                     </div>
+
+                    {/* Detalles Extra Toggle */}
+                    <div className="flex items-center justify-between bg-white rounded-2xl p-4 border border-gray-100 cursor-pointer" onClick={() => setShowExtraFields(!showExtraFields)}>
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                                <span className="material-symbols-rounded text-primary">receipt_long</span>
+                            </div>
+                            <div>
+                                <p className="font-semibold text-sm">Detalles adicionales</p>
+                                <p className="text-xs text-gray-400">Comercio, RNC, Ticket...</p>
+                            </div>
+                        </div>
+                        <span className={`material-symbols-rounded text-gray-400 transition-transform ${showExtraFields ? 'rotate-180' : ''}`}>expand_more</span>
+                    </div>
+
+                    {/* Extra Fields Container */}
+                    {showExtraFields && (
+                        <div className="bg-white rounded-2xl p-4 border border-gray-100 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                            {/* Merchant */}
+                            <div>
+                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Comercio</label>
+                                <input type="text" value={merchant} onChange={(e) => setMerchant(e.target.value)} placeholder="Ej. Supermercado Bravo" className="w-full bg-gray-50 rounded-xl border-none p-3 focus:ring-primary/50 text-sm" />
+                            </div>
+                            {/* RNC */}
+                            <div>
+                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">RNC</label>
+                                <input type="text" value={rnc} onChange={(e) => setRnc(e.target.value)} placeholder="Ej. 130123456" className="w-full bg-gray-50 rounded-xl border-none p-3 focus:ring-primary/50 text-sm" />
+                            </div>
+                            {/* Ticket Number */}
+                            <div>
+                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">No. Ticket</label>
+                                <input type="text" value={ticketNumber} onChange={(e) => setTicketNumber(e.target.value)} placeholder="Ej. TCK-00123" className="w-full bg-gray-50 rounded-xl border-none p-3 focus:ring-primary/50 text-sm" />
+                            </div>
+                            {/* Operator */}
+                            <div>
+                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Cajero / Operador</label>
+                                <input type="text" value={operator} onChange={(e) => setOperator(e.target.value)} placeholder="Ej. Juan Pérez" className="w-full bg-gray-50 rounded-xl border-none p-3 focus:ring-primary/50 text-sm" />
+                            </div>
+                            {/* Location */}
+                            <div>
+                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Ubicación</label>
+                                <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Ej. Sucursal Winston Churchill" className="w-full bg-gray-50 rounded-xl border-none p-3 focus:ring-primary/50 text-sm" />
+                            </div>
+                            {/* Details */}
+                            <div>
+                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Otros Detalles</label>
+                                <input type="text" value={details} onChange={(e) => setDetails(e.target.value)} placeholder="Ej. Placa A123456" className="w-full bg-gray-50 rounded-xl border-none p-3 focus:ring-primary/50 text-sm" />
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Submit Button */}
