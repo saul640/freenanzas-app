@@ -1,0 +1,185 @@
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+import { collection, doc, setDoc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { db } from '../firebase';
+import BottomNav from './BottomNav';
+
+const DEFAULT_CATEGORIES = ['Comida', 'Transporte', 'Servicios', 'Renta', 'Ocio', 'Salud', 'Educación', 'Otros'];
+const CURRENT_MONTH_KEY = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+
+function getBarColor(pct) {
+    if (pct >= 90) return { bar: 'bg-red-500', text: 'text-red-600', label: '¡Cuidado!' };
+    if (pct >= 70) return { bar: 'bg-amber-500', text: 'text-amber-600', label: 'Atención' };
+    return { bar: 'bg-primary', text: 'text-primary', label: 'Bien' };
+}
+
+export default function MonthlyBudget() {
+    const navigate = useNavigate();
+    const { currentUser } = useAuth();
+    const monthKey = CURRENT_MONTH_KEY();
+
+    const [globalLimit, setGlobalLimit] = useState(0);
+    const [categoryLimits, setCategoryLimits] = useState({});
+    const [transactions, setTransactions] = useState([]);
+    const [editing, setEditing] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [tempGlobal, setTempGlobal] = useState('');
+    const [tempCats, setTempCats] = useState({});
+
+    // ─── Load budget doc ───
+    useEffect(() => {
+        if (!currentUser || !db) return;
+        const budgetRef = doc(db, 'users', currentUser.uid, 'budgets', monthKey);
+        const unsub = onSnapshot(budgetRef, snap => {
+            if (snap.exists()) {
+                const data = snap.data();
+                setGlobalLimit(data.globalLimit || 0);
+                setCategoryLimits(data.categoryLimits || {});
+            }
+        });
+        return unsub;
+    }, [currentUser, monthKey]);
+
+    // ─── Load transactions for current month ───
+    useEffect(() => {
+        if (!currentUser || !db) return;
+        const q = query(collection(db, 'transactions'), where('userId', '==', currentUser.uid));
+        const unsub = onSnapshot(q, snap => {
+            const now = new Date();
+            const thisMonth = now.getMonth();
+            const thisYear = now.getFullYear();
+            const txs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(tx => {
+                if (tx.type !== 'expense') return false;
+                const txDate = tx.timestamp?.toDate ? tx.timestamp.toDate() : tx.date ? new Date(tx.date) : null;
+                return txDate && txDate.getMonth() === thisMonth && txDate.getFullYear() === thisYear;
+            });
+            setTransactions(txs);
+        });
+        return unsub;
+    }, [currentUser]);
+
+    const totalSpent = useMemo(() => transactions.reduce((s, t) => s + (t.amount || 0), 0), [transactions]);
+
+    const spendingByCategory = useMemo(() => {
+        const map = {};
+        transactions.forEach(tx => {
+            const cat = tx.category || 'Otros';
+            map[cat] = (map[cat] || 0) + (tx.amount || 0);
+        });
+        return map;
+    }, [transactions]);
+
+    const allCategories = useMemo(() => {
+        const set = new Set([...DEFAULT_CATEGORIES, ...Object.keys(categoryLimits), ...Object.keys(spendingByCategory)]);
+        return Array.from(set);
+    }, [categoryLimits, spendingByCategory]);
+
+    const formatMoney = useCallback((n) => new Intl.NumberFormat('es-DO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n), []);
+
+    const startEditing = () => {
+        setTempGlobal(String(globalLimit || ''));
+        setTempCats({ ...categoryLimits });
+        setEditing(true);
+    };
+
+    const handleSave = async () => {
+        if (!currentUser || !db) return;
+        setSaving(true);
+        const parsed = parseFloat(tempGlobal) || 0;
+        const parsedCats = {};
+        Object.entries(tempCats).forEach(([k, v]) => { const n = parseFloat(v); if (n > 0) parsedCats[k] = n; });
+        await setDoc(doc(db, 'users', currentUser.uid, 'budgets', monthKey), { globalLimit: parsed, categoryLimits: parsedCats, updatedAt: new Date().toISOString() });
+        setEditing(false);
+        setSaving(false);
+    };
+
+    const globalPct = globalLimit > 0 ? Math.min(Math.round((totalSpent / globalLimit) * 100), 100) : 0;
+    const globalColors = getBarColor(globalPct);
+
+    const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const now = new Date();
+
+    return (
+        <div className="flex flex-col min-h-screen bg-[#f5f7f6]">
+            <header className="fixed top-0 left-0 right-0 max-w-md mx-auto z-20 bg-[#f5f7f6]/90 backdrop-blur-md px-6 pt-12 pb-4 flex items-center justify-between">
+                <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-black/5 active:scale-95 transition-all">
+                    <span className="material-symbols-rounded text-2xl text-gray-800">arrow_back_ios_new</span>
+                </button>
+                <h1 className="text-xl font-bold text-gray-900">Presupuesto Mensual</h1>
+                <button onClick={editing ? handleSave : startEditing} className="w-10 h-10 flex items-center justify-center rounded-xl bg-primary/10 hover:bg-primary/20 active:scale-95 transition-all">
+                    <span className="material-symbols-rounded text-2xl text-primary">{saving ? 'hourglass_top' : editing ? 'check' : 'edit'}</span>
+                </button>
+            </header>
+
+            <div className="pt-28 pb-28 px-5 space-y-5">
+                {/* Global Budget Card */}
+                <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-[28px] p-6 shadow-lg relative overflow-hidden">
+                    <div className="absolute -top-10 -right-8 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+                    <p className="text-white/80 text-xs font-bold uppercase tracking-wider mb-1">{MONTH_NAMES[now.getMonth()]} {now.getFullYear()}</p>
+                    {editing ? (
+                        <div className="flex items-baseline gap-2 mt-2">
+                            <span className="text-2xl font-bold text-white">RD$</span>
+                            <input type="number" value={tempGlobal} onChange={e => setTempGlobal(e.target.value)} placeholder="0" className="bg-white/20 text-white placeholder:text-white/40 text-3xl font-extrabold rounded-xl px-3 py-1 w-40 outline-none border-none" />
+                        </div>
+                    ) : (
+                        <>
+                            <p className="text-3xl font-extrabold text-white">RD$ {formatMoney(totalSpent)} <span className="text-lg text-white/70">/ {formatMoney(globalLimit)}</span></p>
+                            <div className="w-full h-3 bg-white/20 rounded-full mt-3 overflow-hidden">
+                                <div className={`h-full rounded-full bg-white transition-all duration-700`} style={{ width: `${globalPct}%` }} />
+                            </div>
+                            <div className="flex justify-between mt-2">
+                                <span className="text-white/80 text-xs font-semibold">{globalPct}% usado</span>
+                                <span className="text-white/80 text-xs font-semibold">Restante: RD$ {formatMoney(Math.max(globalLimit - totalSpent, 0))}</span>
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                {/* Category Budgets */}
+                <div>
+                    <h3 className="text-[17px] font-bold text-gray-900 mb-3 px-1">Por Categoría</h3>
+                    <div className="space-y-3">
+                        {allCategories.map(cat => {
+                            const limit = categoryLimits[cat] || 0;
+                            const spent = spendingByCategory[cat] || 0;
+                            const pct = limit > 0 ? Math.min(Math.round((spent / limit) * 100), 100) : (spent > 0 ? 100 : 0);
+                            const colors = getBarColor(pct);
+
+                            return (
+                                <div key={cat} className="bg-white rounded-[24px] p-5 shadow-sm">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h4 className="font-bold text-gray-900">{cat}</h4>
+                                        {editing ? (
+                                            <input type="number" value={tempCats[cat] || ''} onChange={e => setTempCats({ ...tempCats, [cat]: e.target.value })} placeholder="Límite" className="w-24 bg-gray-50 text-right rounded-xl px-3 py-1.5 text-sm font-bold outline-none border-none" />
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-extrabold text-gray-800">RD$ {formatMoney(spent)}</span>
+                                                {limit > 0 && <span className="text-xs text-gray-400">/ {formatMoney(limit)}</span>}
+                                            </div>
+                                        )}
+                                    </div>
+                                    {!editing && limit > 0 && (
+                                        <>
+                                            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                                                <div className={`h-full rounded-full ${colors.bar} transition-all duration-700`} style={{ width: `${pct}%` }} />
+                                            </div>
+                                            <div className="flex justify-between mt-1.5">
+                                                <span className={`text-[10px] font-bold ${colors.text}`}>{colors.label} · {pct}%</span>
+                                                <span className="text-[10px] font-semibold text-gray-400">Resta RD$ {formatMoney(Math.max(limit - spent, 0))}</span>
+                                            </div>
+                                        </>
+                                    )}
+                                    {!editing && limit === 0 && spent > 0 && (
+                                        <p className="text-[10px] text-gray-400 mt-1">Sin límite asignado</p>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+            <BottomNav />
+        </div>
+    );
+}

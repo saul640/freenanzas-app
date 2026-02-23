@@ -126,6 +126,28 @@ export default function Dashboard() {
                     </button>
                 </div>
 
+                {/* Financial Tools Grid */}
+                <div>
+                    <h3 className="text-lg font-bold text-gray-800 mb-3">Herramientas Financieras</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                        <button onClick={() => navigate('/recurring')} className="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 active:scale-95 transition-transform text-left">
+                            <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center"><span className="material-symbols-rounded text-indigo-500">event_repeat</span></div>
+                            <div><p className="text-sm font-bold text-gray-800">Recurrentes</p><p className="text-[10px] text-gray-400">Calendario</p></div>
+                        </button>
+                        <button onClick={() => navigate('/budget')} className="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 active:scale-95 transition-transform text-left">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center"><span className="material-symbols-rounded text-emerald-500">account_balance</span></div>
+                            <div><p className="text-sm font-bold text-gray-800">Presupuesto</p><p className="text-[10px] text-gray-400">Mensual</p></div>
+                        </button>
+                        <button onClick={() => navigate('/cards')} className="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 active:scale-95 transition-transform text-left">
+                            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center"><span className="material-symbols-rounded text-purple-500">credit_card</span></div>
+                            <div><p className="text-sm font-bold text-gray-800">Tarjetas</p><p className="text-[10px] text-gray-400">Crédito</p></div>
+                        </button>
+                        <button onClick={() => navigate('/advisor')} className="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 active:scale-95 transition-transform text-left">
+                            <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center"><span className="material-symbols-rounded text-violet-500">auto_awesome</span></div>
+                            <div><p className="text-sm font-bold text-gray-800">Asesor IA</p><p className="text-[10px] text-gray-400">Consejos</p></div>
+                        </button>
+                    </div>
+                </div>
                 {/* Gastos vs Ingresos Dashboard */}
                 <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] border border-gray-100">
                     <h3 className="text-lg font-bold text-gray-800 mb-5">Flujo de Caja</h3>

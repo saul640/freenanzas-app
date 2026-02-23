@@ -168,3 +168,88 @@ export function getBestCategory(suggestedCategories) {
 
     return suggestedCategories[0] || null;
 }
+
+/**
+ * Analyze user spending with Gemini AI for financial advice
+ * @param {Object} data - { totalIncome, totalExpense, categories: [{ name, amount, count }], monthName }
+ * @returns {Promise<Object>} - Insights with tips, ant expenses, savings potential
+ */
+export async function analyzeSpending(data) {
+    const model = getModel();
+    const prompt = `Eres un asesor financiero personal dominicano. Analiza estos gastos del mes de ${data.monthName}:
+
+Ingresos: RD$ ${data.totalIncome}
+Gastos totales: RD$ ${data.totalExpense}
+Balance: RD$ ${data.totalIncome - data.totalExpense}
+
+Desglose por categoría:
+${data.categories.map(c => `- ${c.name}: RD$ ${c.amount} (${c.count} transacciones)`).join('\n')}
+
+Responde ÚNICAMENTE con un JSON válido (sin markdown, sin backticks):
+{
+  "resumen": "<2 oraciones sobre la salud financiera del usuario>",
+  "regla503020": {
+    "necesidades": <% ideal en necesidades>,
+    "deseos": <% ideal en deseos>,
+    "ahorro": <% ideal en ahorro>,
+    "necesidadesReal": <% real gastado en necesidades>,
+    "deseosReal": <% real gastado en deseos>,
+    "ahorroReal": <% real ahorrado>,
+    "veredicto": "<1 oración sobre el cumplimiento de la regla>"
+  },
+  "gastosHormiga": [
+    { "categoria": "<nombre>", "monto": <número>, "frecuencia": <count>, "consejo": "<1 oración>" }
+  ],
+  "potencialAhorro": <número estimado que podría ahorrar>,
+  "tips": [
+    "<tip personalizado 1>",
+    "<tip personalizado 2>",
+    "<tip personalizado 3>"
+  ],
+  "alerta": "<alerta principal si hay algo crítico, o null>"
+}`;
+
+    const result = await model.generateContent([prompt]);
+    let text = result.response.text().trim();
+    if (text.startsWith('```')) {
+        text = text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+    }
+    try {
+        return JSON.parse(text);
+    } catch {
+        const match = text.match(/\{[\s\S]*\}/);
+        if (match) return JSON.parse(match[0]);
+        throw new Error('No se pudo interpretar el análisis de la IA');
+    }
+}
+
+/**
+ * Local fallback: find "ant" expenses without needing an API key
+ * @param {Array} categories - [{ name, amount, count }]
+ * @param {number} totalExpense
+ * @returns {Object}
+ */
+export function analyzeSpendingLocal(categories, totalExpense) {
+    const antExpenses = categories
+        .filter(c => c.count >= 3 && c.amount < 500)
+        .map(c => ({
+            categoria: c.name,
+            monto: c.amount,
+            frecuencia: c.count,
+            consejo: `Tienes ${c.count} gastos en ${c.name}. Intenta reducirlos o consolidarlos.`,
+        }));
+
+    const potentialSaving = antExpenses.reduce((s, e) => s + e.monto * 0.5, 0);
+
+    return {
+        resumen: totalExpense > 0 ? 'Análisis local de tus gastos (sin IA). Conecta tu API key de Gemini para obtener análisis personalizado.' : 'No hay gastos registrados aún.',
+        gastosHormiga: antExpenses,
+        potencialAhorro: Math.round(potentialSaving),
+        tips: [
+            'Intenta aplicar la regla 50-30-20: 50% necesidades, 30% deseos, 20% ahorro.',
+            'Revisa suscripciones mensuales que no uses.',
+            'Establece un presupuesto semanal para compras impulsivas.',
+        ],
+        alerta: null,
+    };
+}

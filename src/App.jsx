@@ -7,6 +7,10 @@ import BudgetsGoals from './components/BudgetsGoals';
 import Transactions from './components/Transactions';
 import ExpenseDetail from './components/ExpenseDetail';
 import Profile from './components/Profile';
+import RecurringExpenses from './components/RecurringExpenses';
+import MonthlyBudget from './components/MonthlyBudget';
+import CreditCards from './components/CreditCards';
+import AIAdvisor from './components/AIAdvisor';
 import { AuthProvider } from './contexts/AuthContextProvider';
 import PrivateRoute from './components/PrivateRoute';
 
@@ -24,6 +28,10 @@ function App() {
               <Route path="/transactions" element={<PrivateRoute><Transactions /></PrivateRoute>} />
               <Route path="/expenses" element={<PrivateRoute><ExpenseDetail /></PrivateRoute>} />
               <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
+              <Route path="/recurring" element={<PrivateRoute><RecurringExpenses /></PrivateRoute>} />
+              <Route path="/budget" element={<PrivateRoute><MonthlyBudget /></PrivateRoute>} />
+              <Route path="/cards" element={<PrivateRoute><CreditCards /></PrivateRoute>} />
+              <Route path="/advisor" element={<PrivateRoute><AIAdvisor /></PrivateRoute>} />
             </Routes>
           </main>
         </div>
