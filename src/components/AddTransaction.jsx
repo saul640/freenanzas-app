@@ -67,7 +67,8 @@ const parseAmountString = (value) => {
 };
 
 const extractAmountsFromText = (text) => {
-    const matches = text.match(/\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})|\d+(?:[.,]\d{2})?/g) || [];
+    const normalizedText = text.replace(/(\d)\s+(?=\d)/g, '$1');
+    const matches = normalizedText.match(/\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?|\d+(?:[.,]\d{2})?/g) || [];
     return matches
         .map(parseAmountString)
         .filter((value) => Number.isFinite(value) && value > 0);
