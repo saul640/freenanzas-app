@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../hooks/useAuth';
-import Tesseract from 'tesseract.js';
+import { scanReceiptWithAI, getBestCategory } from '../lib/gemini';
 
 const expenseCategories = [
     { name: 'Comida', icon: 'shopping_cart' },
@@ -24,116 +24,7 @@ const incomeCategories = [
     { name: 'Otros', icon: 'more_horiz' },
 ];
 
-const CATEGORY_KEYWORDS = {
-    expense: {
-        Comida: ['RESTAURANTE', 'PIZZA', 'BURGER', 'CAFETERIA', 'CAFE', 'FOOD', 'COMIDA', 'ALMUERZO', 'CENA', 'BAR', 'TAQUERIA', 'PANADERIA', 'DELIVERY'],
-        Transporte: ['UBER', 'TAXI', 'GASOLINA', 'COMBUSTIBLE', 'TRANSPORTE', 'BUS', 'METRO', 'PEAJE', 'PARKING'],
-        Renta: ['RENTA', 'ALQUILER', 'ARRENDAMIENTO', 'HIPOTECA'],
-        Servicios: ['LUZ', 'AGUA', 'INTERNET', 'TELECOM', 'CABLE', 'TELEFONO', 'SERVICIO', 'ELECTRICIDAD'],
-        Ocio: ['CINE', 'NETFLIX', 'SPOTIFY', 'ENTRETENIMIENTO', 'OCIO', 'JUEGO', 'CONCIERTO'],
-        Salud: ['FARMACIA', 'CLINICA', 'HOSPITAL', 'MEDICO', 'SALUD', 'LABORATORIO', 'SEGURO'],
-        Educación: ['COLEGIO', 'UNIVERSIDAD', 'CURSO', 'LIBRO', 'EDUCACION', 'MATRICULA'],
-        Ahorro: ['AHORRO', 'INVERSION', 'FONDO', 'BANCO'],
-    },
-    income: {
-        Salario: ['SALARIO', 'NOMINA', 'PAYROLL'],
-        Freelance: ['FREELANCE', 'HONORARIOS', 'SERVICIO PROFESIONAL'],
-        Rendimientos: ['INTERESES', 'DIVIDENDO', 'RENDIMIENTO'],
-        Otros: ['TRANSFERENCIA', 'PAGO', 'DEPOSITO'],
-    },
-};
-
 const normalizeCategoryName = (value) => value.trim().toLowerCase();
-
-const parseAmountString = (value) => {
-    if (!value) return null;
-    const cleaned = value.replace(/[\sRD$DOP$]/gi, '').replace(/[^\d.,]/g, '');
-    if (!cleaned) return null;
-    const lastComma = cleaned.lastIndexOf(',');
-    const lastDot = cleaned.lastIndexOf('.');
-    let normalized = cleaned;
-
-    if (lastComma > lastDot) {
-        normalized = cleaned.replace(/\./g, '').replace(',', '.');
-    } else if (lastDot > lastComma) {
-        normalized = cleaned.replace(/,/g, '');
-    } else {
-        normalized = cleaned.replace(/[.,]/g, '');
-    }
-
-    const amount = Number(normalized);
-    if (!Number.isFinite(amount)) return null;
-    return amount;
-};
-
-const extractAmountsFromText = (text) => {
-    const normalizedText = text.replace(/(\d)\s+(?=\d)/g, '$1');
-    const matches = normalizedText.match(/\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?|\d+(?:[.,]\d{2})?/g) || [];
-    return matches
-        .map(parseAmountString)
-        .filter((value) => Number.isFinite(value) && value > 0);
-};
-
-const extractAmountFromText = (text) => {
-    const lines = text
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean);
-    const keywordLines = ['TOTAL', 'TOTAL A PAGAR', 'IMPORTE', 'MONTO', 'PAGAR', 'TOTAL RD', 'TOTAL RD$', 'TOTAL:'];
-
-    for (let index = 0; index < lines.length; index += 1) {
-        const line = lines[index].toUpperCase();
-        if (keywordLines.some((keyword) => line.includes(keyword)) && !line.includes('SUBTOTAL')) {
-            const sameLine = extractAmountsFromText(lines[index]);
-            if (sameLine.length) return Math.max(...sameLine);
-            const nextLine = lines[index + 1] ? extractAmountsFromText(lines[index + 1]) : [];
-            if (nextLine.length) return Math.max(...nextLine);
-        }
-    }
-
-    const currencyLines = lines.filter((line) => /(RD\$|DOP|\$)/i.test(line));
-    const currencyCandidates = currencyLines.flatMap(extractAmountsFromText);
-    if (currencyCandidates.length) return Math.max(...currencyCandidates);
-
-    const allCandidates = lines.flatMap(extractAmountsFromText);
-    if (allCandidates.length) return Math.max(...allCandidates);
-
-    return null;
-};
-
-const inferCategoryFromText = (text, type) => {
-    const keywordsMap = CATEGORY_KEYWORDS[type] || {};
-    const upperText = text.toUpperCase();
-    let bestCategory = null;
-    let bestScore = 0;
-
-    Object.entries(keywordsMap).forEach(([categoryName, keywords]) => {
-        const score = keywords.reduce((total, keyword) => (upperText.includes(keyword) ? total + 1 : total), 0);
-        if (score > bestScore) {
-            bestScore = score;
-            bestCategory = categoryName;
-        }
-    });
-
-    return bestScore > 0 ? bestCategory : null;
-};
-
-const extractMerchantName = (text) => {
-    const lines = text
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean);
-
-    for (const line of lines) {
-        const upperLine = line.toUpperCase();
-        if (upperLine.length < 3) continue;
-        if (/\d/.test(upperLine)) continue;
-        if (/FACTURA|RNC|TEL|TELEFONO|IVA|NIT|CLIENTE|FECHA|CAJERO|COMPROBANTE|RECIBO/.test(upperLine)) continue;
-        return line;
-    }
-
-    return '';
-};
 
 export default function AddTransaction() {
     const navigate = useNavigate();
@@ -163,49 +54,50 @@ export default function AddTransaction() {
     const mergedCategories = [...baseCategories, ...typeCustomCategories];
     const visibleCategories = showAllCats ? mergedCategories : mergedCategories.slice(0, 6);
 
+    // ─── AI-powered receipt scanning ───
     const handleCameraCapture = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         try {
             setScanning(true);
-            setScanProgress('Iniciando escáner...');
+            setScanProgress('Analizando con IA...');
             setError('');
             setPendingScan(null);
 
-            const result = await Tesseract.recognize(
-                file,
-                'spa',
-                {
-                    logger: m => {
-                        if (m.status === 'recognizing text') {
-                            setScanProgress(`Manejador OCR: ${Math.round(m.progress * 100)}%`);
-                        }
-                    }
-                }
-            );
+            const scanResult = await scanReceiptWithAI(file);
+            console.log('AI Scan Result:', scanResult);
 
-            const text = result.data.text;
-            console.log("OCR Result:", text);
-            setScanProgress('Analizando monto...');
-            const upperText = text.toUpperCase();
-            const foundAmount = extractAmountFromText(upperText);
-            const suggestedCategory = inferCategoryFromText(upperText, type);
-            const merchantName = extractMerchantName(text);
+            setScanProgress('Datos extraídos ✓');
 
-            if (foundAmount && foundAmount > 0) {
+            if (scanResult.amount && scanResult.amount > 0) {
+                const bestCategory = getBestCategory(scanResult.suggestedCategories);
                 setPendingScan({
-                    amount: foundAmount,
-                    category: suggestedCategory,
-                    merchant: merchantName,
-                    rawText: text,
+                    amount: scanResult.amount,
+                    currency: scanResult.currency || 'DOP',
+                    merchant: scanResult.merchant,
+                    category: bestCategory,
+                    date: scanResult.date,
+                    time: scanResult.time,
+                    rnc: scanResult.rnc,
+                    ticketNumber: scanResult.ticketNumber,
+                    operator: scanResult.operator,
+                    location: scanResult.location,
+                    details: scanResult.details,
+                    confidence: scanResult.confidence,
                 });
             } else {
-                setError('No se pudo encontrar un monto claro en la imagen.');
+                setError('No se pudo detectar un monto en la imagen. Intenta con otra foto.');
             }
         } catch (err) {
-            console.error('OCR Error:', err);
-            setError('Error al procesar la imagen con OCR.');
+            console.error('AI Scan Error:', err);
+            if (err.message?.includes('API key')) {
+                setError('Error de configuración de IA. Verifica tu Firebase API key.');
+            } else if (err.message?.includes('quota') || err.message?.includes('rate')) {
+                setError('Límite de uso de IA alcanzado. Intenta más tarde.');
+            } else {
+                setError('Error al analizar la imagen. Intenta de nuevo.');
+            }
         } finally {
             setScanning(false);
             setScanProgress('');
@@ -213,6 +105,7 @@ export default function AddTransaction() {
         }
     };
 
+    // ─── Custom categories listener ───
     React.useEffect(() => {
         if (!db || !currentUser) return undefined;
 
@@ -251,11 +144,10 @@ export default function AddTransaction() {
         }
     }, [category, mergedCategories]);
 
+    // ─── Handlers ───
     const handleAmountChange = (e) => {
         let val = e.target.value;
-        // Only allow digits and one decimal point
         val = val.replace(/[^0-9.]/g, '');
-        // Prevent multiple dots
         const parts = val.split('.');
         if (parts.length > 2) {
             val = parts[0] + '.' + parts.slice(1).join('');
@@ -277,8 +169,16 @@ export default function AddTransaction() {
         if (pendingScan.category && mergedCategories.some((cat) => cat.name === pendingScan.category)) {
             setCategory(pendingScan.category);
         }
-        if (!note.trim()) {
-            setNote(pendingScan.merchant || 'Factura escaneada');
+        // Auto-fill date if detected
+        if (pendingScan.date) {
+            setDate(pendingScan.date);
+        }
+        // Auto-fill note with merchant info
+        const noteItems = [];
+        if (pendingScan.merchant) noteItems.push(pendingScan.merchant);
+        if (pendingScan.ticketNumber) noteItems.push(`#${pendingScan.ticketNumber}`);
+        if (!note.trim() && noteItems.length > 0) {
+            setNote(noteItems.join(' — '));
         }
         setPendingScan(null);
     };
@@ -407,6 +307,7 @@ export default function AddTransaction() {
                             <input
                                 type="file"
                                 accept="image/*"
+                                capture="environment"
                                 id="cameraInput"
                                 className="hidden"
                                 onChange={handleCameraCapture}
@@ -417,10 +318,10 @@ export default function AddTransaction() {
                                 className={`flex flex-col items-center justify-center w-14 h-14 rounded-2xl border border-gray-100 shadow-sm transition-all cursor-[pointer] ${scanning ? 'bg-primary/10 border-primary/20 pointer-events-none' : 'bg-white hover:bg-gray-50 active:scale-95'}`}
                             >
                                 <span className={`material-symbols-rounded ${scanning ? 'animate-pulse text-primary' : 'text-gray-400'}`}>
-                                    {scanning ? 'document_scanner' : 'photo_camera'}
+                                    {scanning ? 'auto_awesome' : 'photo_camera'}
                                 </span>
                                 <span className={`text-[8px] font-bold uppercase tracking-wider mt-1 ${scanning ? 'text-primary' : 'text-gray-400'}`}>
-                                    {scanning ? 'OCR' : 'Subir'}
+                                    {scanning ? 'IA' : 'Escanear'}
                                 </span>
                             </label>
                         </div>
@@ -440,34 +341,124 @@ export default function AddTransaction() {
                                 />
                             </div>
                             {scanProgress && (
-                                <p className="text-xs text-primary font-medium mt-2 animate-pulse bg-primary/10 px-3 py-1 rounded-full">
+                                <p className="text-xs text-primary font-medium mt-2 animate-pulse bg-primary/10 px-3 py-1 rounded-full flex items-center gap-1">
+                                    <span className="material-symbols-rounded text-sm">auto_awesome</span>
                                     {scanProgress}
                                 </p>
                             )}
+
+                            {/* ─── AI Scan Results Card ─── */}
                             {pendingScan && (
-                                <div className="mt-4 bg-white border border-primary/20 rounded-2xl p-3 text-left shadow-sm">
-                                    <p className="text-[10px] uppercase tracking-wider font-semibold text-primary">Datos detectados</p>
-                                    <p className="text-sm font-semibold text-gray-800 mt-1">Monto: RD$ {pendingScan.amount.toLocaleString('es-DO')}</p>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Categoria sugerida: {pendingScan.category || 'Sin sugerencia'}
-                                    </p>
-                                    {pendingScan.merchant ? (
-                                        <p className="text-xs text-gray-400 mt-1">Comercio: {pendingScan.merchant}</p>
-                                    ) : null}
+                                <div className="mt-4 bg-white border border-primary/20 rounded-2xl p-4 text-left shadow-sm w-full">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="material-symbols-rounded text-primary text-lg">auto_awesome</span>
+                                        <p className="text-[10px] uppercase tracking-wider font-semibold text-primary">
+                                            Datos detectados por IA
+                                        </p>
+                                        {pendingScan.confidence > 0 && (
+                                            <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full ${pendingScan.confidence >= 0.8 ? 'bg-green-100 text-green-700' :
+                                                    pendingScan.confidence >= 0.5 ? 'bg-yellow-100 text-yellow-700' :
+                                                        'bg-red-100 text-red-700'
+                                                }`}>
+                                                {Math.round(pendingScan.confidence * 100)}%
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Amount */}
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="material-symbols-rounded text-gray-400 text-base">payments</span>
+                                        <p className="text-base font-bold text-gray-800">
+                                            {pendingScan.currency === 'DOP' || pendingScan.currency === 'RD$' ? 'RD$' : pendingScan.currency}{' '}
+                                            {pendingScan.amount.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                                        </p>
+                                    </div>
+
+                                    {/* Merchant */}
+                                    {pendingScan.merchant && (
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <span className="material-symbols-rounded text-gray-400 text-base">store</span>
+                                            <p className="text-sm font-medium text-gray-700">{pendingScan.merchant}</p>
+                                        </div>
+                                    )}
+
+                                    {/* RNC */}
+                                    {pendingScan.rnc && (
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <span className="material-symbols-rounded text-gray-400 text-base">badge</span>
+                                            <p className="text-xs text-gray-500">RNC: {pendingScan.rnc}</p>
+                                        </div>
+                                    )}
+
+                                    {/* Date & Time */}
+                                    {(pendingScan.date || pendingScan.time) && (
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <span className="material-symbols-rounded text-gray-400 text-base">calendar_today</span>
+                                            <p className="text-xs text-gray-500">
+                                                {pendingScan.date && new Date(pendingScan.date + 'T12:00:00').toLocaleDateString('es-DO', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                {pendingScan.time && ` • ${pendingScan.time}`}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* Ticket Number */}
+                                    {pendingScan.ticketNumber && (
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <span className="material-symbols-rounded text-gray-400 text-base">receipt_long</span>
+                                            <p className="text-xs text-gray-500">Ticket: {pendingScan.ticketNumber}</p>
+                                        </div>
+                                    )}
+
+                                    {/* Location */}
+                                    {pendingScan.location && (
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <span className="material-symbols-rounded text-gray-400 text-base">location_on</span>
+                                            <p className="text-xs text-gray-500">{pendingScan.location}</p>
+                                        </div>
+                                    )}
+
+                                    {/* Operator */}
+                                    {pendingScan.operator && (
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <span className="material-symbols-rounded text-gray-400 text-base">person</span>
+                                            <p className="text-xs text-gray-500">Operador: {pendingScan.operator}</p>
+                                        </div>
+                                    )}
+
+                                    {/* Details */}
+                                    {pendingScan.details && (
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <span className="material-symbols-rounded text-gray-400 text-base">info</span>
+                                            <p className="text-xs text-gray-500">{pendingScan.details}</p>
+                                        </div>
+                                    )}
+
+                                    {/* Category suggestion */}
+                                    {pendingScan.category && (
+                                        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
+                                            <span className="material-symbols-rounded text-gray-400 text-base">category</span>
+                                            <p className="text-xs text-gray-500">
+                                                Categoría sugerida: <span className="font-semibold text-primary">{pendingScan.category}</span>
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* Action buttons */}
                                     <div className="flex gap-2 mt-3">
                                         <button
                                             type="button"
                                             onClick={handleApplyScan}
-                                            className="flex-1 bg-primary text-black font-semibold text-xs py-2 rounded-xl"
+                                            className="flex-1 bg-primary text-black font-semibold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1"
                                         >
-                                            Aplicar
+                                            <span className="material-symbols-rounded text-sm">check</span>
+                                            Aplicar todo
                                         </button>
                                         <button
                                             type="button"
                                             onClick={handleDismissScan}
-                                            className="flex-1 bg-gray-100 text-gray-600 font-semibold text-xs py-2 rounded-xl"
+                                            className="flex-1 bg-gray-100 text-gray-600 font-semibold text-xs py-2.5 rounded-xl"
                                         >
-                                            Editar
+                                            Editar manual
                                         </button>
                                     </div>
                                 </div>
