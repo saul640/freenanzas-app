@@ -19,6 +19,13 @@ export default function Transactions() {
                         <p className="text-sm font-medium opacity-80">Tu historial</p>
                         <h1 className="text-2xl font-bold tracking-tight mt-1">Movimientos</h1>
                     </div>
+                    <button
+                        onClick={() => navigate('/expenses')}
+                        className="flex items-center gap-1.5 bg-black/10 hover:bg-black/20 px-3 py-2 rounded-xl transition-all active:scale-95"
+                    >
+                        <span className="material-symbols-rounded text-lg">download</span>
+                        <span className="text-xs font-bold">Exportar</span>
+                    </button>
                 </div>
             </header>
 
