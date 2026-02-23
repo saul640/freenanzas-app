@@ -1,71 +1,96 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from './BottomNav';
+import CategoryDetailModal from './CategoryDetailModal';
 
 export default function Analytics() {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
     const [periodTab, setPeriodTab] = useState('mensual');
 
-    const [totalIncome, setTotalIncome] = useState(0);
-    const [totalExpense, setTotalExpense] = useState(0);
-    const [categorySpending, setCategorySpending] = useState([]);
+    const [allTransactions, setAllTransactions] = useState([]);
+    const [showAllCats, setShowAllCats] = useState(false);
 
+    // ─── Drill-down modal state ───
+    const [selectedCategory, setSelectedCategory] = useState(null);
+
+    // ─── Fetch transactions ───
     useEffect(() => {
         if (!currentUser || !db) return;
         const q = query(collection(db, 'transactions'), where('userId', '==', currentUser.uid));
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            let income = 0;
-            let expense = 0;
-            let catMap = {};
-
-            snapshot.docs.forEach(doc => {
-                const data = doc.data();
-                if (data.type === 'income') {
-                    income += data.amount;
-                } else {
-                    expense += data.amount;
-                    if (!catMap[data.category]) {
-                        catMap[data.category] = {
-                            name: data.category,
-                            amount: 0,
-                            count: 0
-                        };
-                    }
-                    catMap[data.category].amount += data.amount;
-                    catMap[data.category].count += 1;
-                }
-            });
-
-            const topCategories = Object.values(catMap).sort((a, b) => b.amount - a.amount);
-
-            setTotalIncome(income);
-            setTotalExpense(expense);
-            setCategorySpending(topCategories);
+            const txs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setAllTransactions(txs);
         });
         return unsubscribe;
     }, [currentUser]);
 
-    const formatMoney = (amount) => {
-        return new Intl.NumberFormat('es-DO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
-    };
+    // ─── Memoized computations ───
+    const { totalIncome, totalExpense, categorySpending } = useMemo(() => {
+        let income = 0;
+        let expense = 0;
+        const catMap = {};
 
-    const getIconData = (catName) => {
+        allTransactions.forEach(tx => {
+            if (tx.type === 'income') {
+                income += tx.amount;
+            } else {
+                expense += tx.amount;
+                if (!catMap[tx.category]) {
+                    catMap[tx.category] = { name: tx.category, amount: 0, count: 0 };
+                }
+                catMap[tx.category].amount += tx.amount;
+                catMap[tx.category].count += 1;
+            }
+        });
+
+        const topCategories = Object.values(catMap).sort((a, b) => b.amount - a.amount);
+        return { totalIncome: income, totalExpense: expense, categorySpending: topCategories };
+    }, [allTransactions]);
+
+    const formatMoney = useCallback((amount) => {
+        return new Intl.NumberFormat('es-DO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
+    }, []);
+
+    const getIconData = useCallback((catName) => {
         const mapping = {
             'Comida': { icon: 'restaurant', color: 'text-orange-500', bg: 'bg-orange-100', bar: 'bg-orange-500' },
             'Supermercado y Despensa': { icon: 'shopping_cart', color: 'text-orange-500', bg: 'bg-orange-100', bar: 'bg-orange-500' },
             'Transporte': { icon: 'directions_car', color: 'text-blue-500', bg: 'bg-blue-100', bar: 'bg-blue-500' },
             'Servicios': { icon: 'bolt', color: 'text-purple-500', bg: 'bg-purple-100', bar: 'bg-purple-500' },
             'Servicios Básicos': { icon: 'bolt', color: 'text-purple-500', bg: 'bg-purple-100', bar: 'bg-purple-500' },
+            'Renta': { icon: 'home', color: 'text-indigo-500', bg: 'bg-indigo-100', bar: 'bg-indigo-500' },
+            'Vivienda/Alquiler': { icon: 'home', color: 'text-indigo-500', bg: 'bg-indigo-100', bar: 'bg-indigo-500' },
+            'Ocio': { icon: 'sports_esports', color: 'text-pink-500', bg: 'bg-pink-100', bar: 'bg-pink-500' },
+            'Ocio y Entretenimiento': { icon: 'sports_esports', color: 'text-red-500', bg: 'bg-red-100', bar: 'bg-red-500' },
+            'Salud': { icon: 'health_and_safety', color: 'text-green-600', bg: 'bg-green-100', bar: 'bg-green-500' },
+            'Educación': { icon: 'school', color: 'text-cyan-600', bg: 'bg-cyan-100', bar: 'bg-cyan-500' },
+            'Ahorro': { icon: 'savings', color: 'text-emerald-600', bg: 'bg-emerald-100', bar: 'bg-emerald-500' },
+            'Ahorro e Inversión': { icon: 'savings', color: 'text-emerald-600', bg: 'bg-emerald-100', bar: 'bg-emerald-500' },
+            'Otros': { icon: 'more_horiz', color: 'text-gray-500', bg: 'bg-gray-100', bar: 'bg-gray-400' },
         };
-        return mapping[catName] || { icon: 'category', color: 'text-gray-500', bg: 'bg-gray-100', bar: 'bg-gray-400' };
-    };
+        return mapping[catName] || { icon: 'label', color: 'text-teal-500', bg: 'bg-teal-100', bar: 'bg-teal-400' };
+    }, []);
 
     const percentSpent = totalIncome > 0 ? Math.min(Math.round((totalExpense / totalIncome) * 100), 100) : 0;
     const balanceAvailable = totalIncome - totalExpense;
+
+    // ─── Visible categories (show all or top 4) ───
+    const visibleCategories = showAllCats ? categorySpending : categorySpending.slice(0, 4);
+
+    // ─── Modal handlers ───
+    const handleCategoryClick = useCallback((cat) => {
+        setSelectedCategory(cat.name);
+    }, []);
+
+    const handleCloseModal = useCallback(() => {
+        setSelectedCategory(null);
+    }, []);
+
+    const selectedIconData = selectedCategory ? getIconData(selectedCategory) : null;
 
     return (
         <div className="flex flex-col min-h-screen bg-[#f5f7f6]">
@@ -172,41 +197,53 @@ export default function Analytics() {
                     </div>
                 </div>
 
-                {/* Listado de Categorías */}
+                {/* Listado de Categorías — INTERACTIVO */}
                 <div>
                     <div className="flex justify-between items-end mb-4 px-2">
-                        <h3 className="text-[17px] font-bold text-gray-900">Categorías con más gastos</h3>
-                        <button className="text-sm font-bold text-primary active:scale-95 transition-transform">Ver todas</button>
+                        <h3 className="text-[17px] font-bold text-gray-900">
+                            {showAllCats ? 'Todas las categorías' : 'Categorías con más gastos'}
+                        </h3>
+                        <button
+                            onClick={() => setShowAllCats(!showAllCats)}
+                            className="text-sm font-bold text-primary active:scale-95 transition-transform"
+                        >
+                            {showAllCats ? 'Ver menos' : 'Ver todas'}
+                        </button>
                     </div>
 
                     <div className="space-y-3">
                         {categorySpending.length === 0 ? (
                             <p className="text-center text-sm text-gray-400 py-6">No hay gastos registrados aún.</p>
                         ) : (
-                            categorySpending.slice(0, 4).map((cat, index) => {
+                            visibleCategories.map((cat, index) => {
                                 const { icon, color, bg, bar } = getIconData(cat.name);
-                                const progress = Math.min((cat.amount / totalExpense) * 100, 100);
+                                const progress = totalExpense > 0 ? Math.min((cat.amount / totalExpense) * 100, 100) : 0;
 
                                 return (
-                                    <div key={index} className="bg-white rounded-[24px] p-5 shadow-[0_4px_15px_-4px_rgba(0,0,0,0.03)] border border-white">
+                                    <button
+                                        key={index}
+                                        onClick={() => handleCategoryClick(cat)}
+                                        className="w-full text-left bg-white rounded-[24px] p-5 shadow-[0_4px_15px_-4px_rgba(0,0,0,0.03)] border border-white hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.08)] active:scale-[0.98] transition-all duration-200 cursor-pointer group"
+                                    >
                                         <div className="flex items-center gap-4 mb-3">
-                                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${bg}`}>
+                                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${bg} group-hover:scale-110 transition-transform duration-200`}>
                                                 <span className={`material-symbols-rounded text-2xl ${color}`}>{icon}</span>
                                             </div>
                                             <div className="flex-1">
                                                 <h4 className="font-bold text-gray-900 leading-tight">{cat.name}</h4>
                                                 <p className="text-xs font-medium text-gray-400 mt-0.5">{cat.count} {cat.count === 1 ? 'transacción' : 'transacciones'}</p>
                                             </div>
-                                            <div className="text-right">
+                                            <div className="text-right flex items-center gap-2">
                                                 <p className="font-extrabold text-gray-900">RD$ {formatMoney(cat.amount)}</p>
+                                                <span className="material-symbols-rounded text-gray-300 text-lg group-hover:text-primary transition-colors">chevron_right</span>
                                             </div>
                                         </div>
 
                                         {/* Progress Bar Lineal */}
                                         <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden mt-2">
-                                            <div className={`h-full rounded-full ${bar}`} style={{ width: `${progress}%` }} />
+                                            <div className={`h-full rounded-full ${bar} transition-all duration-700`} style={{ width: `${progress}%` }} />
                                         </div>
-                                    </div>
+                                    </button>
                                 );
                             })
                         )}
@@ -214,6 +251,15 @@ export default function Analytics() {
                 </div>
 
             </div>
+
+            {/* Category Detail Modal */}
+            <CategoryDetailModal
+                isOpen={selectedCategory !== null}
+                onClose={handleCloseModal}
+                categoryName={selectedCategory}
+                transactions={allTransactions}
+                iconData={selectedIconData}
+            />
 
             <BottomNav />
         </div>
