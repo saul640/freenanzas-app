@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../hooks/useAuth';
 import Tesseract from 'tesseract.js';
@@ -24,6 +24,116 @@ const incomeCategories = [
     { name: 'Otros', icon: 'more_horiz' },
 ];
 
+const CATEGORY_KEYWORDS = {
+    expense: {
+        Comida: ['RESTAURANTE', 'PIZZA', 'BURGER', 'CAFETERIA', 'CAFE', 'FOOD', 'COMIDA', 'ALMUERZO', 'CENA', 'BAR', 'TAQUERIA', 'PANADERIA', 'DELIVERY'],
+        Transporte: ['UBER', 'TAXI', 'GASOLINA', 'COMBUSTIBLE', 'TRANSPORTE', 'BUS', 'METRO', 'PEAJE', 'PARKING'],
+        Renta: ['RENTA', 'ALQUILER', 'ARRENDAMIENTO', 'HIPOTECA'],
+        Servicios: ['LUZ', 'AGUA', 'INTERNET', 'TELECOM', 'CABLE', 'TELEFONO', 'SERVICIO', 'ELECTRICIDAD'],
+        Ocio: ['CINE', 'NETFLIX', 'SPOTIFY', 'ENTRETENIMIENTO', 'OCIO', 'JUEGO', 'CONCIERTO'],
+        Salud: ['FARMACIA', 'CLINICA', 'HOSPITAL', 'MEDICO', 'SALUD', 'LABORATORIO', 'SEGURO'],
+        Educación: ['COLEGIO', 'UNIVERSIDAD', 'CURSO', 'LIBRO', 'EDUCACION', 'MATRICULA'],
+        Ahorro: ['AHORRO', 'INVERSION', 'FONDO', 'BANCO'],
+    },
+    income: {
+        Salario: ['SALARIO', 'NOMINA', 'PAYROLL'],
+        Freelance: ['FREELANCE', 'HONORARIOS', 'SERVICIO PROFESIONAL'],
+        Rendimientos: ['INTERESES', 'DIVIDENDO', 'RENDIMIENTO'],
+        Otros: ['TRANSFERENCIA', 'PAGO', 'DEPOSITO'],
+    },
+};
+
+const normalizeCategoryName = (value) => value.trim().toLowerCase();
+
+const parseAmountString = (value) => {
+    if (!value) return null;
+    const cleaned = value.replace(/[\sRD$DOP$]/gi, '').replace(/[^\d.,]/g, '');
+    if (!cleaned) return null;
+    const lastComma = cleaned.lastIndexOf(',');
+    const lastDot = cleaned.lastIndexOf('.');
+    let normalized = cleaned;
+
+    if (lastComma > lastDot) {
+        normalized = cleaned.replace(/\./g, '').replace(',', '.');
+    } else if (lastDot > lastComma) {
+        normalized = cleaned.replace(/,/g, '');
+    } else {
+        normalized = cleaned.replace(/[.,]/g, '');
+    }
+
+    const amount = Number(normalized);
+    if (!Number.isFinite(amount)) return null;
+    return amount;
+};
+
+const extractAmountsFromText = (text) => {
+    const matches = text.match(/\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})|\d+(?:[.,]\d{2})?/g) || [];
+    return matches
+        .map(parseAmountString)
+        .filter((value) => Number.isFinite(value) && value > 0);
+};
+
+const extractAmountFromText = (text) => {
+    const lines = text
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+    const keywordLines = ['TOTAL', 'TOTAL A PAGAR', 'IMPORTE', 'MONTO', 'PAGAR', 'TOTAL RD', 'TOTAL RD$', 'TOTAL:'];
+
+    for (let index = 0; index < lines.length; index += 1) {
+        const line = lines[index].toUpperCase();
+        if (keywordLines.some((keyword) => line.includes(keyword)) && !line.includes('SUBTOTAL')) {
+            const sameLine = extractAmountsFromText(lines[index]);
+            if (sameLine.length) return Math.max(...sameLine);
+            const nextLine = lines[index + 1] ? extractAmountsFromText(lines[index + 1]) : [];
+            if (nextLine.length) return Math.max(...nextLine);
+        }
+    }
+
+    const currencyLines = lines.filter((line) => /(RD\$|DOP|\$)/i.test(line));
+    const currencyCandidates = currencyLines.flatMap(extractAmountsFromText);
+    if (currencyCandidates.length) return Math.max(...currencyCandidates);
+
+    const allCandidates = lines.flatMap(extractAmountsFromText);
+    if (allCandidates.length) return Math.max(...allCandidates);
+
+    return null;
+};
+
+const inferCategoryFromText = (text, type) => {
+    const keywordsMap = CATEGORY_KEYWORDS[type] || {};
+    const upperText = text.toUpperCase();
+    let bestCategory = null;
+    let bestScore = 0;
+
+    Object.entries(keywordsMap).forEach(([categoryName, keywords]) => {
+        const score = keywords.reduce((total, keyword) => (upperText.includes(keyword) ? total + 1 : total), 0);
+        if (score > bestScore) {
+            bestScore = score;
+            bestCategory = categoryName;
+        }
+    });
+
+    return bestScore > 0 ? bestCategory : null;
+};
+
+const extractMerchantName = (text) => {
+    const lines = text
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+    for (const line of lines) {
+        const upperLine = line.toUpperCase();
+        if (upperLine.length < 3) continue;
+        if (/\d/.test(upperLine)) continue;
+        if (/FACTURA|RNC|TEL|TELEFONO|IVA|NIT|CLIENTE|FECHA|CAJERO|COMPROBANTE|RECIBO/.test(upperLine)) continue;
+        return line;
+    }
+
+    return '';
+};
+
 export default function AddTransaction() {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
@@ -38,9 +148,19 @@ export default function AddTransaction() {
     const [showAllCats, setShowAllCats] = useState(false);
     const [scanning, setScanning] = useState(false);
     const [scanProgress, setScanProgress] = useState('');
+    const [pendingScan, setPendingScan] = useState(null);
+    const [customCategories, setCustomCategories] = useState([]);
+    const [showCategoryCreator, setShowCategoryCreator] = useState(false);
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [creatingCategory, setCreatingCategory] = useState(false);
 
-    const currentCategories = type === 'expense' ? expenseCategories : incomeCategories;
-    const visibleCategories = showAllCats ? currentCategories : currentCategories.slice(0, 6);
+    const baseCategories = type === 'expense' ? expenseCategories : incomeCategories;
+    const normalizedBaseNames = baseCategories.map((cat) => normalizeCategoryName(cat.name));
+    const typeCustomCategories = customCategories
+        .filter((cat) => cat.type === type)
+        .filter((cat) => !normalizedBaseNames.includes(normalizeCategoryName(cat.name)));
+    const mergedCategories = [...baseCategories, ...typeCustomCategories];
+    const visibleCategories = showAllCats ? mergedCategories : mergedCategories.slice(0, 6);
 
     const handleCameraCapture = async (e) => {
         const file = e.target.files[0];
@@ -50,6 +170,7 @@ export default function AddTransaction() {
             setScanning(true);
             setScanProgress('Iniciando escáner...');
             setError('');
+            setPendingScan(null);
 
             const result = await Tesseract.recognize(
                 file,
@@ -66,39 +187,18 @@ export default function AddTransaction() {
             const text = result.data.text;
             console.log("OCR Result:", text);
             setScanProgress('Analizando monto...');
+            const upperText = text.toUpperCase();
+            const foundAmount = extractAmountFromText(upperText);
+            const suggestedCategory = inferCategoryFromText(upperText, type);
+            const merchantName = extractMerchantName(text);
 
-            const lines = text.split('\n').map(l => l.trim().toUpperCase());
-            let foundAmount = 0;
-
-            // Prioridad a palabras clave "TOTAL"
-            for (let i = 0; i < lines.length; i++) {
-                if (lines[i].includes('TOTAL') && !lines[i].includes('SUBTOTAL')) {
-                    const match = lines[i].match(/\d+[.,]\d{2}/) || (lines[i + 1] && lines[i + 1].match(/\d+[.,]\d{2}/));
-                    if (match) {
-                        foundAmount = parseFloat(match[0].replace(',', '.'));
-                        break;
-                    }
-                }
-            }
-
-            // Fallback si no hay "TOTAL" explícito: buscar el número decimal más alto
-            if (!foundAmount) {
-                const currencyRegex = /\d{1,3}(?:[.,]\d{3})*[.,]\d{2}/g;
-                let maxVal = 0;
-                let match;
-                while ((match = currencyRegex.exec(text)) !== null) {
-                    const cleanNum = parseFloat(match[0].replace(/,/g, '').replace('.', '.')); // Considera comas como separadores de miles
-                    if (!isNaN(cleanNum) && cleanNum > maxVal) {
-                        maxVal = cleanNum;
-                    }
-                }
-                foundAmount = maxVal;
-            }
-
-            if (foundAmount > 0) {
-                setAmount(foundAmount.toString());
-                // Setear alguna sugerencia de categoría si quieres, o dejar en Comida.
-                setNote('Factura escaneada con IA');
+            if (foundAmount && foundAmount > 0) {
+                setPendingScan({
+                    amount: foundAmount,
+                    category: suggestedCategory,
+                    merchant: merchantName,
+                    rawText: text,
+                });
             } else {
                 setError('No se pudo encontrar un monto claro en la imagen.');
             }
@@ -108,12 +208,47 @@ export default function AddTransaction() {
         } finally {
             setScanning(false);
             setScanProgress('');
+            e.target.value = '';
         }
     };
 
     React.useEffect(() => {
-        setCategory(currentCategories[0].name);
-    }, [type, currentCategories]);
+        if (!db || !currentUser) return undefined;
+
+        const categoriesRef = collection(db, 'users', currentUser.uid, 'categories');
+
+        const unsubscribe = onSnapshot(
+            categoriesRef,
+            (snapshot) => {
+                const data = snapshot.docs
+                    .map((doc) => ({ id: doc.id, ...doc.data() }))
+                    .filter((item) => item?.name);
+                const sorted = data.sort((a, b) => a.name.localeCompare(b.name));
+                setCustomCategories(sorted.map((item) => ({
+                    id: item.id,
+                    name: item.name,
+                    type: item.type || 'expense',
+                    icon: item.icon || 'label',
+                })));
+            },
+            (err) => {
+                console.error('Error cargando categorias', err);
+            }
+        );
+
+        return () => unsubscribe();
+    }, [currentUser]);
+
+    React.useEffect(() => {
+        if (!mergedCategories.length) {
+            setCategory('');
+            return;
+        }
+        const categoryExists = mergedCategories.some((cat) => cat.name === category);
+        if (!categoryExists) {
+            setCategory(mergedCategories[0].name);
+        }
+    }, [category, mergedCategories]);
 
     const handleAmountChange = (e) => {
         let val = e.target.value;
@@ -125,6 +260,68 @@ export default function AddTransaction() {
             val = parts[0] + '.' + parts.slice(1).join('');
         }
         setAmount(val);
+        if (pendingScan) setPendingScan(null);
+        if (error) setError('');
+    };
+
+    const handleCategorySelect = (value) => {
+        setCategory(value);
+        if (pendingScan) setPendingScan(null);
+        if (error) setError('');
+    };
+
+    const handleApplyScan = () => {
+        if (!pendingScan) return;
+        setAmount(pendingScan.amount.toString());
+        if (pendingScan.category && mergedCategories.some((cat) => cat.name === pendingScan.category)) {
+            setCategory(pendingScan.category);
+        }
+        if (!note.trim()) {
+            setNote(pendingScan.merchant || 'Factura escaneada');
+        }
+        setPendingScan(null);
+    };
+
+    const handleDismissScan = () => {
+        setPendingScan(null);
+    };
+
+    const handleCreateCategory = async () => {
+        const trimmedName = newCategoryName.trim();
+        if (!trimmedName) {
+            setError('Escribe un nombre de categoria.');
+            return;
+        }
+        if (!currentUser || !db) {
+            setError('Inicia sesion para crear categorias.');
+            return;
+        }
+
+        const exists = mergedCategories.some((cat) => normalizeCategoryName(cat.name) === normalizeCategoryName(trimmedName));
+        if (exists) {
+            setError('Esa categoria ya existe.');
+            return;
+        }
+
+        try {
+            setCreatingCategory(true);
+            setError('');
+            await addDoc(collection(db, 'users', currentUser.uid, 'categories'), {
+                userId: currentUser.uid,
+                name: trimmedName,
+                type,
+                icon: 'label',
+                createdAt: serverTimestamp(),
+            });
+            setCategory(trimmedName);
+            setNewCategoryName('');
+            setShowCategoryCreator(false);
+        } catch (err) {
+            console.error('Error creando categoria', err);
+            setError('No pudimos crear la categoria. Intenta de nuevo.');
+        } finally {
+            setCreatingCategory(false);
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -132,6 +329,10 @@ export default function AddTransaction() {
         const parsedAmount = parseFloat(amount);
         if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
             setError('Por favor ingresa un monto mayor a 0.');
+            return;
+        }
+        if (pendingScan) {
+            setError('Confirma el monto detectado o edita manualmente antes de guardar.');
             return;
         }
         if (!category) {
@@ -205,7 +406,6 @@ export default function AddTransaction() {
                             <input
                                 type="file"
                                 accept="image/*"
-                                capture="environment"
                                 id="cameraInput"
                                 className="hidden"
                                 onChange={handleCameraCapture}
@@ -219,7 +419,7 @@ export default function AddTransaction() {
                                     {scanning ? 'document_scanner' : 'photo_camera'}
                                 </span>
                                 <span className={`text-[8px] font-bold uppercase tracking-wider mt-1 ${scanning ? 'text-primary' : 'text-gray-400'}`}>
-                                    {scanning ? 'OCR' : 'Scan'}
+                                    {scanning ? 'OCR' : 'Subir'}
                                 </span>
                             </label>
                         </div>
@@ -243,6 +443,34 @@ export default function AddTransaction() {
                                     {scanProgress}
                                 </p>
                             )}
+                            {pendingScan && (
+                                <div className="mt-4 bg-white border border-primary/20 rounded-2xl p-3 text-left shadow-sm">
+                                    <p className="text-[10px] uppercase tracking-wider font-semibold text-primary">Datos detectados</p>
+                                    <p className="text-sm font-semibold text-gray-800 mt-1">Monto: RD$ {pendingScan.amount.toLocaleString('es-DO')}</p>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Categoria sugerida: {pendingScan.category || 'Sin sugerencia'}
+                                    </p>
+                                    {pendingScan.merchant ? (
+                                        <p className="text-xs text-gray-400 mt-1">Comercio: {pendingScan.merchant}</p>
+                                    ) : null}
+                                    <div className="flex gap-2 mt-3">
+                                        <button
+                                            type="button"
+                                            onClick={handleApplyScan}
+                                            className="flex-1 bg-primary text-black font-semibold text-xs py-2 rounded-xl"
+                                        >
+                                            Aplicar
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleDismissScan}
+                                            className="flex-1 bg-gray-100 text-gray-600 font-semibold text-xs py-2 rounded-xl"
+                                        >
+                                            Editar
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -259,7 +487,7 @@ export default function AddTransaction() {
                                 <button
                                     key={cat.name}
                                     type="button"
-                                    onClick={() => setCategory(cat.name)}
+                                    onClick={() => handleCategorySelect(cat.name)}
                                     className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${category === cat.name
                                         ? 'border-primary bg-white shadow-sm'
                                         : 'border-transparent bg-white'
@@ -278,6 +506,37 @@ export default function AddTransaction() {
                                 </button>
                             ))}
                         </div>
+                        <div className="mt-4 flex items-center justify-between">
+                            <button
+                                type="button"
+                                onClick={() => setShowCategoryCreator(!showCategoryCreator)}
+                                className="text-primary text-sm font-medium"
+                            >
+                                {showCategoryCreator ? 'Cancelar nueva categoria' : '+ Crear categoria'}
+                            </button>
+                            {customCategories.length > 0 && (
+                                <span className="text-[11px] text-gray-400">Personalizadas: {customCategories.length}</span>
+                            )}
+                        </div>
+                        {showCategoryCreator && (
+                            <div className="mt-3 bg-white border border-gray-100 rounded-2xl p-3 flex items-center gap-2">
+                                <input
+                                    type="text"
+                                    value={newCategoryName}
+                                    onChange={(e) => setNewCategoryName(e.target.value)}
+                                    placeholder="Nombre de categoria"
+                                    className="flex-1 bg-transparent border-none p-0 focus:ring-0 font-medium placeholder:text-gray-300 text-sm"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleCreateCategory}
+                                    disabled={creatingCategory}
+                                    className="bg-primary text-black text-xs font-semibold px-3 py-2 rounded-xl disabled:opacity-60"
+                                >
+                                    {creatingCategory ? 'Creando...' : 'Crear'}
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {/* Date Picker */}
@@ -319,7 +578,7 @@ export default function AddTransaction() {
                 <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto p-6 bg-[#f7f9f8]">
                     <button
                         type="submit"
-                        disabled={loading}
+                        disabled={loading || scanning || creatingCategory || !!pendingScan}
                         className="w-full bg-primary hover:bg-primary-dark text-black font-bold py-4 rounded-2xl transition-all active:scale-[0.98] disabled:opacity-50 text-base shadow-lg shadow-primary/20"
                     >
                         {loading ? (
