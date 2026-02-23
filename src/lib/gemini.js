@@ -1,17 +1,19 @@
-import { getAI, getGenerativeModel, GoogleAIBackend } from 'firebase/ai';
-import app from '../firebase';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Initialize Firebase AI Logic with Google AI backend
+// Initialize direct Gemini API client
+let genAI = null;
 let aiModel = null;
 
 function getModel() {
     if (aiModel) return aiModel;
-    if (!app) {
-        throw new Error('Firebase no está inicializado');
+
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+        throw new Error('Falta VITE_GEMINI_API_KEY. Ve a Google AI Studio, genera una API Key con tus créditos y agrégala a tu archivo .env.local');
     }
 
-    const ai = getAI(app, { backend: new GoogleAIBackend() });
-    aiModel = getGenerativeModel(ai, { model: 'gemini-2.0-flash' });
+    genAI = new GoogleGenerativeAI(apiKey);
+    aiModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     return aiModel;
 }
 
