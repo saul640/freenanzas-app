@@ -46,7 +46,7 @@ const getCardBalanceDOP = (card) => card.balanceDOP ?? card.balanceALaFecha ?? c
 export default function AddTransaction() {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
-    const appId = import.meta.env.VITE_FIREBASE_APP_ID;
+    const appId = 'finanzas_boveda_dual_v2';
 
     const [type, setType] = useState('expense');
     const [amount, setAmount] = useState('');

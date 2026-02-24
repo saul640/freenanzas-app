@@ -109,6 +109,7 @@ const EMPTY_FORM = {
     balanceDolaresALaFecha: '', balanceDolaresAlCorte: '',
     pagoMinimo: '', pagoMinimoUSD: '', fechaLimitePago: '25', cutoffDay: '15', interestRate: '40',
     credimasLimiteAprobado: '', credimasDisponible: '', credimasTotalAdeudado: '', credimasCuotaMensual: '',
+    notificacionesPago: true,
 };
 
 export default function CreditCards() {
@@ -125,7 +126,7 @@ export default function CreditCards() {
     const [paymentAmount, setPaymentAmount] = useState('');
     const [paymentCurrency, setPaymentCurrency] = useState('DOP');
     const [processingPayment, setProcessingPayment] = useState(false);
-    const appId = import.meta.env.VITE_FIREBASE_APP_ID;
+    const appId = 'finanzas_boveda_dual_v2';
 
     useEffect(() => {
         if (!currentUser || !db || !appId) {
@@ -164,6 +165,7 @@ export default function CreditCards() {
             credimasDisponible: String(card.credimasDisponible || ''),
             credimasTotalAdeudado: String(card.credimasTotalAdeudado || ''),
             credimasCuotaMensual: String(card.credimasCuotaMensual || ''),
+            notificacionesPago: card.notificacionesPago !== false,
         });
         setShowForm(true);
     };
@@ -206,6 +208,7 @@ export default function CreditCards() {
             credimasDisponible: parseFloat(form.credimasDisponible) || 0,
             credimasTotalAdeudado: parseFloat(form.credimasTotalAdeudado) || 0,
             credimasCuotaMensual: parseFloat(form.credimasCuotaMensual) || 0,
+            notificacionesPago: form.notificacionesPago,
         };
         if (editId) {
             await updateDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'creditCards', editId), data);
@@ -385,7 +388,13 @@ export default function CreditCards() {
                                         </div>
 
                                         {/* Dates & Alerts */}
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-2 relative">
+                                            {isUrgent && card.notificacionesPago !== false && (
+                                                <div className="absolute -top-2 -right-2 flex h-4 w-4 z-10">
+                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                                    <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-slate-900 shadow"></span>
+                                                </div>
+                                            )}
                                             <div className={`flex-1 rounded-xl px-3 py-2 text-center ${daysCut <= 5 ? 'bg-amber-500/30' : 'bg-white/10'}`}>
                                                 <p className="text-white/80 text-[10px] font-bold uppercase">Corte</p>
                                                 <p className="text-white text-sm font-extrabold">{daysCut}d</p>
@@ -406,8 +415,8 @@ export default function CreditCards() {
                                         {/* Balance al Corte Warning */}
                                         {balCorte > 0 && (
                                             <div className={`mt-3 rounded-xl px-3 py-2 ${isUrgent ? 'bg-red-500/30 border border-red-400/30' : 'bg-white/10'}`}>
-                                                <p className={`text-xs font-bold ${isUrgent ? 'text-red-200' : 'text-amber-300'}`}>
-                                                    {isUrgent ? '🚨' : '💡'} Totalero: Paga RD$ {formatMoney(balCorte)} (balance al corte) antes del {formatDate(card.fechaLimitePago || card.paymentDueDay || 25)} para evitar intereses.
+                                                <p className={`text-xs font-bold leading-snug ${isUrgent ? 'text-red-200' : 'text-amber-300'}`}>
+                                                    {isUrgent ? '🚨' : '💡'} Totalero: Paga RD$ {formatMoney(balCorte)} (al corte) antes del {formatDate(card.fechaLimitePago || card.paymentDueDay || 25)}.
                                                 </p>
                                             </div>
                                         )}
@@ -587,6 +596,18 @@ export default function CreditCards() {
                             <div>
                                 <label className="text-[10px] text-gray-400 mb-0.5 block">Día Límite de Pago</label>
                                 <input type="number" value={form.fechaLimitePago} onChange={e => setForm({ ...form, fechaLimitePago: e.target.value })} placeholder="25" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                            </div>
+
+                            {/* Alerts Toggle */}
+                            <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between mt-2">
+                                <div>
+                                    <p className="text-sm font-bold text-gray-700">Notificaciones de Pago</p>
+                                    <p className="text-[10px] text-gray-400">Recibir alertas de vencimiento (5 días antes)</p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" checked={form.notificacionesPago} onChange={e => setForm({ ...form, notificacionesPago: e.target.checked })} className="sr-only peer" />
+                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-slate-900 border border-gray-100"></div>
+                                </label>
                             </div>
 
                             {/* Credimás Section */}
