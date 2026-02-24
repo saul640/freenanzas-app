@@ -372,7 +372,7 @@ export default function CreditCards() {
                         originalDueDay: dToSet,
                         daysLeft: isOverdue ? 0 : daysLeft,
                         isOverdue: isOverdue,
-                        isNearDue: !isOverdue && daysLeft <= 5,
+                        isNearDue: !isOverdue && daysLeft <= 3,
                         category: item.category || 'Gastos'
                     });
                 }
@@ -392,7 +392,7 @@ export default function CreditCards() {
                     originalDueDay: txDate.getDate(),
                     daysLeft: isOverdue ? 0 : daysUntil(txDate.getDate()),
                     isOverdue: isOverdue,
-                    isNearDue: !isOverdue && (daysUntil(txDate.getDate()) <= 5),
+                    isNearDue: !isOverdue && (daysUntil(txDate.getDate()) <= 3),
                     category: tx.category || 'Gastos'
                 });
             }
@@ -492,7 +492,7 @@ export default function CreditCards() {
                                         <div>
                                             <p className="text-[15px] font-bold text-gray-900">{pItem.name}</p>
                                             <div className="flex items-center gap-3 mt-1.5">
-                                                <span className={`text-[11px] font-extrabold px-3 py-0.5 rounded-full ${pItem.isOverdue ? 'bg-red-100 text-red-600' : pItem.isNearDue ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                <span className={`text-[11px] font-extrabold px-3 py-0.5 rounded-full ${pItem.isOverdue ? 'bg-red-100 text-red-600' : pItem.isNearDue ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700'}`}>
                                                     {pItem.isOverdue ? 'Vencido' : pItem.isNearDue ? 'Próximo a vencer' : 'Pendiente'}
                                                 </span>
                                                 <span className="text-[12px] text-gray-500 font-medium">Día {pItem.originalDueDay}</span>
