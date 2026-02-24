@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { collection, doc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, updateDoc, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../hooks/useAuth';
 
@@ -121,7 +121,11 @@ export default function PendingPayments() {
             const status = getPaymentStatus(item);
             if (status === 'pending' || status === 'overdue') {
                 const carryOver = calcCarryOver(item);
-                const totalDue = (item.amount || 0) + carryOver.amount;
+                let totalDue = (item.amount || 0) + carryOver.amount;
+
+                const abonado = Number(item.pagos_abonados || 0);
+                totalDue -= abonado;
+
                 if (totalDue > 0) {
                     let dToSet = parseInt(item.dueDay) || 15;
                     const isOverdue = status === 'overdue';
@@ -146,18 +150,25 @@ export default function PendingPayments() {
             if (tx.estado === 'pendiente' || tx.status === 'pendiente') {
                 const txDate = tx.date ? new Date(tx.date) : now;
                 const isOverdue = txDate < new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-                items.push({
-                    id: tx.id,
-                    type: 'transaction',
-                    sourceItem: tx,
-                    name: tx.description || tx.category || 'Gasto Pendiente',
-                    amount: Number(tx.amount || 0),
-                    originalDueDay: txDate.getDate(),
-                    daysLeft: isOverdue ? 0 : daysUntil(txDate.getDate()),
-                    isOverdue: isOverdue,
-                    isNearDue: !isOverdue && (daysUntil(txDate.getDate()) <= 3),
-                    category: tx.category || 'Gastos'
-                });
+
+                const baseAmount = Number(tx.amount || 0);
+                const abonado = Number(tx.pagos_abonados || 0);
+                const totalDue = baseAmount - abonado;
+
+                if (totalDue > 0) {
+                    items.push({
+                        id: tx.id,
+                        type: 'transaction',
+                        sourceItem: tx,
+                        name: tx.description || tx.category || 'Gasto Pendiente',
+                        amount: totalDue,
+                        originalDueDay: txDate.getDate(),
+                        daysLeft: isOverdue ? 0 : daysUntil(txDate.getDate()),
+                        isOverdue: isOverdue,
+                        isNearDue: !isOverdue && (daysUntil(txDate.getDate()) <= 3),
+                        category: tx.category || 'Gastos'
+                    });
+                }
             }
         });
 
@@ -169,22 +180,69 @@ export default function PendingPayments() {
         });
     }, [recurring, transactions]);
 
-    const handleMarkAsPaid = async (pItem) => {
-        if (!currentUser || !db) return;
+    const [selectedPayment, setSelectedPayment] = useState(null);
+    const [paymentAmount, setPaymentAmount] = useState('');
+    const [paymentProcessing, setPaymentProcessing] = useState(false);
+
+    const handleOpenPayment = (pItem) => {
+        setSelectedPayment(pItem);
+        setPaymentAmount(pItem.amount.toString());
+    };
+
+    const handleConfirmPayment = async () => {
+        if (!currentUser || !db || !selectedPayment) return;
+        const amountToPay = Number(paymentAmount);
+        if (isNaN(amountToPay) || amountToPay <= 0) return;
+
+        setPaymentProcessing(true);
         try {
-            if (pItem.type === 'recurring') {
-                const curKey = currentMonthKey();
-                const itemRef = doc(db, 'users', currentUser.uid, 'recurring', pItem.id);
-                const paidArr = pItem.sourceItem.paidMonths || [];
-                if (!paidArr.includes(curKey)) {
-                    await updateDoc(itemRef, { paidMonths: [...paidArr, curKey] });
+            const isPartial = amountToPay < selectedPayment.amount;
+
+            // 1. Transaction creation
+            const txData = {
+                userId: currentUser.uid,
+                type: 'expense',
+                amount: amountToPay,
+                category: selectedPayment.category || 'Gastos',
+                date: new Date().toISOString().split('T')[0],
+                note: `Pago ${isPartial ? 'parcial' : 'total'} de ${selectedPayment.name}`,
+                timestamp: serverTimestamp()
+            };
+            await addDoc(collection(db, 'transactions'), txData);
+
+            // 2. Original item update
+            if (selectedPayment.type === 'recurring') {
+                const itemRef = doc(db, 'users', currentUser.uid, 'recurring', selectedPayment.id);
+                if (isPartial) {
+                    const currentAbonado = Number(selectedPayment.sourceItem.pagos_abonados || 0);
+                    await updateDoc(itemRef, { pagos_abonados: currentAbonado + amountToPay });
+                } else {
+                    const curKey = currentMonthKey();
+                    const dueKeys = Array.from(getDueMonthKeys(selectedPayment.sourceItem.startDate || new Date().toISOString().split('T')[0], selectedPayment.sourceItem.frequency || 'monthly', new Date().getFullYear(), new Date().getMonth()));
+                    const toAdd = dueKeys.filter(k => k <= curKey);
+
+                    if (!toAdd.includes(curKey)) toAdd.push(curKey);
+
+                    const paidArr = selectedPayment.sourceItem.paidMonths || [];
+                    const newPaid = Array.from(new Set([...paidArr, ...toAdd]));
+                    await updateDoc(itemRef, { paidMonths: newPaid, pagos_abonados: 0 });
                 }
-            } else if (pItem.type === 'transaction') {
-                const itemRef = doc(db, 'users', currentUser.uid, 'transactions', pItem.id);
-                await updateDoc(itemRef, { estado: 'pagado', status: 'pagado' });
+            } else if (selectedPayment.type === 'transaction') {
+                const itemRef = doc(db, 'users', currentUser.uid, 'transactions', selectedPayment.id);
+                if (isPartial) {
+                    const currentAbonado = Number(selectedPayment.sourceItem.pagos_abonados || 0);
+                    await updateDoc(itemRef, { pagos_abonados: currentAbonado + amountToPay });
+                } else {
+                    await updateDoc(itemRef, { estado: 'pagado', status: 'pagado', pagos_abonados: 0 });
+                }
             }
+
+            setSelectedPayment(null);
+            setPaymentAmount('');
         } catch (e) {
-            console.error(e);
+            console.error('Error procesando pago:', e);
+        } finally {
+            setPaymentProcessing(false);
         }
     };
 
@@ -219,13 +277,60 @@ export default function PendingPayments() {
                             <div>
                                 <p className="text-[16px] font-extrabold text-gray-900">RD$ {formatMoney(pItem.amount)}</p>
                             </div>
-                            <button onClick={() => handleMarkAsPaid(pItem)} className="w-10 h-10 rounded-full bg-green-100 hover:bg-green-200 flex items-center justify-center transition-colors shrink-0">
+                            <button onClick={() => handleOpenPayment(pItem)} className="w-10 h-10 rounded-full bg-green-100 hover:bg-green-200 flex items-center justify-center transition-colors shrink-0">
                                 <span className="material-symbols-rounded text-[20px] text-green-600 font-bold">check</span>
                             </button>
                         </div>
                     </div>
                 ))}
             </div>
+
+            {selectedPayment && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !paymentProcessing && setSelectedPayment(null)} />
+                    <div className="relative w-full max-w-md bg-white rounded-[32px] p-6 shadow-xl animate-in zoom-in-95 duration-200">
+                        <h3 className="text-xl font-extrabold text-gray-900 mb-2">Pago de Deuda</h3>
+                        <p className="text-sm font-medium text-gray-500 mb-6">Estás a punto de abonar a <strong className="text-gray-800">{selectedPayment.name}</strong>.</p>
+
+                        <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+                            <p className="text-[13px] font-bold text-gray-500 uppercase tracking-wider mb-2">Monto Total Adeudado</p>
+                            <p className="text-2xl font-extrabold text-gray-900">RD$ {formatMoney(selectedPayment.amount)}</p>
+                        </div>
+
+                        <div className="mb-6">
+                            <label className="text-[13px] font-bold text-gray-500 uppercase tracking-wider mb-2 block">¿Cuánto deseas pagar hoy?</label>
+                            <div className="flex items-center bg-white border-2 border-primary/20 focus-within:border-primary rounded-2xl px-4 py-3 transition-colors">
+                                <span className="text-xl font-bold text-gray-400 mr-2">RD$</span>
+                                <input
+                                    type="number"
+                                    value={paymentAmount}
+                                    onChange={(e) => setPaymentAmount(e.target.value)}
+                                    className="w-full text-xl font-extrabold text-gray-900 bg-transparent border-none p-0 focus:ring-0 outline-none"
+                                    autoFocus
+                                    disabled={paymentProcessing}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 mt-8">
+                            <button
+                                onClick={() => setSelectedPayment(null)}
+                                disabled={paymentProcessing}
+                                className="flex-1 py-3.5 rounded-2xl font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors disabled:opacity-50"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleConfirmPayment}
+                                disabled={paymentProcessing || !paymentAmount || Number(paymentAmount) <= 0}
+                                className="flex-1 py-3.5 rounded-2xl font-bold text-black bg-primary hover:bg-primary-dark transition-colors disabled:opacity-50 flex items-center justify-center"
+                            >
+                                {paymentProcessing ? <span className="material-symbols-rounded animate-spin">progress_activity</span> : 'Confirmar Pago'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
