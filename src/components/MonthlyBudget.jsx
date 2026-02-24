@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { collection, doc, setDoc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useLoans } from '../hooks/useLoans';
+import { calcAhorroRecomendado } from '../lib/gemini';
 import BottomNav from './BottomNav';
 
 const DEFAULT_CATEGORIES = ['Comida', 'Transporte', 'Servicios', 'Renta', 'Ocio', 'Salud', 'Educación', 'Otros'];
@@ -64,6 +65,39 @@ export default function MonthlyBudget() {
     }, [currentUser]);
 
     const totalSpent = useMemo(() => transactions.reduce((s, t) => s + (t.amount || 0), 0), [transactions]);
+
+    // ─── Income tracking (for savings calc) ───
+    const [allTx, setAllTx] = useState([]);
+    const [creditCards, setCreditCards] = useState([]);
+
+    useEffect(() => {
+        if (!currentUser || !db) return;
+        return onSnapshot(query(collection(db, 'transactions'), where('userId', '==', currentUser.uid)), snap => {
+            setAllTx(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+    }, [currentUser]);
+
+    useEffect(() => {
+        if (!currentUser || !db) return;
+        return onSnapshot(collection(db, 'users', currentUser.uid, 'creditCards'), snap => {
+            setCreditCards(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+    }, [currentUser]);
+
+    const monthlyIncome = useMemo(() => {
+        const now = new Date();
+        return allTx.filter(tx => {
+            if (tx.type !== 'income') return false;
+            const d = tx.timestamp?.toDate ? tx.timestamp.toDate() : tx.date ? new Date(tx.date) : null;
+            return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        }).reduce((s, t) => s + (t.amount || 0), 0);
+    }, [allTx]);
+
+    const totalCardDebt = useMemo(() => creditCards.reduce((s, c) => s + (c.balanceALaFecha || c.balance || 0), 0), [creditCards]);
+    const credimasDebt = useMemo(() => creditCards.reduce((s, c) => s + (c.credimasTotalAdeudado || 0), 0), [creditCards]);
+    const totalDeudaGlobal = totalCardDebt + (loans.reduce((s, l) => s + (l.balancePendiente || 0), 0)) + credimasDebt;
+    const ahorroRecomendado = useMemo(() => calcAhorroRecomendado(monthlyIncome, totalDeudaGlobal), [monthlyIncome, totalDeudaGlobal]);
+    const disponibleReal = Math.max(globalLimit - totalSpent - totalCuotasPendientes - ahorroRecomendado, 0);
 
     const spendingByCategory = useMemo(() => {
         const map = {};
@@ -134,11 +168,28 @@ export default function MonthlyBudget() {
                             </div>
                             <div className="flex justify-between mt-2">
                                 <span className="text-white/80 text-xs font-semibold">{globalPct}% usado</span>
-                                <span className="text-white/80 text-xs font-semibold">Restante: RD$ {formatMoney(Math.max(globalLimit - totalSpent - totalCuotasPendientes, 0))}</span>
+                                <span className="text-white/80 text-xs font-semibold">Restante: RD$ {formatMoney(disponibleReal)}</span>
                             </div>
                         </>
                     )}
                 </div>
+
+                {/* Ahorro Recomendado Card */}
+                {monthlyIncome > 0 && (
+                    <div className="bg-gradient-to-r from-sky-500 to-cyan-500 rounded-[28px] p-5 shadow-lg relative overflow-hidden">
+                        <div className="absolute -top-6 -right-6 w-20 h-20 bg-white/10 rounded-full blur-xl" />
+                        <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
+                                <span className="material-symbols-rounded text-white text-2xl">savings</span>
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-white/80 text-[10px] font-bold uppercase tracking-wider">🎯 Ahorro Recomendado del Mes</p>
+                                <p className="text-2xl font-extrabold text-white">RD$ {formatMoney(ahorroRecomendado)}</p>
+                            </div>
+                        </div>
+                        <p className="text-white/70 text-[10px] mt-2">Regla adaptativa: {totalDeudaGlobal > monthlyIncome * 0.4 ? 'Ahorro reducido por nivel de deuda' : 'Basado en la regla 50/30/20'}. Ingreso: RD$ {formatMoney(monthlyIncome)}</p>
+                    </div>
+                )}
 
                 {/* Category Budgets */}
                 <div>

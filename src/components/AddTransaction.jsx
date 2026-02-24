@@ -4,7 +4,7 @@ import { collection, addDoc, doc, getDoc, onSnapshot, query, where, serverTimest
 import { db } from '../firebase';
 import { useAuth } from '../hooks/useAuth';
 import { useLoans } from '../hooks/useLoans';
-import { scanReceiptWithAI, getBestCategory, consultPreventiveAI, consultPreventiveAILocal } from '../lib/gemini';
+import { scanReceiptWithAI, getBestCategory, consultPreventiveAI, consultPreventiveAILocal, calcAhorroRecomendado } from '../lib/gemini';
 
 const expenseCategories = [
     { name: 'Comida', icon: 'shopping_cart' },
@@ -169,6 +169,7 @@ export default function AddTransaction() {
     const [budgetLimit, setBudgetLimit] = useState(0);
     const [transactions, setTransactions] = useState([]);
     const [creditCards, setCreditCards] = useState([]);
+    const [recurringItems, setRecurringItems] = useState([]);
 
     useEffect(() => {
         if (!currentUser || !db) return;
@@ -187,6 +188,13 @@ export default function AddTransaction() {
         if (!currentUser || !db) return;
         return onSnapshot(collection(db, 'users', currentUser.uid, 'creditCards'), snap => {
             setCreditCards(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+    }, [currentUser]);
+
+    useEffect(() => {
+        if (!currentUser || !db) return;
+        return onSnapshot(collection(db, 'users', currentUser.uid, 'recurring'), snap => {
+            setRecurringItems(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.active));
         });
     }, [currentUser]);
 
@@ -212,6 +220,47 @@ export default function AddTransaction() {
     const cardBalanceAlCorte = useMemo(() => creditCards.reduce((s, c) => s + (c.balanceAlCorte || 0), 0), [creditCards]);
     const credimasTotalAdeudado = useMemo(() => creditCards.reduce((s, c) => s + (c.credimasTotalAdeudado || 0), 0), [creditCards]);
 
+    // ─── Cash Flow: overdue + upcoming payments ───
+    const { cuotasVencidas, cuotasProximasAVencer } = useMemo(() => {
+        const now = new Date();
+        const todayDay = now.getDate();
+        const curMK = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        let vencidas = 0, proximas = 0;
+
+        // Recurring expenses
+        recurringItems.forEach(r => {
+            const paidSet = new Set(r.paidMonths || []);
+            const dueDay = r.dueDay || 15;
+            if (!paidSet.has(curMK)) {
+                if (todayDay > dueDay) vencidas += (r.amount || 0);
+                else if (dueDay - todayDay <= 15) proximas += (r.amount || 0);
+            }
+        });
+
+        // Loans not paid this month
+        (loans || []).forEach(l => {
+            if (l.pagadoEsteMes) return;
+            const dueDay = l.diaDePago || 15;
+            if (todayDay > dueDay) vencidas += (l.cuotaMensual || 0);
+            else if (dueDay - todayDay <= 15) proximas += (l.cuotaMensual || 0);
+        });
+
+        // Credit card payments due
+        creditCards.forEach(c => {
+            const dueDay = c.fechaLimitePago || c.paymentDueDay || 25;
+            const bal = c.balanceAlCorte || 0;
+            if (bal > 0) {
+                if (todayDay > dueDay) vencidas += bal;
+                else if (dueDay - todayDay <= 15) proximas += bal;
+            }
+        });
+
+        return { cuotasVencidas: vencidas, cuotasProximasAVencer: proximas };
+    }, [recurringItems, loans, creditCards]);
+
+    const totalDeudaGlobal = totalCardDebt + totalLoanDebt + credimasTotalAdeudado;
+    const ahorroRecomendado = useMemo(() => calcAhorroRecomendado(monthlyIncome, totalDeudaGlobal), [monthlyIncome, totalDeudaGlobal]);
+
     const handleAIConsult = async () => {
         if (!aiItemName.trim() || !aiItemPrice) return;
         setAiLoading(true);
@@ -219,6 +268,7 @@ export default function AddTransaction() {
             itemName: aiItemName.trim(), itemPrice: parseFloat(aiItemPrice) || 0,
             budgetLimit, budgetSpent, totalLoanDebt, totalCardDebt,
             cardBalanceAlCorte, credimasTotalAdeudado, monthlyIncome, categorySpending,
+            cuotasVencidas, cuotasProximasAVencer, ahorroRecomendado,
         };
         try {
             const result = await consultPreventiveAI(payload);
@@ -658,10 +708,17 @@ export default function AddTransaction() {
                         {/* AI Result */}
                         {aiResult && (
                             <div className="space-y-3 animate-in fade-in duration-300">
-                                <div className={`rounded-2xl p-5 ${aiResult.recomendacion === 'comprar' ? 'bg-green-50 border border-green-100' : aiResult.recomendacion === 'posponer' ? 'bg-amber-50 border border-amber-100' : 'bg-red-50 border border-red-100'}`}>
+                                {/* Traffic Light Semaphore */}
+                                <div className="flex items-center justify-center gap-3 py-2">
+                                    <div className={`w-5 h-5 rounded-full transition-all duration-500 ${aiResult.nivelRiesgo === 'rojo' ? 'bg-red-500 shadow-lg shadow-red-500/50 scale-125' : 'bg-red-200'}`} />
+                                    <div className={`w-5 h-5 rounded-full transition-all duration-500 ${aiResult.nivelRiesgo === 'amarillo' ? 'bg-amber-400 shadow-lg shadow-amber-400/50 scale-125' : 'bg-amber-200'}`} />
+                                    <div className={`w-5 h-5 rounded-full transition-all duration-500 ${aiResult.nivelRiesgo === 'verde' ? 'bg-green-500 shadow-lg shadow-green-500/50 scale-125' : 'bg-green-200'}`} />
+                                </div>
+
+                                <div className={`rounded-2xl p-5 ${aiResult.nivelRiesgo === 'verde' ? 'bg-green-50 border border-green-100' : aiResult.nivelRiesgo === 'amarillo' ? 'bg-amber-50 border border-amber-100' : 'bg-red-50 border border-red-100'}`}>
                                     <div className="flex items-center gap-2 mb-2">
                                         <span className="text-2xl">{aiResult.emoji}</span>
-                                        <span className={`font-extrabold text-lg uppercase ${aiResult.recomendacion === 'comprar' ? 'text-green-700' : aiResult.recomendacion === 'posponer' ? 'text-amber-700' : 'text-red-700'}`}>
+                                        <span className={`font-extrabold text-lg uppercase ${aiResult.nivelRiesgo === 'verde' ? 'text-green-700' : aiResult.nivelRiesgo === 'amarillo' ? 'text-amber-700' : 'text-red-700'}`}>
                                             {aiResult.recomendacion === 'comprar' ? '¡Puedes comprar!' : aiResult.recomendacion === 'posponer' ? 'Mejor posponer' : 'Evitar esta compra'}
                                         </span>
                                     </div>

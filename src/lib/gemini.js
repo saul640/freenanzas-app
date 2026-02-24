@@ -388,51 +388,61 @@ export function analyzeLoanStrategyLocal(loans, categories, totalIncome, totalEx
 }
 
 /**
+ * Calculate recommended savings based on adaptive 50/30/20 rule.
+ * If debt is high, minimum 5% savings. Otherwise target 20%.
+ */
+export function calcAhorroRecomendado(income, totalDeuda) {
+    if (!income || income <= 0) return 0;
+    const ratioDeuda = totalDeuda / income;
+    if (ratioDeuda > 0.6) return Math.round(income * 0.05);
+    if (ratioDeuda > 0.4) return Math.round(income * 0.10);
+    if (ratioDeuda > 0.2) return Math.round(income * 0.15);
+    return Math.round(income * 0.20);
+}
+
+/**
  * Preventive AI: Should the user buy this item?
- * @param {Object} data - { itemName, itemPrice, budgetLimit, budgetSpent, totalLoanDebt, totalCardDebt, cardBalanceAlCorte, credimasTotalAdeudado, monthlyIncome, categorySpending }
+ * Enhanced with Real Liquidity, cash flow context, and traffic light risk.
+ * @param {Object} data
  * @returns {Promise<Object>}
  */
 export async function consultPreventiveAI(data) {
     const model = getModel();
 
-    const categoryText = data.categorySpending?.map(c =>
-        `- ${c.name}: RD$ ${c.amount} gastado (de ${c.limit || 'sin límite'})`
-    ).join('\n') || 'Sin datos de categorías';
+    const presupuestoRestante = Math.max((data.budgetLimit || 0) - (data.budgetSpent || 0), 0);
+    const cuotasVencidas = data.cuotasVencidas || 0;
+    const cuotasProximas = data.cuotasProximasAVencer || 0;
+    const ahorro = data.ahorroRecomendado || 0;
+    const liquidezReal = Math.max(presupuestoRestante - cuotasVencidas - cuotasProximas - ahorro, 0);
 
-    const prompt = `Eres un asesor financiero dominicano estricto pero empático. Tu trabajo es proteger al usuario de compras impulsivas ("tarjetazos") y fomentar hábitos de "Totalero" (pagar la tarjeta al 100% cada mes).
+    const categoryText = data.categorySpending?.slice(0, 6).map(c =>
+        `${c.name}: $${c.amount}`
+    ).join(' | ') || 'N/A';
 
-REGLAS ESTRICTAS QUE DEBES SEGUIR:
-1. SIEMPRE fomenta pagar el "Balance al Corte" de la tarjeta de crédito al 100%. DESACONSEJA ROTUNDAMENTE pagar solo el "Pago Mínimo" — eso genera intereses enormes.
-2. ALERTA sobre "Tarjetazos": compras impulsivas que exceden el presupuesto disponible.
-3. CRUZA el precio del artículo contra el balance disponible del presupuesto y el nivel de deuda total.
-4. El Credimás (extra crédito) solo se recomienda para emergencias REALES o compras de activos/bienes duraderos PLANIFICADOS, NUNCA para consumo corriente (vacaciones, restaurantes, ocio).
+    const prompt = `Asesor financiero dominicano. Protege al usuario de compras impulsivas. Fomenta ser "Totalero".
 
-SITUACIÓN FINANCIERA ACTUAL DEL USUARIO:
-- Ingreso mensual: RD$ ${data.monthlyIncome || 0}
-- Presupuesto mensual: RD$ ${data.budgetLimit || 0}
-- Ya gastado este mes: RD$ ${data.budgetSpent || 0}
-- Disponible en presupuesto: RD$ ${Math.max((data.budgetLimit || 0) - (data.budgetSpent || 0), 0)}
-- Deuda en tarjetas de crédito: RD$ ${data.totalCardDebt || 0}
-- Balance al corte (TC): RD$ ${data.cardBalanceAlCorte || 0}
-- Deuda Credimás: RD$ ${data.credimasTotalAdeudado || 0}
-- Deuda en préstamos: RD$ ${data.totalLoanDebt || 0}
+REGLAS:
+1. Pagar Balance al Corte al 100%, NUNCA solo el mínimo.
+2. Alertar "Tarjetazos" (compras impulsivas que exceden presupuesto).
+3. Cruzar precio vs LIQUIDEZ REAL (no presupuesto bruto).
+4. Credimás solo para emergencias reales, nunca consumo corriente.
+5. PRIORIZAR protección del flujo de caja y meta de ahorro.
+6. Si la compra interfiere con cuota próxima a vencer o meta de ahorro, DENEGAR o POSPONER.
 
-GASTOS POR CATEGORÍA ESTE MES:
-${categoryText}
+CONCEPTO CLAVE — LIQUIDEZ REAL:
+Liquidez Real = Presupuesto Restante − Cuotas Vencidas − Cuotas Próximas (10-15 días) − Ahorro Recomendado
+Liquidez Real = $${presupuestoRestante} − $${cuotasVencidas} − $${cuotasProximas} − $${ahorro} = RD$ ${liquidezReal}
 
-EL USUARIO QUIERE COMPRAR:
-🛒 Artículo: ${data.itemName}
-💰 Precio: RD$ ${data.itemPrice}
+RESUMEN FINANCIERO:
+Ingreso: $${data.monthlyIncome || 0} | Presupuesto: $${data.budgetLimit || 0} | Gastado: $${data.budgetSpent || 0} | Restante bruto: $${presupuestoRestante}
+Cuotas vencidas: $${cuotasVencidas} | Cuotas próx. 10-15d: $${cuotasProximas} | Ahorro meta: $${ahorro}
+TC deuda: $${data.totalCardDebt || 0} | Balance corte: $${data.cardBalanceAlCorte || 0} | Credimás: $${data.credimasTotalAdeudado || 0} | Préstamos: $${data.totalLoanDebt || 0}
+Categorías: ${categoryText}
 
-Analiza si esta compra es prudente. Responde ÚNICAMENTE con JSON válido (sin markdown):
-{
-  "recomendacion": "comprar" | "posponer" | "evitar",
-  "emoji": "✅" | "⏳" | "🚫",
-  "razon": "<2-3 oraciones claras y directas explicando por qué>",
-  "detalleFinanciero": "<1 oración con números concretos, ej: 'Tu presupuesto de Ocio está al 90%, esta compra te pondría al 120%'>",
-  "alternativa": "<1 oración con una alternativa si la recomendación no es comprar, o null si sí puede comprar>",
-  "impactoDeuda": "<1 oración sobre cómo afecta su nivel de endeudamiento>"
-}`;
+COMPRA: ${data.itemName} por RD$ ${data.itemPrice}
+
+Responde JSON (sin markdown):
+{"recomendacion":"comprar|posponer|evitar","emoji":"✅|⏳|🚫","nivelRiesgo":"verde|amarillo|rojo","razon":"<2-3 oraciones>","detalleFinanciero":"<1 oración con cifras y concepto de liquidez real>","alternativa":"<sugerencia o null>","impactoDeuda":"<impacto en flujo de caja o null>"}`;
 
     const result = await model.generateContent([prompt]);
     let text = result.response.text().trim();
@@ -449,48 +459,55 @@ Analiza si esta compra es prudente. Responde ÚNICAMENTE con JSON válido (sin m
 }
 
 /**
- * Local fallback for preventive AI
+ * Local fallback with Real Liquidity logic
  */
 export function consultPreventiveAILocal(data) {
-    const disponible = Math.max((data.budgetLimit || 0) - (data.budgetSpent || 0), 0);
+    const presupuestoRestante = Math.max((data.budgetLimit || 0) - (data.budgetSpent || 0), 0);
+    const cuotasVencidas = data.cuotasVencidas || 0;
+    const cuotasProximas = data.cuotasProximasAVencer || 0;
+    const ahorro = data.ahorroRecomendado || 0;
+    const liquidezReal = Math.max(presupuestoRestante - cuotasVencidas - cuotasProximas - ahorro, 0);
     const price = data.itemPrice || 0;
     const totalDeuda = (data.totalCardDebt || 0) + (data.totalLoanDebt || 0) + (data.credimasTotalAdeudado || 0);
-    const income = data.monthlyIncome || 1;
-    const ratioDeuda = totalDeuda / income;
+    const fmt = n => `RD$ ${n.toLocaleString()}`;
 
-    // Price exceeds available budget
-    if (price > disponible) {
-        const pct = disponible > 0 ? Math.round((price / disponible) * 100) : 999;
+    // Price exceeds real liquidity
+    if (price > liquidezReal) {
+        const hasUpcoming = cuotasProximas > 0;
+        const hasOverdue = cuotasVencidas > 0;
         return {
             recomendacion: 'evitar',
             emoji: '🚫',
-            razon: `El artículo cuesta RD$ ${price.toLocaleString()} pero solo tienes RD$ ${disponible.toLocaleString()} disponible en tu presupuesto. Comprarlo te pondría ${pct > 100 ? `al ${pct}% de tu límite` : 'en números rojos'}.`,
-            detalleFinanciero: `Presupuesto restante: RD$ ${disponible.toLocaleString()} de RD$ ${(data.budgetLimit || 0).toLocaleString()}.`,
-            alternativa: 'Espera al próximo mes cuando tengas presupuesto fresco, o reduce otros gastos primero.',
-            impactoDeuda: ratioDeuda > 0.5 ? `Tu deuda total es ${Math.round(ratioDeuda * 100)}% de tus ingresos. No es buen momento para gastar de más.` : null,
+            nivelRiesgo: 'rojo',
+            razon: `Tu liquidez real es solo ${fmt(liquidezReal)} (presupuesto ${fmt(presupuestoRestante)} menos ${hasOverdue ? `cuotas vencidas ${fmt(cuotasVencidas)}, ` : ''}${hasUpcoming ? `compromisos próximos ${fmt(cuotasProximas)}, ` : ''}ahorro ${fmt(ahorro)}). Esta compra de ${fmt(price)} supera tu capacidad real.`,
+            detalleFinanciero: `Liquidez Real: ${fmt(liquidezReal)} = ${fmt(presupuestoRestante)} - ${fmt(cuotasVencidas + cuotasProximas)} compromisos - ${fmt(ahorro)} ahorro.`,
+            alternativa: hasOverdue ? 'Primero salda tus cuotas vencidas, luego reconsidera.' : 'Espera al próximo mes cuando tengas presupuesto fresco.',
+            impactoDeuda: totalDeuda > 0 ? `Deuda total: ${fmt(totalDeuda)}. No es momento para gastar de más.` : null,
         };
     }
 
-    // High debt ratio warning
-    if (ratioDeuda > 0.6 && price > disponible * 0.3) {
+    // Price > 50% of real liquidity with upcoming payments
+    if (cuotasProximas > 0 && price > liquidezReal * 0.5) {
         return {
             recomendacion: 'posponer',
             emoji: '⏳',
-            razon: `Tu nivel de deuda es alto (${Math.round(ratioDeuda * 100)}% de tus ingresos). Aunque tienes presupuesto, esta compra reduce tu margen para pagar deudas.`,
-            detalleFinanciero: `Deuda total: RD$ ${totalDeuda.toLocaleString()}. Presupuesto disponible: RD$ ${disponible.toLocaleString()}.`,
-            alternativa: 'Prioriza reducir tu deuda antes de gastar en no esenciales.',
-            impactoDeuda: `Esta compra reduciría tu capacidad de pago en RD$ ${price.toLocaleString()}.`,
+            nivelRiesgo: 'amarillo',
+            razon: `Tienes ${fmt(cuotasProximas)} en compromisos que vencen en los próximos días. Aunque técnicamente puedes cubrir esta compra, reduce tu margen de seguridad para esos pagos y tu meta de ahorro de ${fmt(ahorro)}.`,
+            detalleFinanciero: `Liquidez Real: ${fmt(liquidezReal)}. Después de la compra: ${fmt(liquidezReal - price)}.`,
+            alternativa: 'Espera a que pasen los vencimientos próximos, luego evalúa si aún es prudente.',
+            impactoDeuda: null,
         };
     }
 
     // Balance al corte pending
-    if ((data.cardBalanceAlCorte || 0) > 0 && price > disponible * 0.5) {
+    if ((data.cardBalanceAlCorte || 0) > 0 && price > liquidezReal * 0.4) {
         return {
             recomendacion: 'posponer',
             emoji: '⏳',
-            razon: `Tienes RD$ ${(data.cardBalanceAlCorte || 0).toLocaleString()} de balance al corte pendiente en tus tarjetas. Pagar eso primero te evita intereses.`,
-            detalleFinanciero: `Balance al corte: RD$ ${(data.cardBalanceAlCorte || 0).toLocaleString()}.`,
-            alternativa: 'Paga el balance al corte primero (sé Totalero), luego considera esta compra.',
+            nivelRiesgo: 'amarillo',
+            razon: `Tienes ${fmt(data.cardBalanceAlCorte)} de balance al corte pendiente. Pagar eso primero (sé Totalero) te evita intereses.`,
+            detalleFinanciero: `Balance al corte: ${fmt(data.cardBalanceAlCorte)}. Liquidez Real: ${fmt(liquidezReal)}.`,
+            alternativa: 'Paga el balance al corte primero, luego considera esta compra.',
             impactoDeuda: null,
         };
     }
@@ -499,8 +516,9 @@ export function consultPreventiveAILocal(data) {
     return {
         recomendacion: 'comprar',
         emoji: '✅',
-        razon: `Tienes suficiente presupuesto disponible (RD$ ${disponible.toLocaleString()}) y tu nivel de deuda es manejable. Esta compra parece razonable.`,
-        detalleFinanciero: `Después de esta compra te quedarán RD$ ${(disponible - price).toLocaleString()} de presupuesto.`,
+        nivelRiesgo: 'verde',
+        razon: `Tu liquidez real es ${fmt(liquidezReal)} y esta compra de ${fmt(price)} es manejable. Tus compromisos y meta de ahorro están cubiertos.`,
+        detalleFinanciero: `Después de la compra te quedarán ${fmt(liquidezReal - price)} de liquidez real.`,
         alternativa: null,
         impactoDeuda: null,
     };
