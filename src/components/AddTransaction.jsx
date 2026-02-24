@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, addDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, onSnapshot, query, where, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../hooks/useAuth';
-import { scanReceiptWithAI, getBestCategory } from '../lib/gemini';
+import { useLoans } from '../hooks/useLoans';
+import { scanReceiptWithAI, getBestCategory, consultPreventiveAI, consultPreventiveAILocal } from '../lib/gemini';
 
 const expenseCategories = [
     { name: 'Comida', icon: 'shopping_cart' },
@@ -67,6 +68,13 @@ export default function AddTransaction() {
     const [newCategoryName, setNewCategoryName] = useState('');
     const [newCategoryColor, setNewCategoryColor] = useState('blue');
     const [creatingCategory, setCreatingCategory] = useState(false);
+
+    // ─── AI Quick-Consult State ───
+    const [showAIConsult, setShowAIConsult] = useState(false);
+    const [aiItemName, setAiItemName] = useState('');
+    const [aiItemPrice, setAiItemPrice] = useState('');
+    const [aiResult, setAiResult] = useState(null);
+    const [aiLoading, setAiLoading] = useState(false);
 
     const baseCategories = type === 'expense' ? expenseCategories : incomeCategories;
     const normalizedBaseNames = baseCategories.map((cat) => normalizeCategoryName(cat.name));
@@ -155,6 +163,72 @@ export default function AddTransaction() {
 
         return () => unsubscribe();
     }, [currentUser]);
+
+    // ─── Financial data for AI consult ───
+    const { loans, totalDeuda: totalLoanDebt } = useLoans(currentUser?.uid);
+    const [budgetLimit, setBudgetLimit] = useState(0);
+    const [transactions, setTransactions] = useState([]);
+    const [creditCards, setCreditCards] = useState([]);
+
+    useEffect(() => {
+        if (!currentUser || !db) return;
+        const mk = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+        getDoc(doc(db, 'users', currentUser.uid, 'budgets', mk)).then(s => { if (s.exists()) setBudgetLimit(s.data().globalLimit || 0); }).catch(() => { });
+    }, [currentUser]);
+
+    useEffect(() => {
+        if (!currentUser || !db) return;
+        return onSnapshot(query(collection(db, 'transactions'), where('userId', '==', currentUser.uid)), snap => {
+            setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+    }, [currentUser]);
+
+    useEffect(() => {
+        if (!currentUser || !db) return;
+        return onSnapshot(collection(db, 'users', currentUser.uid, 'creditCards'), snap => {
+            setCreditCards(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+    }, [currentUser]);
+
+    const { budgetSpent, monthlyIncome, categorySpending } = useMemo(() => {
+        const now = new Date();
+        let spent = 0, income = 0;
+        const catMap = {};
+        transactions.forEach(tx => {
+            const d = tx.timestamp?.toDate ? tx.timestamp.toDate() : tx.date ? new Date(tx.date) : null;
+            if (!d || d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear()) return;
+            if (tx.type === 'income') income += tx.amount;
+            else {
+                spent += tx.amount;
+                const c = tx.category || 'Otros';
+                if (!catMap[c]) catMap[c] = { name: c, amount: 0 };
+                catMap[c].amount += tx.amount;
+            }
+        });
+        return { budgetSpent: spent, monthlyIncome: income, categorySpending: Object.values(catMap) };
+    }, [transactions]);
+
+    const totalCardDebt = useMemo(() => creditCards.reduce((s, c) => s + (c.balanceALaFecha || c.balance || 0), 0), [creditCards]);
+    const cardBalanceAlCorte = useMemo(() => creditCards.reduce((s, c) => s + (c.balanceAlCorte || 0), 0), [creditCards]);
+    const credimasTotalAdeudado = useMemo(() => creditCards.reduce((s, c) => s + (c.credimasTotalAdeudado || 0), 0), [creditCards]);
+
+    const handleAIConsult = async () => {
+        if (!aiItemName.trim() || !aiItemPrice) return;
+        setAiLoading(true);
+        const payload = {
+            itemName: aiItemName.trim(), itemPrice: parseFloat(aiItemPrice) || 0,
+            budgetLimit, budgetSpent, totalLoanDebt, totalCardDebt,
+            cardBalanceAlCorte, credimasTotalAdeudado, monthlyIncome, categorySpending,
+        };
+        try {
+            const result = await consultPreventiveAI(payload);
+            setAiResult(result);
+        } catch (e) {
+            console.warn('Gemini preventive AI failed, using local:', e.message);
+            setAiResult(consultPreventiveAILocal(payload));
+        }
+        setAiLoading(false);
+    };
 
     React.useEffect(() => {
         if (!mergedCategories.length) {
@@ -526,6 +600,17 @@ export default function AddTransaction() {
 
                 {/* Submit Button */}
                 <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto p-6 bg-[#f7f9f8]">
+                    {/* AI Quick-Consult Button */}
+                    {type === 'expense' && (
+                        <button
+                            type="button"
+                            onClick={() => { setAiItemName(note || ''); setAiItemPrice(amount || ''); setAiResult(null); setShowAIConsult(true); }}
+                            className="w-full mb-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-3 rounded-2xl active:scale-[0.98] transition-transform flex items-center justify-center gap-2 text-sm shadow-md"
+                        >
+                            <span className="material-symbols-rounded text-lg">smart_toy</span>
+                            ¿Debería comprar esto? Consultar IA 🤖
+                        </button>
+                    )}
                     <button
                         type="submit"
                         disabled={loading || scanning || creatingCategory}
@@ -539,6 +624,75 @@ export default function AddTransaction() {
                     </button>
                 </div>
             </form>
+
+            {/* ══════════ AI CONSULT MODAL ══════════ */}
+            {showAIConsult && (
+                <div className="fixed inset-0 z-50 flex items-end justify-center">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowAIConsult(false)} />
+                    <div className="relative w-full max-w-md bg-white rounded-t-[32px] p-6 pb-8 max-h-[80vh] overflow-y-auto animate-in slide-in-from-bottom duration-300">
+                        <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-4" />
+                        <div className="flex items-center gap-2 mb-4">
+                            <span className="material-symbols-rounded text-cyan-500 text-2xl">smart_toy</span>
+                            <h2 className="text-lg font-extrabold text-gray-900">Filtro Preventivo IA</h2>
+                        </div>
+
+                        <div className="space-y-3 mb-5">
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">¿Qué quieres comprar?</label>
+                                <input value={aiItemName} onChange={e => setAiItemName(e.target.value)} placeholder="Ej. AirPods, cena, zapatos..." className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm font-medium outline-none" />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">¿Cuánto cuesta? (RD$)</label>
+                                <input type="number" value={aiItemPrice} onChange={e => setAiItemPrice(e.target.value)} placeholder="0" className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm font-medium outline-none" />
+                            </div>
+                        </div>
+
+                        <button onClick={handleAIConsult} disabled={aiLoading || !aiItemName.trim() || !aiItemPrice} className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-3.5 rounded-2xl disabled:opacity-50 active:scale-[0.98] transition-transform flex items-center justify-center gap-2 mb-5">
+                            {aiLoading ? (
+                                <><span className="material-symbols-rounded animate-spin text-lg">progress_activity</span> Analizando...</>
+                            ) : (
+                                <><span className="material-symbols-rounded text-lg">auto_awesome</span> Analizar Compra</>
+                            )}
+                        </button>
+
+                        {/* AI Result */}
+                        {aiResult && (
+                            <div className="space-y-3 animate-in fade-in duration-300">
+                                <div className={`rounded-2xl p-5 ${aiResult.recomendacion === 'comprar' ? 'bg-green-50 border border-green-100' : aiResult.recomendacion === 'posponer' ? 'bg-amber-50 border border-amber-100' : 'bg-red-50 border border-red-100'}`}>
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-2xl">{aiResult.emoji}</span>
+                                        <span className={`font-extrabold text-lg uppercase ${aiResult.recomendacion === 'comprar' ? 'text-green-700' : aiResult.recomendacion === 'posponer' ? 'text-amber-700' : 'text-red-700'}`}>
+                                            {aiResult.recomendacion === 'comprar' ? '¡Puedes comprar!' : aiResult.recomendacion === 'posponer' ? 'Mejor posponer' : 'Evitar esta compra'}
+                                        </span>
+                                    </div>
+                                    <p className="text-sm text-gray-700 leading-relaxed">{aiResult.razon}</p>
+                                </div>
+
+                                {aiResult.detalleFinanciero && (
+                                    <div className="bg-gray-50 rounded-xl p-3 flex items-start gap-2">
+                                        <span className="material-symbols-rounded text-gray-400 text-lg">account_balance</span>
+                                        <p className="text-xs text-gray-600">{aiResult.detalleFinanciero}</p>
+                                    </div>
+                                )}
+
+                                {aiResult.alternativa && (
+                                    <div className="bg-blue-50 rounded-xl p-3 flex items-start gap-2">
+                                        <span className="material-symbols-rounded text-blue-400 text-lg">lightbulb</span>
+                                        <p className="text-xs text-blue-700">{aiResult.alternativa}</p>
+                                    </div>
+                                )}
+
+                                {aiResult.impactoDeuda && (
+                                    <div className="bg-orange-50 rounded-xl p-3 flex items-start gap-2">
+                                        <span className="material-symbols-rounded text-orange-400 text-lg">warning</span>
+                                        <p className="text-xs text-orange-700">{aiResult.impactoDeuda}</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

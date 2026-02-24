@@ -150,6 +150,10 @@ export default function Dashboard() {
                             <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center"><span className="material-symbols-rounded text-amber-500">account_balance</span></div>
                             <div><p className="text-sm font-bold text-gray-800">Préstamos</p><p className="text-[10px] text-gray-400">Deudas</p></div>
                         </button>
+                        <button onClick={() => navigate('/add')} className="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-cyan-100 active:scale-95 transition-transform text-left">
+                            <div className="w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center"><span className="material-symbols-rounded text-cyan-500">smart_toy</span></div>
+                            <div><p className="text-sm font-bold text-gray-800">Filtro IA</p><p className="text-[10px] text-gray-400">Preventivo</p></div>
+                        </button>
                     </div>
                 </div>
                 {/* Gastos vs Ingresos Dashboard */}

@@ -387,3 +387,121 @@ export function analyzeLoanStrategyLocal(loans, categories, totalIncome, totalEx
     };
 }
 
+/**
+ * Preventive AI: Should the user buy this item?
+ * @param {Object} data - { itemName, itemPrice, budgetLimit, budgetSpent, totalLoanDebt, totalCardDebt, cardBalanceAlCorte, credimasTotalAdeudado, monthlyIncome, categorySpending }
+ * @returns {Promise<Object>}
+ */
+export async function consultPreventiveAI(data) {
+    const model = getModel();
+
+    const categoryText = data.categorySpending?.map(c =>
+        `- ${c.name}: RD$ ${c.amount} gastado (de ${c.limit || 'sin límite'})`
+    ).join('\n') || 'Sin datos de categorías';
+
+    const prompt = `Eres un asesor financiero dominicano estricto pero empático. Tu trabajo es proteger al usuario de compras impulsivas ("tarjetazos") y fomentar hábitos de "Totalero" (pagar la tarjeta al 100% cada mes).
+
+REGLAS ESTRICTAS QUE DEBES SEGUIR:
+1. SIEMPRE fomenta pagar el "Balance al Corte" de la tarjeta de crédito al 100%. DESACONSEJA ROTUNDAMENTE pagar solo el "Pago Mínimo" — eso genera intereses enormes.
+2. ALERTA sobre "Tarjetazos": compras impulsivas que exceden el presupuesto disponible.
+3. CRUZA el precio del artículo contra el balance disponible del presupuesto y el nivel de deuda total.
+4. El Credimás (extra crédito) solo se recomienda para emergencias REALES o compras de activos/bienes duraderos PLANIFICADOS, NUNCA para consumo corriente (vacaciones, restaurantes, ocio).
+
+SITUACIÓN FINANCIERA ACTUAL DEL USUARIO:
+- Ingreso mensual: RD$ ${data.monthlyIncome || 0}
+- Presupuesto mensual: RD$ ${data.budgetLimit || 0}
+- Ya gastado este mes: RD$ ${data.budgetSpent || 0}
+- Disponible en presupuesto: RD$ ${Math.max((data.budgetLimit || 0) - (data.budgetSpent || 0), 0)}
+- Deuda en tarjetas de crédito: RD$ ${data.totalCardDebt || 0}
+- Balance al corte (TC): RD$ ${data.cardBalanceAlCorte || 0}
+- Deuda Credimás: RD$ ${data.credimasTotalAdeudado || 0}
+- Deuda en préstamos: RD$ ${data.totalLoanDebt || 0}
+
+GASTOS POR CATEGORÍA ESTE MES:
+${categoryText}
+
+EL USUARIO QUIERE COMPRAR:
+🛒 Artículo: ${data.itemName}
+💰 Precio: RD$ ${data.itemPrice}
+
+Analiza si esta compra es prudente. Responde ÚNICAMENTE con JSON válido (sin markdown):
+{
+  "recomendacion": "comprar" | "posponer" | "evitar",
+  "emoji": "✅" | "⏳" | "🚫",
+  "razon": "<2-3 oraciones claras y directas explicando por qué>",
+  "detalleFinanciero": "<1 oración con números concretos, ej: 'Tu presupuesto de Ocio está al 90%, esta compra te pondría al 120%'>",
+  "alternativa": "<1 oración con una alternativa si la recomendación no es comprar, o null si sí puede comprar>",
+  "impactoDeuda": "<1 oración sobre cómo afecta su nivel de endeudamiento>"
+}`;
+
+    const result = await model.generateContent([prompt]);
+    let text = result.response.text().trim();
+    if (text.startsWith('```')) {
+        text = text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+    }
+    try {
+        return JSON.parse(text);
+    } catch {
+        const match = text.match(/\{[\s\S]*\}/);
+        if (match) return JSON.parse(match[0]);
+        throw new Error('No se pudo interpretar la respuesta de la IA');
+    }
+}
+
+/**
+ * Local fallback for preventive AI
+ */
+export function consultPreventiveAILocal(data) {
+    const disponible = Math.max((data.budgetLimit || 0) - (data.budgetSpent || 0), 0);
+    const price = data.itemPrice || 0;
+    const totalDeuda = (data.totalCardDebt || 0) + (data.totalLoanDebt || 0) + (data.credimasTotalAdeudado || 0);
+    const income = data.monthlyIncome || 1;
+    const ratioDeuda = totalDeuda / income;
+
+    // Price exceeds available budget
+    if (price > disponible) {
+        const pct = disponible > 0 ? Math.round((price / disponible) * 100) : 999;
+        return {
+            recomendacion: 'evitar',
+            emoji: '🚫',
+            razon: `El artículo cuesta RD$ ${price.toLocaleString()} pero solo tienes RD$ ${disponible.toLocaleString()} disponible en tu presupuesto. Comprarlo te pondría ${pct > 100 ? `al ${pct}% de tu límite` : 'en números rojos'}.`,
+            detalleFinanciero: `Presupuesto restante: RD$ ${disponible.toLocaleString()} de RD$ ${(data.budgetLimit || 0).toLocaleString()}.`,
+            alternativa: 'Espera al próximo mes cuando tengas presupuesto fresco, o reduce otros gastos primero.',
+            impactoDeuda: ratioDeuda > 0.5 ? `Tu deuda total es ${Math.round(ratioDeuda * 100)}% de tus ingresos. No es buen momento para gastar de más.` : null,
+        };
+    }
+
+    // High debt ratio warning
+    if (ratioDeuda > 0.6 && price > disponible * 0.3) {
+        return {
+            recomendacion: 'posponer',
+            emoji: '⏳',
+            razon: `Tu nivel de deuda es alto (${Math.round(ratioDeuda * 100)}% de tus ingresos). Aunque tienes presupuesto, esta compra reduce tu margen para pagar deudas.`,
+            detalleFinanciero: `Deuda total: RD$ ${totalDeuda.toLocaleString()}. Presupuesto disponible: RD$ ${disponible.toLocaleString()}.`,
+            alternativa: 'Prioriza reducir tu deuda antes de gastar en no esenciales.',
+            impactoDeuda: `Esta compra reduciría tu capacidad de pago en RD$ ${price.toLocaleString()}.`,
+        };
+    }
+
+    // Balance al corte pending
+    if ((data.cardBalanceAlCorte || 0) > 0 && price > disponible * 0.5) {
+        return {
+            recomendacion: 'posponer',
+            emoji: '⏳',
+            razon: `Tienes RD$ ${(data.cardBalanceAlCorte || 0).toLocaleString()} de balance al corte pendiente en tus tarjetas. Pagar eso primero te evita intereses.`,
+            detalleFinanciero: `Balance al corte: RD$ ${(data.cardBalanceAlCorte || 0).toLocaleString()}.`,
+            alternativa: 'Paga el balance al corte primero (sé Totalero), luego considera esta compra.',
+            impactoDeuda: null,
+        };
+    }
+
+    // OK to buy
+    return {
+        recomendacion: 'comprar',
+        emoji: '✅',
+        razon: `Tienes suficiente presupuesto disponible (RD$ ${disponible.toLocaleString()}) y tu nivel de deuda es manejable. Esta compra parece razonable.`,
+        detalleFinanciero: `Después de esta compra te quedarán RD$ ${(disponible - price).toLocaleString()} de presupuesto.`,
+        alternativa: null,
+        impactoDeuda: null,
+    };
+}
