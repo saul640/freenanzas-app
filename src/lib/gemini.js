@@ -253,3 +253,137 @@ export function analyzeSpendingLocal(categories, totalExpense) {
         alerta: null,
     };
 }
+
+/**
+ * Analyze loan payoff strategy using Gemini AI
+ * @param {Object} data - { loans, totalIncome, totalExpense, categories, monthName, budgetLimit }
+ * @returns {Promise<Object>} - Debt strategy with steps, savings, and recommendations
+ */
+export async function analyzeLoanStrategy(data) {
+    const model = getModel();
+
+    const loansText = data.loans.map(l =>
+        `- ${l.nombrePrestamo}: Balance RD$ ${l.balancePendiente}, Cuota RD$ ${l.cuotaMensual}, Tasa ${l.tasaInteres}% anual, Día de pago: ${l.diaDePago}`
+    ).join('\n');
+
+    const categoriasText = data.categories.map(c =>
+        `- ${c.name}: RD$ ${c.amount} (${c.count} transacciones)`
+    ).join('\n');
+
+    const prompt = `Eres un asesor financiero dominicano experto en salida de deudas. Analiza la situación financiera y genera un plan para saldar los préstamos.
+
+DATOS DEL MES DE ${data.monthName}:
+Ingresos: RD$ ${data.totalIncome}
+Gastos totales: RD$ ${data.totalExpense}
+Presupuesto mensual: RD$ ${data.budgetLimit || 0}
+Balance disponible después de gastos: RD$ ${data.totalIncome - data.totalExpense}
+
+PRÉSTAMOS ACTIVOS:
+${loansText}
+
+DESGLOSE DE GASTOS POR CATEGORÍA:
+${categoriasText}
+
+INSTRUCCIONES:
+1. Identifica categorías donde el usuario gasta de más y podría recortar.
+2. Calcula cuánto dinero extra podría destinar a pagar deudas si reduce gastos no esenciales.
+3. Recomienda el Método Avalancha (mayor tasa primero) o Bola de Nieve (menor balance primero) según su situación.
+4. Genera un plan paso a paso con montos específicos.
+
+Responde ÚNICAMENTE con un JSON válido (sin markdown, sin backticks):
+{
+  "estrategiaRecomendada": "avalancha" | "bola_de_nieve",
+  "razonEstrategia": "<1-2 oraciones explicando por qué esa estrategia>",
+  "ordenPago": [
+    { "nombre": "<nombre préstamo>", "balance": <número>, "tasa": <número>, "prioridad": <1,2,3...> }
+  ],
+  "gastosRecortables": [
+    { "categoria": "<nombre>", "gastoActual": <número>, "gastoSugerido": <número>, "ahorroPotencial": <número>, "consejo": "<1 oración>" }
+  ],
+  "dineroExtraDisponible": <número estimado que podría redirigir a deudas>,
+  "planAccion": [
+    "<paso 1 específico con montos>",
+    "<paso 2 específico con montos>",
+    "<paso 3 específico con montos>"
+  ],
+  "ahorroIntereses": <número estimado de ahorro en intereses a largo plazo>,
+  "mesesAcelerados": <número de meses que adelantaría el pago>,
+  "resumen": "<2-3 oraciones motivacionales con el plan resumido>"
+}`;
+
+    const result = await model.generateContent([prompt]);
+    let text = result.response.text().trim();
+    if (text.startsWith('```')) {
+        text = text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+    }
+    try {
+        return JSON.parse(text);
+    } catch {
+        const match = text.match(/\{[\s\S]*\}/);
+        if (match) return JSON.parse(match[0]);
+        throw new Error('No se pudo interpretar el plan de deudas de la IA');
+    }
+}
+
+/**
+ * Local fallback for loan strategy without AI
+ * @param {Array} loans - [{ nombrePrestamo, balancePendiente, tasaInteres, cuotaMensual }]
+ * @param {Array} categories - [{ name, amount, count }]
+ * @param {number} totalIncome
+ * @param {number} totalExpense
+ * @returns {Object}
+ */
+export function analyzeLoanStrategyLocal(loans, categories, totalIncome, totalExpense) {
+    if (!loans || loans.length === 0) return null;
+
+    // Avalanche: sort by highest interest rate
+    const avalanche = [...loans].sort((a, b) => (b.tasaInteres || 0) - (a.tasaInteres || 0));
+    // Snowball: sort by lowest balance
+    const snowball = [...loans].sort((a, b) => (a.balancePendiente || 0) - (b.balancePendiente || 0));
+
+    // Recommend avalanche if there's a significant interest rate spread
+    const maxRate = Math.max(...loans.map(l => l.tasaInteres || 0));
+    const minRate = Math.min(...loans.map(l => l.tasaInteres || 0));
+    const useAvalanche = (maxRate - minRate) > 3;
+
+    const chosen = useAvalanche ? avalanche : snowball;
+    const estrategia = useAvalanche ? 'avalancha' : 'bola_de_nieve';
+
+    // Find recortable expenses (non-essential categories with high spending)
+    const nonEssential = ['Ocio', 'Ocio y Entretenimiento', 'Otros'];
+    const recortables = categories
+        .filter(c => nonEssential.some(ne => c.name.includes(ne)) || c.count >= 5)
+        .map(c => ({
+            categoria: c.name,
+            gastoActual: c.amount,
+            gastoSugerido: Math.round(c.amount * 0.5),
+            ahorroPotencial: Math.round(c.amount * 0.5),
+            consejo: `Reduce ${c.name} a la mitad para liberar fondos.`,
+        }));
+
+    const dineroExtra = recortables.reduce((s, r) => s + r.ahorroPotencial, 0);
+
+    return {
+        estrategiaRecomendada: estrategia,
+        razonEstrategia: useAvalanche
+            ? 'Tienes préstamos con tasas de interés muy diferentes. Pagar primero el de mayor tasa te ahorra más dinero.'
+            : 'Tus tasas son similares. Pagar primero el de menor balance te dará victorias rápidas para mantenerte motivado.',
+        ordenPago: chosen.map((l, i) => ({
+            nombre: l.nombrePrestamo,
+            balance: l.balancePendiente,
+            tasa: l.tasaInteres,
+            prioridad: i + 1,
+        })),
+        gastosRecortables: recortables,
+        dineroExtraDisponible: dineroExtra,
+        planAccion: [
+            `Paga el mínimo en todos los préstamos excepto "${chosen[0]?.nombrePrestamo}".`,
+            `Destina los RD$ ${dineroExtra.toLocaleString()} extra al préstamo prioritario.`,
+            `Una vez liquidado, redirige todo ese pago al siguiente en la lista.`,
+        ],
+        ahorroIntereses: Math.round(dineroExtra * 3),
+        mesesAcelerados: dineroExtra > 0 ? Math.max(1, Math.round(chosen[0]?.balancePendiente / (chosen[0]?.cuotaMensual + dineroExtra) * -1 + chosen[0]?.balancePendiente / chosen[0]?.cuotaMensual)) : 0,
+        resumen: `Usando el método ${estrategia === 'avalancha' ? 'Avalancha' : 'Bola de Nieve'}, enfócate en pagar "${chosen[0]?.nombrePrestamo}" primero. Recortando gastos no esenciales puedes liberar RD$ ${dineroExtra.toLocaleString()} extra cada mes.`,
+    };
+}
+

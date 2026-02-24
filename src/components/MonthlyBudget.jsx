@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { collection, doc, setDoc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
+import { useLoans } from '../hooks/useLoans';
 import BottomNav from './BottomNav';
 
 const DEFAULT_CATEGORIES = ['Comida', 'Transporte', 'Servicios', 'Renta', 'Ocio', 'Salud', 'Educación', 'Otros'];
@@ -26,6 +27,9 @@ export default function MonthlyBudget() {
     const [saving, setSaving] = useState(false);
     const [tempGlobal, setTempGlobal] = useState('');
     const [tempCats, setTempCats] = useState({});
+
+    // ─── Loans integration ───
+    const { loans, totalCuotasPendientes } = useLoans(currentUser?.uid);
 
     // ─── Load budget doc ───
     useEffect(() => {
@@ -130,7 +134,7 @@ export default function MonthlyBudget() {
                             </div>
                             <div className="flex justify-between mt-2">
                                 <span className="text-white/80 text-xs font-semibold">{globalPct}% usado</span>
-                                <span className="text-white/80 text-xs font-semibold">Restante: RD$ {formatMoney(Math.max(globalLimit - totalSpent, 0))}</span>
+                                <span className="text-white/80 text-xs font-semibold">Restante: RD$ {formatMoney(Math.max(globalLimit - totalSpent - totalCuotasPendientes, 0))}</span>
                             </div>
                         </>
                     )}
@@ -178,6 +182,38 @@ export default function MonthlyBudget() {
                         })}
                     </div>
                 </div>
+
+                {/* Préstamos Activos Section */}
+                {loans.length > 0 && (
+                    <div>
+                        <h3 className="text-[17px] font-bold text-gray-900 mb-3 px-1">Préstamos Activos</h3>
+                        <div className="bg-white rounded-[24px] p-5 shadow-sm space-y-3">
+                            {loans.map(loan => (
+                                <div key={loan.id} className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${loan.pagadoEsteMes ? 'bg-green-100' : 'bg-amber-100'}`}>
+                                            <span className={`material-symbols-rounded text-lg ${loan.pagadoEsteMes ? 'text-green-500' : 'text-amber-500'}`}>
+                                                {loan.pagadoEsteMes ? 'check_circle' : 'account_balance'}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-sm text-gray-900">{loan.nombrePrestamo}</p>
+                                            <p className="text-[10px] text-gray-400">Día {loan.diaDePago}</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className={`font-extrabold text-sm ${loan.pagadoEsteMes ? 'text-green-500 line-through' : 'text-gray-800'}`}>RD$ {formatMoney(loan.cuotaMensual)}</p>
+                                        <p className="text-[10px] text-gray-400">{loan.pagadoEsteMes ? 'Pagado' : 'Pendiente'}</p>
+                                    </div>
+                                </div>
+                            ))}
+                            <div className="border-t border-gray-100 pt-3 flex justify-between">
+                                <span className="text-xs font-bold text-gray-500">Total Cuotas Pendientes</span>
+                                <span className="text-sm font-extrabold text-amber-600">RD$ {formatMoney(totalCuotasPendientes)}</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
             <BottomNav />
         </div>

@@ -146,6 +146,10 @@ export default function Dashboard() {
                             <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center"><span className="material-symbols-rounded text-violet-500">auto_awesome</span></div>
                             <div><p className="text-sm font-bold text-gray-800">Asesor IA</p><p className="text-[10px] text-gray-400">Consejos</p></div>
                         </button>
+                        <button onClick={() => navigate('/loans')} className="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 active:scale-95 transition-transform text-left">
+                            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center"><span className="material-symbols-rounded text-amber-500">account_balance</span></div>
+                            <div><p className="text-sm font-bold text-gray-800">Préstamos</p><p className="text-[10px] text-gray-400">Deudas</p></div>
+                        </button>
                     </div>
                 </div>
                 {/* Gastos vs Ingresos Dashboard */}

@@ -1,20 +1,27 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { useLoans } from '../hooks/useLoans';
+import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { analyzeSpending, analyzeSpendingLocal } from '../lib/gemini';
+import { analyzeSpending, analyzeSpendingLocal, analyzeLoanStrategy, analyzeLoanStrategyLocal } from '../lib/gemini';
 import BottomNav from './BottomNav';
 
 const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const CURRENT_MONTH_KEY = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
 
 export default function AIAdvisor() {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
+    const { loans } = useLoans(currentUser?.uid);
+
     const [transactions, setTransactions] = useState([]);
     const [insights, setInsights] = useState(null);
+    const [debtPlan, setDebtPlan] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [loadingDebt, setLoadingDebt] = useState(false);
     const [error, setError] = useState(null);
+    const [budgetLimit, setBudgetLimit] = useState(0);
 
     useEffect(() => {
         if (!currentUser || !db) return;
@@ -23,6 +30,16 @@ export default function AIAdvisor() {
             setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
         return unsub;
+    }, [currentUser]);
+
+    // Load budget limit
+    useEffect(() => {
+        if (!currentUser || !db) return;
+        const monthKey = CURRENT_MONTH_KEY();
+        const budgetRef = doc(db, 'users', currentUser.uid, 'budgets', monthKey);
+        getDoc(budgetRef).then(snap => {
+            if (snap.exists()) setBudgetLimit(snap.data().globalLimit || 0);
+        }).catch(() => { });
     }, [currentUser]);
 
     const { totalIncome, totalExpense, categories } = useMemo(() => {
@@ -53,23 +70,41 @@ export default function AIAdvisor() {
         setError(null);
         const monthName = MONTH_NAMES[new Date().getMonth()];
         try {
-            // Try Gemini first
             const result = await analyzeSpending({ totalIncome, totalExpense, categories, monthName });
             setInsights(result);
             sessionStorage.setItem('aiInsights', JSON.stringify(result));
         } catch (e) {
             console.warn('Gemini failed, using local analysis:', e.message);
-            // Fallback to local algorithm
             const local = analyzeSpendingLocal(categories, totalExpense);
             setInsights(local);
         }
         setLoading(false);
     };
 
+    const handleAnalyzeDebt = async () => {
+        if (loans.length === 0) return;
+        setLoadingDebt(true);
+        const monthName = MONTH_NAMES[new Date().getMonth()];
+        try {
+            const result = await analyzeLoanStrategy({
+                loans, totalIncome, totalExpense, categories, monthName, budgetLimit
+            });
+            setDebtPlan(result);
+            sessionStorage.setItem('aiDebtPlan', JSON.stringify(result));
+        } catch (e) {
+            console.warn('Gemini loan analysis failed, using local:', e.message);
+            const local = analyzeLoanStrategyLocal(loans, categories, totalIncome, totalExpense);
+            setDebtPlan(local);
+        }
+        setLoadingDebt(false);
+    };
+
     // Load cached insights
     useEffect(() => {
         const cached = sessionStorage.getItem('aiInsights');
         if (cached) { try { setInsights(JSON.parse(cached)); } catch { } }
+        const cachedDebt = sessionStorage.getItem('aiDebtPlan');
+        if (cachedDebt) { try { setDebtPlan(JSON.parse(cachedDebt)); } catch { } }
     }, []);
 
     return (
@@ -81,7 +116,7 @@ export default function AIAdvisor() {
             </header>
 
             <div className="pt-28 pb-28 px-5 space-y-5">
-                {/* Analyze Button */}
+                {/* Analyze Spending Button */}
                 <button onClick={handleAnalyze} disabled={loading || categories.length === 0} className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold py-4 rounded-2xl shadow-lg disabled:opacity-50 active:scale-[0.98] transition-transform flex items-center justify-center gap-3">
                     {loading ? (
                         <><span className="material-symbols-rounded animate-spin">progress_activity</span> Analizando...</>
@@ -90,11 +125,140 @@ export default function AIAdvisor() {
                     )}
                 </button>
 
+                {/* Analyze Debt Button - only if loans exist */}
+                {loans.length > 0 && (
+                    <button onClick={handleAnalyzeDebt} disabled={loadingDebt} className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold py-4 rounded-2xl shadow-lg disabled:opacity-50 active:scale-[0.98] transition-transform flex items-center justify-center gap-3">
+                        {loadingDebt ? (
+                            <><span className="material-symbols-rounded animate-spin">progress_activity</span> Generando Plan...</>
+                        ) : (
+                            <><span className="material-symbols-rounded text-2xl">account_balance</span> Plan para Saldar Deudas</>
+                        )}
+                    </button>
+                )}
+
                 {categories.length === 0 && (
                     <p className="text-center text-sm text-gray-400 py-4">Registra gastos este mes para obtener tu análisis personalizado.</p>
                 )}
 
-                {/* Insights */}
+                {/* ══════════ DEBT PLAN SECTION ══════════ */}
+                {debtPlan && (
+                    <div className="space-y-4 animate-in fade-in duration-500">
+                        {/* Strategy Header */}
+                        <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-[28px] p-6 shadow-lg relative overflow-hidden">
+                            <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+                            <div className="flex items-start gap-3">
+                                <span className="material-symbols-rounded text-3xl text-white/80">
+                                    {debtPlan.estrategiaRecomendada === 'avalancha' ? 'trending_down' : 'ac_unit'}
+                                </span>
+                                <div>
+                                    <p className="text-sm font-bold text-white/90">Plan para Saldar Deudas</p>
+                                    <p className="text-white font-extrabold text-lg mt-1">
+                                        Método {debtPlan.estrategiaRecomendada === 'avalancha' ? 'Avalancha 🏔️' : 'Bola de Nieve ⛄'}
+                                    </p>
+                                    <p className="text-white/80 text-sm mt-2 leading-relaxed">{debtPlan.razonEstrategia}</p>
+                                </div>
+                            </div>
+                            {/* Quick Stats */}
+                            <div className="flex gap-3 mt-4">
+                                {debtPlan.dineroExtraDisponible > 0 && (
+                                    <div className="bg-white/15 rounded-2xl px-3 py-2 flex-1">
+                                        <p className="text-white/70 text-[10px] font-bold uppercase">Extra/Mes</p>
+                                        <p className="text-white font-extrabold">RD$ {formatMoney(debtPlan.dineroExtraDisponible)}</p>
+                                    </div>
+                                )}
+                                {debtPlan.ahorroIntereses > 0 && (
+                                    <div className="bg-white/15 rounded-2xl px-3 py-2 flex-1">
+                                        <p className="text-white/70 text-[10px] font-bold uppercase">Ahorro Int.</p>
+                                        <p className="text-white font-extrabold">RD$ {formatMoney(debtPlan.ahorroIntereses)}</p>
+                                    </div>
+                                )}
+                                {debtPlan.mesesAcelerados > 0 && (
+                                    <div className="bg-white/15 rounded-2xl px-3 py-2 flex-1">
+                                        <p className="text-white/70 text-[10px] font-bold uppercase">Meses Menos</p>
+                                        <p className="text-white font-extrabold">{debtPlan.mesesAcelerados}</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Payment Order */}
+                        {debtPlan.ordenPago?.length > 0 && (
+                            <div className="bg-white rounded-[28px] p-6 shadow-sm">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <span className="material-symbols-rounded text-amber-500">format_list_numbered</span>
+                                    <h3 className="font-bold text-gray-900">Orden de Pago</h3>
+                                </div>
+                                <div className="space-y-3">
+                                    {debtPlan.ordenPago.map((item, i) => (
+                                        <div key={i} className={`flex items-center gap-3 p-3 rounded-2xl ${i === 0 ? 'bg-amber-50 border border-amber-100' : 'bg-gray-50'}`}>
+                                            <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${i === 0 ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                                                {item.prioridad}
+                                            </span>
+                                            <div className="flex-1">
+                                                <p className="font-bold text-sm text-gray-900">{item.nombre}</p>
+                                                <p className="text-[11px] text-gray-400">Tasa: {item.tasa}% · Balance: RD$ {formatMoney(item.balance)}</p>
+                                            </div>
+                                            {i === 0 && <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-1 rounded-lg">PRIORIDAD</span>}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Expenses to Cut */}
+                        {debtPlan.gastosRecortables?.length > 0 && (
+                            <div className="bg-white rounded-[28px] p-6 shadow-sm">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <span className="material-symbols-rounded text-red-500">content_cut</span>
+                                    <h3 className="font-bold text-gray-900">Gastos a Recortar</h3>
+                                </div>
+                                <div className="space-y-3">
+                                    {debtPlan.gastosRecortables.map((item, i) => (
+                                        <div key={i} className="bg-red-50 rounded-2xl p-4">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className="font-bold text-gray-900">{item.categoria}</span>
+                                                <div className="text-right">
+                                                    <span className="text-xs text-red-400 line-through">RD$ {formatMoney(item.gastoActual)}</span>
+                                                    <span className="text-sm font-extrabold text-green-600 ml-2">RD$ {formatMoney(item.gastoSugerido)}</span>
+                                                </div>
+                                            </div>
+                                            <p className="text-xs text-gray-500">{item.consejo}</p>
+                                            <p className="text-[10px] text-green-600 font-bold mt-1">Ahorra RD$ {formatMoney(item.ahorroPotencial)}/mes</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Action Plan */}
+                        {debtPlan.planAccion?.length > 0 && (
+                            <div className="bg-white rounded-[28px] p-6 shadow-sm">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <span className="material-symbols-rounded text-emerald-500">rocket_launch</span>
+                                    <h3 className="font-bold text-gray-900">Plan de Acción</h3>
+                                </div>
+                                <div className="space-y-3">
+                                    {debtPlan.planAccion.map((step, i) => (
+                                        <div key={i} className="flex gap-3 items-start">
+                                            <span className="w-7 h-7 bg-emerald-100 rounded-full flex items-center justify-center shrink-0 text-xs font-bold text-emerald-600">{i + 1}</span>
+                                            <p className="text-sm text-gray-700 leading-relaxed">{step}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Motivational Summary */}
+                        {debtPlan.resumen && (
+                            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-2xl p-4 flex items-start gap-3">
+                                <span className="material-symbols-rounded text-emerald-500 text-2xl">emoji_objects</span>
+                                <p className="text-sm text-emerald-800 font-medium leading-relaxed">{debtPlan.resumen}</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ══════════ SPENDING INSIGHTS SECTION ══════════ */}
                 {insights && (
                     <div className="space-y-4 animate-in fade-in duration-500">
                         {/* Summary */}

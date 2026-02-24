@@ -11,6 +11,7 @@ import RecurringExpenses from './components/RecurringExpenses';
 import MonthlyBudget from './components/MonthlyBudget';
 import CreditCards from './components/CreditCards';
 import AIAdvisor from './components/AIAdvisor';
+import Loans from './components/Loans';
 import { AuthProvider } from './contexts/AuthContextProvider';
 import PrivateRoute from './components/PrivateRoute';
 
@@ -32,6 +33,7 @@ function App() {
               <Route path="/budget" element={<PrivateRoute><MonthlyBudget /></PrivateRoute>} />
               <Route path="/cards" element={<PrivateRoute><CreditCards /></PrivateRoute>} />
               <Route path="/advisor" element={<PrivateRoute><AIAdvisor /></PrivateRoute>} />
+              <Route path="/loans" element={<PrivateRoute><Loans /></PrivateRoute>} />
             </Routes>
           </main>
         </div>
