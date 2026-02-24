@@ -475,36 +475,36 @@ export default function CreditCards() {
 
                 {/* ══════════ PAGOS PENDIENTES ══════════ */}
                 {pendingItems.length > 0 && (
-                    <div className="bg-white rounded-[28px] p-6 shadow-sm mb-6 border border-amber-100">
-                        <div className="flex items-center gap-2 mb-4">
-                            <span className="material-symbols-rounded text-amber-500">pending_actions</span>
-                            <h3 className="text-[17px] font-bold text-gray-900">Pagos Pendientes por Realizar</h3>
+                    <div className="bg-white rounded-[28px] py-4 mb-6">
+                        <div className="flex items-center gap-2 mb-6 px-2">
+                            <span className="material-symbols-rounded text-orange-500 text-[28px]">schedule</span>
+                            <h3 className="text-[18px] font-extrabold text-gray-900">Pagos Pendientes por Realizar</h3>
                         </div>
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                             {pendingItems.map((pItem) => (
-                                <div key={pItem.id} className="bg-gray-50 flex items-center justify-between p-4 rounded-2xl">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${pItem.sourceItem?.type === 'credit_card' ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-200 text-gray-600'}`}>
-                                            <span className="material-symbols-rounded text-[20px]">
-                                                {pItem.sourceItem?.type === 'credit_card' ? 'credit_card' : 'receipt_long'}
+                                <div key={pItem.id} className="bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-[24px]">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-full flex items-center justify-center bg-gray-200 text-gray-700 shrink-0">
+                                            <span className="material-symbols-rounded text-[24px]">
+                                                receipt_long
                                             </span>
                                         </div>
                                         <div>
-                                            <p className="text-sm font-bold text-gray-900">{pItem.name}</p>
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${pItem.isOverdue ? 'bg-red-100 text-red-700' : pItem.isNearDue ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                                            <p className="text-[15px] font-bold text-gray-900">{pItem.name}</p>
+                                            <div className="flex items-center gap-3 mt-1.5">
+                                                <span className={`text-[11px] font-extrabold px-3 py-0.5 rounded-full ${pItem.isOverdue ? 'bg-red-100 text-red-600' : pItem.isNearDue ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
                                                     {pItem.isOverdue ? 'Vencido' : pItem.isNearDue ? 'Próximo a vencer' : 'Pendiente'}
                                                 </span>
-                                                <span className="text-[10px] text-gray-500 font-medium">Día {pItem.originalDueDay}</span>
+                                                <span className="text-[12px] text-gray-500 font-medium">Día {pItem.originalDueDay}</span>
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="text-right flex items-center gap-3">
+                                    <div className="mt-4 sm:mt-0 flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
                                         <div>
-                                            <p className="text-sm font-extrabold text-gray-900">RD$ {formatMoney(pItem.amount)}</p>
+                                            <p className="text-[16px] font-extrabold text-gray-900">RD$ {formatMoney(pItem.amount)}</p>
                                         </div>
-                                        <button onClick={() => handleMarkAsPaid(pItem)} className="w-8 h-8 rounded-full bg-green-100 hover:bg-green-200 flex items-center justify-center transition-colors shadow-sm">
-                                            <span className="material-symbols-rounded text-[18px] text-green-700">check</span>
+                                        <button onClick={() => handleMarkAsPaid(pItem)} className="w-10 h-10 rounded-full bg-green-100 hover:bg-green-200 flex items-center justify-center transition-colors shrink-0">
+                                            <span className="material-symbols-rounded text-[20px] text-green-600 font-bold">check</span>
                                         </button>
                                     </div>
                                 </div>
