@@ -53,6 +53,7 @@ function getDueMonthKeys(startDate, frequency, upToYear, upToMonth) {
  * Any past month that is NOT in paidMonths is considered "unpaid" and carries over.
  */
 function calcCarryOver(item) {
+    if (item.type === 'credit_card') return { count: 0, amount: 0 };
     const now = new Date();
     const curKey = currentMonthKey();
     const start = item.startDate ? new Date(item.startDate + 'T12:00:00') : null;
@@ -137,6 +138,8 @@ export default function RecurringExpenses() {
     const [viewMonth, setViewMonth] = useState(today.getMonth());
     const [viewYear, setViewYear] = useState(today.getFullYear());
 
+    const [creditCards, setCreditCards] = useState([]);
+
     // ─── Listen to recurring items ───
     useEffect(() => {
         if (!currentUser || !db) return;
@@ -146,6 +149,56 @@ export default function RecurringExpenses() {
         });
         return unsub;
     }, [currentUser]);
+
+    // ─── Listen to credit cards ───
+    useEffect(() => {
+        if (!currentUser || !db) return;
+        return onSnapshot(collection(db, 'users', currentUser.uid, 'creditCards'), snap => {
+            setCreditCards(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+    }, [currentUser]);
+
+    // ─── Auto-generate Credit Card Recurring Payments ───
+    useEffect(() => {
+        if (!currentUser || !db || creditCards.length === 0) return;
+
+        const curMonth = currentMonthKey();
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+
+        creditCards.forEach(card => {
+            const existing = recurring.find(r => r.type === 'credit_card' && r.cardId === card.id);
+            const fallbackAmount = Number(card.pagoMinimoDOP || card.pagoMinimo || card.balanceDOP || card.balanceALaFecha || 0);
+
+            if (!existing) {
+                const dueDay = parseInt(card.fechaLimitePago || 15) || 15;
+                addDoc(collection(db, 'users', currentUser.uid, 'recurring'), {
+                    type: 'credit_card',
+                    cardId: card.id,
+                    name: `TC ${card.name || 'Tarjeta'}`,
+                    amount: fallbackAmount,
+                    category: 'Tarjetas',
+                    frequency: 'monthly',
+                    startDate: `${year}-${month}-${String(dueDay).padStart(2, '0')}`,
+                    dueDay: dueDay,
+                    active: true,
+                    paidMonths: [],
+                    lastAutoMonth: curMonth,
+                    createdAt: serverTimestamp(),
+                    timezone: getUserTimezone(),
+                }).catch(console.error);
+            } else {
+                // Auto update amount for a new month if it hasn't been paid yet
+                if (existing.lastAutoMonth !== curMonth && !(existing.paidMonths || []).includes(curMonth)) {
+                    updateDoc(doc(db, 'users', currentUser.uid, 'recurring', existing.id), {
+                        amount: fallbackAmount,
+                        lastAutoMonth: curMonth
+                    }).catch(console.error);
+                }
+            }
+        });
+    }, [creditCards, recurring, currentUser]);
 
     // ─── Calculate enriched items with status and carry-over (memoized) ───
     const enrichedItems = useMemo(() => {
@@ -254,14 +307,32 @@ export default function RecurringExpenses() {
         if (!currentUser || !db) return;
         const curKey = currentMonthKey();
         const paidMonths = [...(item.paidMonths || [])];
+        const isPaying = !paidMonths.includes(curKey);
 
-        if (paidMonths.includes(curKey)) {
+        if (!isPaying) {
             // Unmark paid
             const idx = paidMonths.indexOf(curKey);
             paidMonths.splice(idx, 1);
+
+            // Revert credit card payment is not implemented here to avoid complexity
         } else {
             // Mark paid
             paidMonths.push(curKey);
+
+            // Deduct from Credit Card active balance
+            if (item.type === 'credit_card' && item.cardId) {
+                const card = creditCards.find(c => c.id === item.cardId);
+                if (card) {
+                    const currentBalance = Number(card.balanceDOP || card.balanceALaFecha || card.balance || 0);
+                    const newBalance = Math.max(0, currentBalance - item.amount);
+                    const cardRef = doc(db, 'users', currentUser.uid, 'creditCards', item.cardId);
+                    await updateDoc(cardRef, {
+                        ...(card.balanceDOP !== undefined && { balanceDOP: newBalance }),
+                        ...(card.balanceALaFecha !== undefined && { balanceALaFecha: newBalance }),
+                        ...(card.balance !== undefined && { balance: newBalance })
+                    }).catch(console.error);
+                }
+            }
         }
 
         await updateDoc(doc(db, 'users', currentUser.uid, 'recurring', item.id), { paidMonths });
@@ -405,85 +476,98 @@ export default function RecurringExpenses() {
 
                 {/* List with statuses */}
                 <div>
-                    <h3 className="text-[17px] font-bold text-gray-900 mb-3 px-1">Mis Pagos</h3>
-                    {enrichedItems.length === 0 ? (
-                        <p className="text-center text-sm text-gray-400 py-8">Aún no tienes pagos recurrentes.</p>
-                    ) : (
-                        <div className="space-y-3">
-                            {enrichedItems.map(r => {
-                                const cfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending;
-                                const isPaidThisMonth = r.status === 'paid';
-                                const isOverdue = r.status === 'overdue';
-                                const hasCarryOver = r.carryOver.count > 0;
+                    {(() => {
+                        const creditCardItems = enrichedItems.filter(r => r.type === 'credit_card');
+                        const regularItems = enrichedItems.filter(r => r.type !== 'credit_card');
 
-                                return (
-                                    <div key={r.id} className={`bg-white rounded-[24px] p-5 shadow-sm transition-all ${isOverdue ? 'ring-2 ring-red-300 bg-red-50/40' : isPaidThisMonth ? 'ring-1 ring-green-200 bg-green-50/30' : ''} ${!r.active ? 'opacity-50' : ''}`}>
-                                        <div className="flex items-center gap-4">
-                                            {/* Pay checkbox */}
-                                            <button onClick={() => togglePaid(r)} disabled={!r.active || r.status === 'not-due'} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all shrink-0 active:scale-90 ${isPaidThisMonth ? 'bg-green-100' : isOverdue ? 'bg-red-100' : 'bg-indigo-100'}`}>
-                                                <span className={`material-symbols-rounded text-2xl ${isPaidThisMonth ? 'text-green-600' : isOverdue ? 'text-red-500' : 'text-indigo-500'}`}>
-                                                    {isPaidThisMonth ? 'check_circle' : 'radio_button_unchecked'}
-                                                </span>
-                                            </button>
+                        const renderItem = (r) => {
+                            const cfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending;
+                            const isPaidThisMonth = r.status === 'paid';
+                            const isOverdue = r.status === 'overdue';
+                            const hasCarryOver = r.carryOver.count > 0;
 
-                                            <div className="flex-1 min-w-0">
-                                                <h4 className="font-bold text-gray-900 truncate">{r.name}</h4>
-                                                <p className="text-xs text-gray-400">{FREQUENCIES.find(f => f.id === r.frequency)?.label || r.frequency} · {r.category} · Vence día {r.dueDay || '15'}</p>
-                                                {/* Status badge */}
-                                                <span className={`inline-flex items-center gap-1 mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>
-                                                    <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-                                                    {cfg.label}
-                                                </span>
-                                            </div>
+                            return (
+                                <div key={r.id} className={`bg-white rounded-[24px] p-5 shadow-sm transition-all ${isOverdue ? 'ring-2 ring-red-300 bg-red-50/40' : isPaidThisMonth ? 'ring-1 ring-green-200 bg-green-50/30' : ''} ${!r.active ? 'opacity-50' : ''}`}>
+                                    <div className="flex items-center gap-4">
+                                        <button onClick={() => togglePaid(r)} disabled={!r.active || r.status === 'not-due'} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all shrink-0 active:scale-90 ${isPaidThisMonth ? 'bg-green-100' : isOverdue ? 'bg-red-100' : 'bg-indigo-100'}`}>
+                                            <span className={`material-symbols-rounded text-2xl ${isPaidThisMonth ? 'text-green-600' : isOverdue ? 'text-red-500' : 'text-indigo-500'}`}>
+                                                {isPaidThisMonth ? 'check_circle' : 'radio_button_unchecked'}
+                                            </span>
+                                        </button>
 
-                                            <div className="text-right shrink-0">
-                                                <p className={`font-extrabold ${isOverdue ? 'text-red-600' : 'text-gray-900'}`}>RD$ {formatMoney(r.amount)}</p>
-                                                <div className="flex gap-1 mt-1 justify-end">
-                                                    <button onClick={() => startEdit(r)} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 active:scale-95">Editar</button>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-bold text-gray-900 truncate">{r.name}</h4>
+                                            <p className="text-xs text-gray-400">{FREQUENCIES.find(f => f.id === r.frequency)?.label || r.frequency} · {r.category} · Vence día {r.dueDay || '15'}</p>
+                                            <span className={`inline-flex items-center gap-1 mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>
+                                                <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                                                {cfg.label}
+                                            </span>
+                                        </div>
+
+                                        <div className="text-right shrink-0">
+                                            <p className={`font-extrabold ${isOverdue ? 'text-red-600' : 'text-gray-900'}`}>RD$ {formatMoney(r.amount)}</p>
+                                            <div className="flex gap-1 mt-1 justify-end">
+                                                <button onClick={() => startEdit(r)} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 active:scale-95">Editar</button>
+                                                {r.type !== 'credit_card' && (
                                                     <button onClick={() => setConfirmDelete(r.id)} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500 active:scale-95">
                                                         <span className="material-symbols-rounded text-[14px] leading-none">delete</span>
                                                     </button>
-                                                </div>
+                                                )}
                                             </div>
                                         </div>
-
-                                        {/* Carry-over display */}
-                                        {hasCarryOver && r.active && (
-                                            <div className="mt-3 bg-red-50 rounded-xl px-4 py-3 border border-red-100">
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <p className="text-[10px] text-red-600 font-bold uppercase">Arrastre de saldo vencido</p>
-                                                        <p className="text-xs text-red-800 mt-0.5">
-                                                            Cuota actual: <b>RD$ {formatMoney(r.amount)}</b>
-                                                        </p>
-                                                        <p className="text-xs text-red-800">
-                                                            Saldo anterior ({r.carryOver.count} mes{r.carryOver.count > 1 ? 'es' : ''}): <b>RD$ {formatMoney(r.carryOver.amount)}</b>
-                                                        </p>
-                                                        <p className="text-sm text-red-900 font-extrabold mt-1">
-                                                            Total a pagar: RD$ {formatMoney(r.totalDue)}
-                                                        </p>
-                                                    </div>
-                                                    <button onClick={() => payAllCarryOver(r)} className="bg-red-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-xl active:scale-95 transition-transform shrink-0 mt-1">
-                                                        Saldar
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {/* Delete confirmation */}
-                                        {confirmDelete === r.id && (
-                                            <div className="mt-3 bg-red-50 rounded-xl px-4 py-3 border border-red-200 flex items-center justify-between">
-                                                <p className="text-xs text-red-700 font-bold">¿Eliminar este pago?</p>
-                                                <div className="flex gap-2">
-                                                    <button onClick={() => setConfirmDelete(null)} className="text-xs font-bold px-3 py-1 rounded-lg bg-gray-200 text-gray-600">No</button>
-                                                    <button onClick={() => handleDelete(r.id)} className="text-xs font-bold px-3 py-1 rounded-lg bg-red-600 text-white active:scale-95">Sí, eliminar</button>
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
-                                );
-                            })}
-                        </div>
-                    )}
+
+                                    {hasCarryOver && r.active && (
+                                        <div className="mt-3 bg-red-50 rounded-xl px-4 py-3 border border-red-100">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="text-[10px] text-red-600 font-bold uppercase">Arrastre de saldo vencido</p>
+                                                    <p className="text-xs text-red-800 mt-0.5">Cuota actual: <b>RD$ {formatMoney(r.amount)}</b></p>
+                                                    <p className="text-xs text-red-800">Saldo anterior ({r.carryOver.count} mes{r.carryOver.count > 1 ? 'es' : ''}): <b>RD$ {formatMoney(r.carryOver.amount)}</b></p>
+                                                    <p className="text-sm text-red-900 font-extrabold mt-1">Total a pagar: RD$ {formatMoney(r.totalDue)}</p>
+                                                </div>
+                                                <button onClick={() => payAllCarryOver(r)} className="bg-red-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-xl active:scale-95 transition-transform shrink-0 mt-1">
+                                                    Saldar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {confirmDelete === r.id && r.type !== 'credit_card' && (
+                                        <div className="mt-3 bg-red-50 rounded-xl px-4 py-3 border border-red-200 flex items-center justify-between">
+                                            <p className="text-xs text-red-700 font-bold">¿Eliminar este pago?</p>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => setConfirmDelete(null)} className="text-xs font-bold px-3 py-1 rounded-lg bg-gray-200 text-gray-600">No</button>
+                                                <button onClick={() => handleDelete(r.id)} className="text-xs font-bold px-3 py-1 rounded-lg bg-red-600 text-white active:scale-95">Sí, eliminar</button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        };
+
+                        return (
+                            <>
+                                {creditCardItems.length > 0 && (
+                                    <div className="mb-6">
+                                        <h3 className="text-[17px] font-bold text-gray-900 mb-3 px-1">Tarjetas de Crédito</h3>
+                                        <div className="space-y-3">
+                                            {creditCardItems.map(renderItem)}
+                                        </div>
+                                    </div>
+                                )}
+                                <div>
+                                    <h3 className="text-[17px] font-bold text-gray-900 mb-3 px-1">Mis Pagos Fijos</h3>
+                                    {regularItems.length === 0 ? (
+                                        <p className="text-center text-sm text-gray-400 py-8">Aún no tienes pagos recurrentes.</p>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {regularItems.map(renderItem)}
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        );
+                    })()}
                 </div>
             </div>
             <BottomNav />

@@ -6,6 +6,8 @@ import { db } from '../firebase';
 import { useLoans } from '../hooks/useLoans';
 import { calcAhorroRecomendado } from '../lib/gemini';
 import BottomNav from './BottomNav';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 const DEFAULT_CATEGORIES = ['Comida', 'Transporte', 'Servicios', 'Renta', 'Ocio', 'Salud', 'Educación', 'Otros'];
 const CURRENT_MONTH_KEY = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
@@ -99,11 +101,32 @@ export default function MonthlyBudget() {
         }).reduce((s, t) => s + (t.amount || 0), 0);
     }, [allTx]);
 
+    const [recurring, setRecurring] = useState([]);
+    useEffect(() => {
+        if (!currentUser || !db) return;
+        return onSnapshot(collection(db, 'users', currentUser.uid, 'recurring'), snap => {
+            setRecurring(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.active));
+        });
+    }, [currentUser]);
+
+    const totalRecurrentesPendientes = useMemo(() => {
+        return recurring.reduce((sum, item) => {
+            const startStr = item.startDate ? item.startDate.substring(0, 7) : null;
+            if (startStr && startStr > monthKey) return sum; // Not started yet
+
+            const paidSet = new Set(item.paidMonths || []);
+            if (!paidSet.has(monthKey)) {
+                return sum + (item.amount || 0);
+            }
+            return sum;
+        }, 0);
+    }, [recurring, monthKey]);
+
     const totalCardDebt = useMemo(() => creditCards.reduce((s, c) => s + getCardBalanceDOP(c), 0), [creditCards]);
     const credimasDebt = useMemo(() => creditCards.reduce((s, c) => s + (c.credimasTotalAdeudado || 0), 0), [creditCards]);
     const totalDeudaGlobal = totalCardDebt + (loans.reduce((s, l) => s + (l.balancePendiente || 0), 0)) + credimasDebt;
     const ahorroRecomendado = useMemo(() => calcAhorroRecomendado(monthlyIncome, totalDeudaGlobal), [monthlyIncome, totalDeudaGlobal]);
-    const disponibleReal = Math.max(globalLimit - totalSpent - totalCuotasPendientes - ahorroRecomendado, 0);
+    const disponibleReal = Math.max(globalLimit - totalSpent - totalCuotasPendientes - totalRecurrentesPendientes - ahorroRecomendado, 0);
 
     const spendingByCategory = useMemo(() => {
         const map = {};
@@ -143,6 +166,96 @@ export default function MonthlyBudget() {
 
     const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     const now = new Date();
+
+    const generatePDF = () => {
+        const doc = new jsPDF();
+
+        doc.setFontSize(18);
+        doc.text(`Presupuesto Mensual - ${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`, 14, 22);
+
+        doc.setFontSize(11);
+        doc.text(`Generado el: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`, 14, 30);
+
+        let finalY = 35;
+
+        // Block 1: Ingresos
+        const currentMonthIncomeTxs = allTx.filter(tx => {
+            if (tx.type !== 'income') return false;
+            const d = tx.timestamp?.toDate ? tx.timestamp.toDate() : tx.date ? new Date(tx.date) : null;
+            return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        });
+
+        doc.autoTable({
+            startY: finalY,
+            head: [['Ingresos', 'Monto']],
+            body: [
+                ...currentMonthIncomeTxs.map(tx => [tx.note || tx.category || 'Ingreso', `RD$ ${formatMoney(tx.amount)}`]),
+                [{ content: 'Total Ingresos', styles: { fontStyle: 'bold' } }, { content: `RD$ ${formatMoney(monthlyIncome)}`, styles: { fontStyle: 'bold' } }]
+            ],
+            theme: 'grid',
+            headStyles: { fillColor: [34, 197, 94] }
+        });
+
+        finalY = doc.lastAutoTable.finalY + 10;
+
+        // Block 2: Gastos Realizados
+        doc.autoTable({
+            startY: finalY,
+            head: [['Gastos Realizados', 'Categoría', 'Monto']],
+            body: [
+                ...transactions.map(tx => [tx.note || 'Gasto', tx.category || 'Otros', `RD$ ${formatMoney(tx.amount)}`]),
+                [{ content: 'Total Gastos', colSpan: 2, styles: { fontStyle: 'bold' } }, { content: `RD$ ${formatMoney(totalSpent)}`, styles: { fontStyle: 'bold' } }]
+            ],
+            theme: 'grid',
+            headStyles: { fillColor: [239, 68, 68] }
+        });
+
+        finalY = doc.lastAutoTable.finalY + 10;
+
+        // Block 3: Pagos Realizados
+        const pagosRealizados = recurring.filter(r => (r.paidMonths || []).includes(monthKey));
+        const totalPagosRealizados = pagosRealizados.reduce((s, r) => s + (r.amount || 0), 0);
+
+        doc.autoTable({
+            startY: finalY,
+            head: [['Pagos Fijos/Recurrentes Realizados', 'Categoría', 'Monto']],
+            body: [
+                ...pagosRealizados.map(r => [r.name, r.category || 'Otros', `RD$ ${formatMoney(r.amount)}`]),
+                [{ content: 'Total Pagos Realizados', colSpan: 2, styles: { fontStyle: 'bold' } }, { content: `RD$ ${formatMoney(totalPagosRealizados)}`, styles: { fontStyle: 'bold' } }]
+            ],
+            theme: 'grid',
+            headStyles: { fillColor: [59, 130, 246] }
+        });
+
+        finalY = doc.lastAutoTable.finalY + 10;
+
+        // Block 4: Pendientes por Realizar
+        const pagosPendientes = recurring.filter(r => {
+            const startStr = r.startDate ? r.startDate.substring(0, 7) : null;
+            if (startStr && startStr > monthKey) return false;
+            return !(r.paidMonths || []).includes(monthKey);
+        });
+
+        const totalPagPendientes = pagosPendientes.reduce((s, r) => s + (r.amount || 0), 0) + totalCuotasPendientes;
+
+        const pendingBody = pagosPendientes.map(r => [r.name, r.type === 'credit_card' ? 'Tarjeta de Crédito' : (r.category || 'Otros'), `RD$ ${formatMoney(r.amount)}`]);
+        if (totalCuotasPendientes > 0) {
+            pendingBody.push(['Cuotas de Préstamos Activos', 'Préstamos', `RD$ ${formatMoney(totalCuotasPendientes)}`]);
+        }
+
+        doc.autoTable({
+            startY: finalY,
+            head: [['Pagos Pendientes por Realizar', 'Tipo/Categoría', 'Monto']],
+            body: [
+                ...pendingBody,
+                [{ content: 'Total Pendientes', colSpan: 2, styles: { fontStyle: 'bold' } }, { content: `RD$ ${formatMoney(totalPagPendientes)}`, styles: { fontStyle: 'bold' } }]
+            ],
+            theme: 'grid',
+            headStyles: { fillColor: [245, 158, 11] }
+        });
+
+        doc.save(`Presupuesto_Mensual_${monthKey}.pdf`);
+    };
 
     return (
         <div className="flex flex-col min-h-screen bg-[#f5f7f6]">
@@ -271,6 +384,14 @@ export default function MonthlyBudget() {
                         </div>
                     </div>
                 )}
+
+                {/* PDF Download Button */}
+                <div className="flex justify-center mt-6">
+                    <button onClick={generatePDF} className="flex items-center gap-2 bg-white text-gray-900 border border-gray-200 shadow-sm px-6 py-3.5 rounded-2xl font-bold text-sm hover:bg-gray-50 active:scale-95 transition-all w-full justify-center">
+                        <span className="material-symbols-rounded text-red-500">picture_as_pdf</span>
+                        Descargar Presupuesto (PDF)
+                    </button>
+                </div>
             </div>
             <BottomNav />
         </div>
