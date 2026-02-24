@@ -85,7 +85,7 @@ export default function MonthlyBudget() {
             setCreditCards([]);
             return;
         }
-        return onSnapshot(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'creditCards'), snap => {
+        return onSnapshot(collection(db, 'users', currentUser.uid, 'creditCards'), snap => {
             setCreditCards(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
     }, [currentUser, appId]);

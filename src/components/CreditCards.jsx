@@ -139,7 +139,7 @@ export default function CreditCards() {
             setPaymentCurrency('DOP');
             return;
         }
-        const ref = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'creditCards');
+        const ref = collection(db, 'users', currentUser.uid, 'creditCards');
         const unsubscribe = onSnapshot(ref, snap => {
             setCards(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
@@ -211,10 +211,10 @@ export default function CreditCards() {
             notificacionesPago: form.notificacionesPago,
         };
         if (editId) {
-            await updateDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'creditCards', editId), data);
+            await updateDoc(doc(db, 'users', currentUser.uid, 'creditCards', editId), data);
         } else {
             data.createdAt = serverTimestamp();
-            await addDoc(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'creditCards'), data);
+            await addDoc(collection(db, 'users', currentUser.uid, 'creditCards'), data);
         }
         setShowForm(false);
         setForm(EMPTY_FORM);
@@ -224,7 +224,7 @@ export default function CreditCards() {
 
     const handleDelete = async (id) => {
         if (!currentUser || !appId) return;
-        await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'creditCards', id));
+        await deleteDoc(doc(db, 'users', currentUser.uid, 'creditCards', id));
     };
 
     const openPayment = (card, currency = 'DOP') => {
@@ -239,7 +239,7 @@ export default function CreditCards() {
         if (amount <= 0) return;
         setProcessingPayment(true);
         try {
-            const cardRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'creditCards', paymentCard.id);
+            const cardRef = doc(db, 'users', currentUser.uid, 'creditCards', paymentCard.id);
             if (paymentCurrency === 'USD') {
                 const nextBalanceUSD = Math.max(getCardBalanceUSD(paymentCard) - amount, 0);
                 await updateDoc(cardRef, {
