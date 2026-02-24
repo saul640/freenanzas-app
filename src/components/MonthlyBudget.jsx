@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { collection, doc, setDoc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, setDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useLoans } from '../hooks/useLoans';
 import { calcAhorroRecomendado } from '../lib/gemini';
@@ -83,10 +83,7 @@ export default function MonthlyBudget() {
     }, [currentUser]);
 
     useEffect(() => {
-        if (!currentUser || !db || !appId) {
-            setCreditCards([]);
-            return;
-        }
+        if (!currentUser || !db || !appId) return;
         return onSnapshot(collection(db, 'users', currentUser.uid, 'creditCards'), snap => {
             setCreditCards(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
@@ -162,7 +159,6 @@ export default function MonthlyBudget() {
     };
 
     const globalPct = globalLimit > 0 ? Math.min(Math.round((totalSpent / globalLimit) * 100), 100) : 0;
-    const globalColors = getBarColor(globalPct);
 
     const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     const now = new Date();

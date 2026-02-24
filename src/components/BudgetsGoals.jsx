@@ -220,7 +220,7 @@ export default function Analytics() {
                                 {/* Background ring */}
                                 <circle cx="50" cy="50" r="42" fill="none" stroke="#f1f5f4" strokeWidth="13" />
                                 {/* Category segments */}
-                                {donutSegments.map((seg, i) => (
+                                {donutSegments.map((seg) => (
                                     <circle
                                         key={seg.name}
                                         cx="50" cy="50" r="42" fill="none"

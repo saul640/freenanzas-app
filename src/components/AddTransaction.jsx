@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, addDoc, doc, getDoc, onSnapshot, query, where, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, onSnapshot, query, where, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../hooks/useAuth';
 import { useLoans } from '../hooks/useLoans';
@@ -65,6 +65,10 @@ export default function AddTransaction() {
     const [location, setLocation] = useState('');
     const [details, setDetails] = useState('');
     const [showExtraFields, setShowExtraFields] = useState(false);
+
+    // Credit Card linking state
+    const [isCreditCardPayment, setIsCreditCardPayment] = useState(false);
+    const [selectedCardId, setSelectedCardId] = useState('');
     const [customCategories, setCustomCategories] = useState([]);
     const [showCategoryCreator, setShowCategoryCreator] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
@@ -367,12 +371,17 @@ export default function AddTransaction() {
             return;
         }
 
+        if (type === 'expense' && isCreditCardPayment && !selectedCardId) {
+            setError('Por favor selecciona una tarjeta de crédito.');
+            return;
+        }
+
         try {
             setLoading(true);
             setError('');
 
             if (db && currentUser) {
-                await addDoc(collection(db, 'transactions'), {
+                const txData = {
                     userId: currentUser.uid,
                     type,
                     amount: parsedAmount,
@@ -386,7 +395,29 @@ export default function AddTransaction() {
                     location: location.trim(),
                     details: details.trim(),
                     timestamp: serverTimestamp()
-                });
+                };
+
+                if (type === 'expense' && isCreditCardPayment && selectedCardId) {
+                    txData.tarjetaCreditoId = selectedCardId;
+                    txData.metodoPago = 'tarjeta';
+                }
+
+                await addDoc(collection(db, 'transactions'), txData);
+
+                // Update Credit Card Balance
+                if (type === 'expense' && isCreditCardPayment && selectedCardId) {
+                    const card = creditCards.find(c => c.id === selectedCardId);
+                    if (card) {
+                        const currentBalance = Number(card.balanceDOP || card.balanceALaFecha || card.balance || 0);
+                        const newBalance = currentBalance + parsedAmount;
+                        const cardRef = doc(db, 'users', currentUser.uid, 'creditCards', selectedCardId);
+                        await updateDoc(cardRef, {
+                            ...(card.balanceDOP !== undefined && { balanceDOP: newBalance }),
+                            ...(card.balanceALaFecha !== undefined && { balanceALaFecha: newBalance }),
+                            ...(card.balance !== undefined && { balance: newBalance })
+                        }).catch(console.error);
+                    }
+                }
             }
 
             navigate('/');
@@ -601,6 +632,51 @@ export default function AddTransaction() {
                             className="w-full bg-transparent border-none p-0 focus:ring-0 font-medium placeholder:text-gray-300 text-sm"
                         />
                     </div>
+
+                    {/* Credit Card Linking Toggle */}
+                    {type === 'expense' && creditCards.length > 0 && (
+                        <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+                                        <span className="material-symbols-rounded text-orange-500">credit_card</span>
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-sm text-gray-800">¿Pagado con Tarjeta?</p>
+                                        <p className="text-[10px] text-gray-400">Sumará a la deuda de la tarjeta</p>
+                                    </div>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={isCreditCardPayment}
+                                        onChange={(e) => {
+                                            setIsCreditCardPayment(e.target.checked);
+                                            if (!e.target.checked) setSelectedCardId('');
+                                            else if (creditCards.length === 1) setSelectedCardId(creditCards[0].id);
+                                        }}
+                                        className="sr-only peer"
+                                    />
+                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500 border border-gray-100"></div>
+                                </label>
+                            </div>
+
+                            {isCreditCardPayment && (
+                                <div className="pt-2 border-t border-gray-50 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <select
+                                        value={selectedCardId}
+                                        onChange={(e) => setSelectedCardId(e.target.value)}
+                                        className="w-full bg-gray-50 border border-gray-100 text-gray-900 text-sm rounded-xl focus:ring-orange-500 focus:border-orange-500 block p-3 font-medium outline-none appearance-none"
+                                    >
+                                        <option value="" disabled>Selecciona una tarjeta...</option>
+                                        {creditCards.map(c => (
+                                            <option key={c.id} value={c.id}>💳 {c.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Detalles Extra Toggle */}
                     <div className="flex items-center justify-between bg-white rounded-2xl p-4 border border-gray-100 cursor-pointer" onClick={() => setShowExtraFields(!showExtraFields)}>

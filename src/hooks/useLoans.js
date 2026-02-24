@@ -12,7 +12,7 @@ export function useLoans(userId) {
 
     // Real-time subscription
     useEffect(() => {
-        if (!userId || !db) { setLoading(false); return; }
+        if (!userId || !db) return;
 
         const colRef = collection(db, 'users', userId, 'loans');
         const unsub = onSnapshot(colRef, (snap) => {

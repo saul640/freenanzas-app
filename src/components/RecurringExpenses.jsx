@@ -301,7 +301,6 @@ export default function RecurringExpenses() {
         if (!currentUser || !db) return;
         await updateDoc(doc(db, 'users', currentUser.uid, 'recurring', item.id), { active: !item.active });
     };
-
     // ─── Mark as paid/unpaid for current month ───
     const togglePaid = async (item) => {
         if (!currentUser || !db) return;
@@ -357,7 +356,7 @@ export default function RecurringExpenses() {
     const nextMonth = () => { if (viewMonth === 11) { setViewMonth(0); setViewYear(viewYear + 1); } else setViewMonth(viewMonth + 1); };
 
     // ─── Totals (memoized) ───
-    const { totalMonthly, totalCarryOver, totalPending, overdueCount } = useMemo(() => {
+    const { totalMonthly, totalCarryOver, overdueCount } = useMemo(() => {
         let monthly = 0, carry = 0, pending = 0, overdue = 0;
         enrichedItems.forEach(r => {
             if (!r.active) return;
