@@ -41,10 +41,12 @@ const CATEGORY_COLORS = [
 ];
 
 const normalizeCategoryName = (value) => value.trim().toLowerCase();
+const getCardBalanceDOP = (card) => card.balanceDOP ?? card.balanceALaFecha ?? card.balance ?? 0;
 
 export default function AddTransaction() {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
+    const appId = import.meta.env.VITE_FIREBASE_APP_ID;
 
     const [type, setType] = useState('expense');
     const [amount, setAmount] = useState('');
@@ -185,11 +187,14 @@ export default function AddTransaction() {
     }, [currentUser]);
 
     useEffect(() => {
-        if (!currentUser || !db) return;
-        return onSnapshot(collection(db, 'users', currentUser.uid, 'creditCards'), snap => {
+        if (!currentUser || !db || !appId) {
+            setCreditCards([]);
+            return;
+        }
+        return onSnapshot(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'creditCards'), snap => {
             setCreditCards(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
-    }, [currentUser]);
+    }, [currentUser, appId]);
 
     useEffect(() => {
         if (!currentUser || !db) return;
@@ -216,7 +221,7 @@ export default function AddTransaction() {
         return { budgetSpent: spent, monthlyIncome: income, categorySpending: Object.values(catMap) };
     }, [transactions]);
 
-    const totalCardDebt = useMemo(() => creditCards.reduce((s, c) => s + (c.balanceALaFecha || c.balance || 0), 0), [creditCards]);
+    const totalCardDebt = useMemo(() => creditCards.reduce((s, c) => s + getCardBalanceDOP(c), 0), [creditCards]);
     const cardBalanceAlCorte = useMemo(() => creditCards.reduce((s, c) => s + (c.balanceAlCorte || 0), 0), [creditCards]);
     const credimasTotalAdeudado = useMemo(() => creditCards.reduce((s, c) => s + (c.credimasTotalAdeudado || 0), 0), [creditCards]);
 

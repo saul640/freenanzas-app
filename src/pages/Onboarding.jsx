@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { signInWithGoogle } from '../lib/auth'
 
 const Onboarding = () => {
   const navigate = useNavigate()
@@ -9,12 +8,11 @@ const Onboarding = () => {
   const handleContinue = async () => {
     setIsLoading(true)
     try {
-      await signInWithGoogle()
+      navigate('/onboarding')
     } catch (error) {
-      console.error('Error al iniciar con Google', error)
+      console.error('Error al iniciar', error)
     } finally {
       setIsLoading(false)
-      navigate('/dashboard')
     }
   }
 

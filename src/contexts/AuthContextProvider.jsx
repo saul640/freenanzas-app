@@ -3,12 +3,10 @@ import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
     signOut,
-    onAuthStateChanged,
-    GoogleAuthProvider,
-    signInWithPopup
+    onAuthStateChanged
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { AuthContext } from './AuthContext.js';
 
 export function AuthProvider({ children }) {
@@ -39,29 +37,6 @@ export function AuthProvider({ children }) {
         return signInWithEmailAndPassword(auth, email, password);
     }
 
-    async function loginWithGoogle() {
-        if (!auth || !db) throw new Error("Firebase no está configurado (falta .env.local).");
-
-        const provider = new GoogleAuthProvider();
-        const result = await signInWithPopup(auth, provider);
-        const user = result.user;
-
-        // Verificar si existe el perfil, si no, lo creamos
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDoc = await getDoc(userDocRef);
-
-        if (!userDoc.exists()) {
-            await setDoc(userDocRef, {
-                uid: user.uid,
-                email: user.email,
-                name: user.displayName || 'Usuario Google',
-                createdAt: new Date(),
-                emergencyFundGoal: 10000
-            });
-        }
-
-        return result;
-    }
 
     function logout() {
         return signOut(auth);
@@ -86,7 +61,6 @@ export function AuthProvider({ children }) {
         currentUser,
         signup,
         login,
-        loginWithGoogle,
         logout
     };
 

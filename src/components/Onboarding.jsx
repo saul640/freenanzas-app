@@ -25,7 +25,7 @@ const slides = [
 
 export default function Onboarding() {
     const navigate = useNavigate();
-    const { login, signup, loginWithGoogle, currentUser } = useAuth();
+    const { login, signup, currentUser } = useAuth();
     const [currentSlide, setCurrentSlide] = useState(0);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -92,18 +92,6 @@ export default function Onboarding() {
         }
     };
 
-    const handleGoogleLogin = async () => {
-        try {
-            setError('');
-            setLoading(true);
-            await loginWithGoogle();
-            navigate('/');
-        } catch (err) {
-            setError('Error al iniciar sesión con Google.');
-        } finally {
-            setLoading(false);
-        }
-    };
 
     // ─── Auth Screen (after onboarding slides) ───
     if (!showOnboarding) {
@@ -197,22 +185,6 @@ export default function Onboarding() {
                         </button>
                     </form>
 
-                    {/* Divider */}
-                    <div className="flex items-center gap-3">
-                        <div className="flex-1 h-px bg-gray-200" />
-                        <span className="text-xs text-gray-400 font-medium">o continúa con</span>
-                        <div className="flex-1 h-px bg-gray-200" />
-                    </div>
-
-                    {/* Google */}
-                    <button
-                        onClick={handleGoogleLogin}
-                        disabled={loading}
-                        className="w-full bg-gray-50 text-gray-700 font-bold py-3.5 px-6 rounded-2xl transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 border border-gray-100 hover:bg-gray-100"
-                    >
-                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
-                        <span className="text-sm">Google</span>
-                    </button>
                 </div>
 
                 {/* Replay onboarding */}

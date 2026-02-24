@@ -28,11 +28,22 @@ function formatDate(day) {
     return d.toLocaleDateString('es-DO', { day: 'numeric', month: 'short' });
 }
 
+const getCardLimitDOP = (card) => card.limitDOP ?? card.limitePesos ?? card.limit ?? 0;
+const getCardBalanceDOP = (card) => card.balanceDOP ?? card.balanceALaFecha ?? card.balance ?? 0;
+const getCardMinPaymentDOP = (card) => card.minPaymentDOP ?? card.pagoMinimo ?? card.minPayment ?? 0;
+const getCardLimitUSD = (card) => card.limitUSD ?? card.limiteDolares ?? 0;
+const getCardBalanceUSD = (card) => card.balanceUSD ?? card.balanceDolaresALaFecha ?? 0;
+const getCardMinPaymentUSD = (card) => card.minPaymentUSD ?? card.pagoMinimoUSD ?? 0;
+
 // Avalanche: pay highest interest rate first
 function calcAvalanche(cards, extraMonthly) {
-    if (!cards.length || cards.every(c => (c.balanceALaFecha || c.balance || 0) <= 0)) return { months: 0, totalInterest: 0 };
-    const working = cards.filter(c => (c.balanceALaFecha || c.balance || 0) > 0)
-        .map(c => ({ ...c, remaining: (c.balanceALaFecha || c.balance || 0) + (c.credimasTotalAdeudado || 0) }))
+    if (!cards.length || cards.every(c => getCardBalanceDOP(c) <= 0)) return { months: 0, totalInterest: 0 };
+    const working = cards.filter(c => getCardBalanceDOP(c) > 0)
+        .map(c => ({
+            ...c,
+            remaining: getCardBalanceDOP(c) + (c.credimasTotalAdeudado || 0),
+            minPayment: getCardMinPaymentDOP(c),
+        }))
         .sort((a, b) => (b.interestRate || 0) - (a.interestRate || 0));
     let months = 0, totalInterest = 0;
     while (working.some(c => c.remaining > 0) && months < 120) {
@@ -46,7 +57,7 @@ function calcAvalanche(cards, extraMonthly) {
         });
         working.forEach(c => {
             if (c.remaining <= 0) return;
-            const pay = Math.min(c.pagoMinimo || 500, c.remaining);
+            const pay = Math.min(c.minPayment || 500, c.remaining);
             c.remaining -= pay;
         });
         for (const c of working) {
@@ -60,10 +71,14 @@ function calcAvalanche(cards, extraMonthly) {
 }
 
 function calcSnowball(cards, extraMonthly) {
-    if (!cards.length || cards.every(c => (c.balanceALaFecha || c.balance || 0) <= 0)) return { months: 0, totalInterest: 0 };
-    const working = cards.filter(c => (c.balanceALaFecha || c.balance || 0) > 0)
-        .map(c => ({ ...c, remaining: (c.balanceALaFecha || c.balance || 0) + (c.credimasTotalAdeudado || 0) }))
-        .sort((a, b) => (a.balanceALaFecha || a.balance || 0) - (b.balanceALaFecha || b.balance || 0));
+    if (!cards.length || cards.every(c => getCardBalanceDOP(c) <= 0)) return { months: 0, totalInterest: 0 };
+    const working = cards.filter(c => getCardBalanceDOP(c) > 0)
+        .map(c => ({
+            ...c,
+            remaining: getCardBalanceDOP(c) + (c.credimasTotalAdeudado || 0),
+            minPayment: getCardMinPaymentDOP(c),
+        }))
+        .sort((a, b) => getCardBalanceDOP(a) - getCardBalanceDOP(b));
     let months = 0, totalInterest = 0;
     while (working.some(c => c.remaining > 0) && months < 120) {
         months++;
@@ -76,7 +91,7 @@ function calcSnowball(cards, extraMonthly) {
         });
         working.forEach(c => {
             if (c.remaining <= 0) return;
-            const pay = Math.min(c.pagoMinimo || 500, c.remaining);
+            const pay = Math.min(c.minPayment || 500, c.remaining);
             c.remaining -= pay;
         });
         for (const c of working) {
@@ -92,7 +107,7 @@ function calcSnowball(cards, extraMonthly) {
 const EMPTY_FORM = {
     name: '', limitePesos: '', limiteDolares: '', balanceALaFecha: '', balanceAlCorte: '',
     balanceDolaresALaFecha: '', balanceDolaresAlCorte: '',
-    pagoMinimo: '', fechaLimitePago: '25', cutoffDay: '15', interestRate: '40',
+    pagoMinimo: '', pagoMinimoUSD: '', fechaLimitePago: '25', cutoffDay: '15', interestRate: '40',
     credimasLimiteAprobado: '', credimasDisponible: '', credimasTotalAdeudado: '', credimasCuotaMensual: '',
 };
 
@@ -106,14 +121,29 @@ export default function CreditCards() {
     const [extraPayment, setExtraPayment] = useState('2000');
     const [form, setForm] = useState(EMPTY_FORM);
     const [expandedCard, setExpandedCard] = useState(null);
+    const [paymentCard, setPaymentCard] = useState(null);
+    const [paymentAmount, setPaymentAmount] = useState('');
+    const [paymentCurrency, setPaymentCurrency] = useState('DOP');
+    const [processingPayment, setProcessingPayment] = useState(false);
+    const appId = import.meta.env.VITE_FIREBASE_APP_ID;
 
     useEffect(() => {
-        if (!currentUser || !db) return;
-        const ref = collection(db, 'users', currentUser.uid, 'creditCards');
-        return onSnapshot(ref, snap => {
+        if (!currentUser || !db || !appId) {
+            setCards([]);
+            setExpandedCard(null);
+            setShowForm(false);
+            setEditId(null);
+            setPaymentCard(null);
+            setPaymentAmount('');
+            setPaymentCurrency('DOP');
+            return;
+        }
+        const ref = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'creditCards');
+        const unsubscribe = onSnapshot(ref, snap => {
             setCards(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
-    }, [currentUser]);
+        return () => unsubscribe();
+    }, [currentUser, appId]);
 
     const formatMoney = useCallback(n => new Intl.NumberFormat('es-DO').format(n), []);
 
@@ -121,12 +151,13 @@ export default function CreditCards() {
     const openEdit = (card) => {
         setEditId(card.id);
         setForm({
-            name: card.name || '', limitePesos: String(card.limitePesos || card.limit || ''),
-            limiteDolares: String(card.limiteDolares || ''), balanceALaFecha: String(card.balanceALaFecha || card.balance || ''),
+            name: card.name || '', limitePesos: String(card.limitDOP ?? card.limitePesos ?? card.limit ?? ''),
+            limiteDolares: String(card.limitUSD ?? card.limiteDolares ?? ''), balanceALaFecha: String(card.balanceDOP ?? card.balanceALaFecha ?? card.balance ?? ''),
             balanceAlCorte: String(card.balanceAlCorte || ''),
-            balanceDolaresALaFecha: String(card.balanceDolaresALaFecha || ''),
+            balanceDolaresALaFecha: String(card.balanceUSD ?? card.balanceDolaresALaFecha ?? ''),
             balanceDolaresAlCorte: String(card.balanceDolaresAlCorte || ''),
-            pagoMinimo: String(card.pagoMinimo || card.minPayment || ''),
+            pagoMinimo: String(card.minPaymentDOP ?? card.pagoMinimo ?? card.minPayment ?? ''),
+            pagoMinimoUSD: String(card.minPaymentUSD ?? card.pagoMinimoUSD ?? ''),
             fechaLimitePago: String(card.fechaLimitePago || card.paymentDueDay || '25'),
             cutoffDay: String(card.cutoffDay || '15'), interestRate: String(card.interestRate || '40'),
             credimasLimiteAprobado: String(card.credimasLimiteAprobado || ''),
@@ -138,25 +169,38 @@ export default function CreditCards() {
     };
 
     const handleSave = async () => {
-        if (!form.name.trim() || !currentUser) return;
+        if (!form.name.trim() || !currentUser || !appId) return;
         setSaving(true);
+        const limitDOP = parseFloat(form.limitePesos) || 0;
+        const limitUSD = parseFloat(form.limiteDolares) || 0;
+        const balanceDOP = parseFloat(form.balanceALaFecha) || 0;
+        const balanceUSD = parseFloat(form.balanceDolaresALaFecha) || 0;
+        const minPaymentDOP = parseFloat(form.pagoMinimo) || 0;
+        const minPaymentUSD = parseFloat(form.pagoMinimoUSD) || 0;
         const data = {
             name: form.name.trim(),
-            limitePesos: parseFloat(form.limitePesos) || 0,
-            limiteDolares: parseFloat(form.limiteDolares) || 0,
-            balanceALaFecha: parseFloat(form.balanceALaFecha) || 0,
+            limitDOP,
+            balanceDOP,
+            minPaymentDOP,
+            limitUSD,
+            balanceUSD,
+            minPaymentUSD,
+            limitePesos: limitDOP,
+            limiteDolares: limitUSD,
+            balanceALaFecha: balanceDOP,
             balanceAlCorte: parseFloat(form.balanceAlCorte) || 0,
-            balanceDolaresALaFecha: parseFloat(form.balanceDolaresALaFecha) || 0,
+            balanceDolaresALaFecha: balanceUSD,
             balanceDolaresAlCorte: parseFloat(form.balanceDolaresAlCorte) || 0,
-            pagoMinimo: parseFloat(form.pagoMinimo) || 0,
+            pagoMinimo: minPaymentDOP,
+            pagoMinimoUSD: minPaymentUSD,
             fechaLimitePago: parseInt(form.fechaLimitePago) || 25,
             cutoffDay: parseInt(form.cutoffDay) || 15,
             interestRate: parseFloat(form.interestRate) || 0,
             // Legacy compat
-            limit: parseFloat(form.limitePesos) || 0,
-            balance: parseFloat(form.balanceALaFecha) || 0,
+            limit: limitDOP,
+            balance: balanceDOP,
             paymentDueDay: parseInt(form.fechaLimitePago) || 25,
-            minPayment: parseFloat(form.pagoMinimo) || 0,
+            minPayment: minPaymentDOP,
             // Credimás
             credimasLimiteAprobado: parseFloat(form.credimasLimiteAprobado) || 0,
             credimasDisponible: parseFloat(form.credimasDisponible) || 0,
@@ -164,10 +208,10 @@ export default function CreditCards() {
             credimasCuotaMensual: parseFloat(form.credimasCuotaMensual) || 0,
         };
         if (editId) {
-            await updateDoc(doc(db, 'users', currentUser.uid, 'creditCards', editId), data);
+            await updateDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'creditCards', editId), data);
         } else {
             data.createdAt = serverTimestamp();
-            await addDoc(collection(db, 'users', currentUser.uid, 'creditCards'), data);
+            await addDoc(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'creditCards'), data);
         }
         setShowForm(false);
         setForm(EMPTY_FORM);
@@ -176,17 +220,57 @@ export default function CreditCards() {
     };
 
     const handleDelete = async (id) => {
-        if (!currentUser) return;
-        await deleteDoc(doc(db, 'users', currentUser.uid, 'creditCards', id));
+        if (!currentUser || !appId) return;
+        await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'creditCards', id));
     };
 
-    const totalDebt = useMemo(() => cards.reduce((s, c) => s + (c.balanceALaFecha || c.balance || 0) + (c.credimasTotalAdeudado || 0), 0), [cards]);
-    const totalLimit = useMemo(() => cards.reduce((s, c) => s + (c.limitePesos || c.limit || 0), 0), [cards]);
-    const totalDebtUSD = useMemo(() => cards.reduce((s, c) => s + (c.balanceDolaresALaFecha || 0), 0), [cards]);
-    const totalLimitUSD = useMemo(() => cards.reduce((s, c) => s + (c.limiteDolares || 0), 0), [cards]);
+    const openPayment = (card, currency = 'DOP') => {
+        setPaymentCard(card);
+        setPaymentCurrency(currency);
+        setPaymentAmount('');
+    };
+
+    const handlePayment = async () => {
+        if (!currentUser || !appId || !paymentCard) return;
+        const amount = parseFloat(paymentAmount) || 0;
+        if (amount <= 0) return;
+        setProcessingPayment(true);
+        try {
+            const cardRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'creditCards', paymentCard.id);
+            if (paymentCurrency === 'USD') {
+                const nextBalanceUSD = Math.max(getCardBalanceUSD(paymentCard) - amount, 0);
+                await updateDoc(cardRef, {
+                    balanceUSD: nextBalanceUSD,
+                    balanceDolaresALaFecha: nextBalanceUSD,
+                });
+            } else {
+                const nextBalanceDOP = Math.max(getCardBalanceDOP(paymentCard) - amount, 0);
+                await updateDoc(cardRef, {
+                    balanceDOP: nextBalanceDOP,
+                    balanceALaFecha: nextBalanceDOP,
+                    balance: nextBalanceDOP,
+                });
+            }
+            setPaymentCard(null);
+            setPaymentAmount('');
+        } catch (error) {
+            console.error('Error al registrar el pago', error);
+        } finally {
+            setProcessingPayment(false);
+        }
+    };
+
+    const totalDebt = useMemo(() => cards.reduce((s, c) => s + getCardBalanceDOP(c) + (c.credimasTotalAdeudado || 0), 0), [cards]);
+    const totalLimit = useMemo(() => cards.reduce((s, c) => s + getCardLimitDOP(c), 0), [cards]);
+    const totalDebtUSD = useMemo(() => cards.reduce((s, c) => s + getCardBalanceUSD(c), 0), [cards]);
+    const totalLimitUSD = useMemo(() => cards.reduce((s, c) => s + getCardLimitUSD(c), 0), [cards]);
     const totalCredimas = useMemo(() => cards.reduce((s, c) => s + (c.credimasCuotaMensual || 0), 0), [cards]);
     const avalanche = useMemo(() => calcAvalanche(cards, parseFloat(extraPayment) || 2000), [cards, extraPayment]);
     const snowball = useMemo(() => calcSnowball(cards, parseFloat(extraPayment) || 2000), [cards, extraPayment]);
+    const paymentBalance = paymentCard
+        ? (paymentCurrency === 'USD' ? getCardBalanceUSD(paymentCard) : getCardBalanceDOP(paymentCard))
+        : 0;
+    const paymentCurrencyLabel = paymentCurrency === 'USD' ? 'US$' : 'RD$';
 
     return (
         <div className="flex flex-col min-h-screen bg-[#f5f7f6]">
@@ -204,7 +288,7 @@ export default function CreditCards() {
                     <p className="text-3xl font-extrabold text-white mt-1">RD$ {formatMoney(totalDebt)}</p>
                     <p className="text-white/50 text-xs mt-1">Crédito disponible: RD$ {formatMoney(Math.max(totalLimit - totalDebt, 0))}</p>
                     <div className="flex gap-3 mt-3 flex-wrap">
-                        {totalLimitUSD > 0 && (
+                        {cards.length > 0 && (
                             <div className="bg-cyan-500/20 rounded-xl px-3 py-2">
                                 <p className="text-cyan-300 text-[10px] font-bold uppercase">USD</p>
                                 <p className="text-white font-extrabold text-sm">US$ {formatMoney(totalDebtUSD)} <span className="text-white/50 text-[10px]">/ {formatMoney(totalLimitUSD)}</span></p>
@@ -228,15 +312,17 @@ export default function CreditCards() {
                 {cards.length > 0 && (
                     <div className="space-y-4">
                         {cards.map((card, i) => {
-                            const bal = card.balanceALaFecha || card.balance || 0;
-                            const limPesos = card.limitePesos || card.limit || 0;
-                            const limDolares = card.limiteDolares || 0;
+                            const bal = getCardBalanceDOP(card);
+                            const limPesos = getCardLimitDOP(card);
+                            const limDolares = getCardLimitUSD(card);
                             const balCorte = card.balanceAlCorte || 0;
                             const usagePesos = limPesos > 0 ? Math.round((bal / limPesos) * 100) : 0;
-                            const balUSD = card.balanceDolaresALaFecha || 0;
+                            const balUSD = getCardBalanceUSD(card);
                             const dispDOP = Math.max(limPesos - bal, 0);
                             const dispUSD = Math.max(limDolares - balUSD, 0);
                             const usageUSD = limDolares > 0 ? Math.round((balUSD / limDolares) * 100) : 0;
+                            const minPaymentDOP = getCardMinPaymentDOP(card);
+                            const minPaymentUSD = getCardMinPaymentUSD(card);
                             const daysPay = daysUntil(card.fechaLimitePago || card.paymentDueDay || 25);
                             const daysCut = daysUntil(card.cutoffDay || 15);
                             const isUrgent = daysPay <= 5 && balCorte > 0;
@@ -257,6 +343,9 @@ export default function CreditCards() {
                                                 <p className="text-white/50 text-[10px]">Balance a la fecha</p>
                                             </div>
                                             <div className="flex items-center gap-2">
+                                                <button onClick={() => openPayment(card)} className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center active:scale-90 transition-transform">
+                                                    <span className="material-symbols-rounded text-white/70 text-lg">payments</span>
+                                                </button>
                                                 <button onClick={() => openEdit(card)} className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center active:scale-90 transition-transform">
                                                     <span className="material-symbols-rounded text-white/70 text-lg">edit</span>
                                                 </button>
@@ -280,21 +369,19 @@ export default function CreditCards() {
                                                 </div>
                                             </div>
                                             {/* USD Section */}
-                                            {limDolares > 0 && (
-                                                <div className="bg-cyan-500/15 rounded-xl px-3 py-2.5">
-                                                    <div className="flex justify-between text-cyan-200/80 text-[10px] font-semibold mb-1">
-                                                        <span>🇺🇸 USD</span>
-                                                        <span>{usageUSD}% usado</span>
-                                                    </div>
-                                                    <div className="w-full h-2 bg-white/15 rounded-full overflow-hidden">
-                                                        <div className={`h-full rounded-full transition-all duration-700 ${usageUSD > 80 ? 'bg-red-400' : usageUSD > 50 ? 'bg-amber-400' : 'bg-cyan-300'}`} style={{ width: `${Math.min(usageUSD, 100)}%` }} />
-                                                    </div>
-                                                    <div className="flex justify-between mt-1.5">
-                                                        <span className="text-cyan-200/60 text-[10px]">Límite: US$ {formatMoney(limDolares)}</span>
-                                                        <span className="text-cyan-200/60 text-[10px]">Disp: US$ {formatMoney(dispUSD)}</span>
-                                                    </div>
+                                            <div className="bg-cyan-500/15 rounded-xl px-3 py-2.5">
+                                                <div className="flex justify-between text-cyan-200/80 text-[10px] font-semibold mb-1">
+                                                    <span>🇺🇸 USD</span>
+                                                    <span>{usageUSD}% usado</span>
                                                 </div>
-                                            )}
+                                                <div className="w-full h-2 bg-white/15 rounded-full overflow-hidden">
+                                                    <div className={`h-full rounded-full transition-all duration-700 ${usageUSD > 80 ? 'bg-red-400' : usageUSD > 50 ? 'bg-amber-400' : 'bg-cyan-300'}`} style={{ width: `${Math.min(usageUSD, 100)}%` }} />
+                                                </div>
+                                                <div className="flex justify-between mt-1.5">
+                                                    <span className="text-cyan-200/60 text-[10px]">Límite: US$ {formatMoney(limDolares)}</span>
+                                                    <span className="text-cyan-200/60 text-[10px]">Disp: US$ {formatMoney(dispUSD)}</span>
+                                                </div>
+                                            </div>
                                         </div>
 
                                         {/* Dates & Alerts */}
@@ -311,7 +398,8 @@ export default function CreditCards() {
                                             </div>
                                             <div className="flex-1 rounded-xl px-3 py-2 text-center bg-white/10">
                                                 <p className="text-white/80 text-[10px] font-bold uppercase">Pago mín</p>
-                                                <p className="text-white text-sm font-extrabold">RD$ {formatMoney(card.pagoMinimo || card.minPayment || 0)}</p>
+                                                <p className="text-white text-sm font-extrabold">RD$ {formatMoney(minPaymentDOP)}</p>
+                                                <p className="text-white/60 text-[10px]">US$ {formatMoney(minPaymentUSD)}</p>
                                             </div>
                                         </div>
 
@@ -468,12 +556,23 @@ export default function CreditCards() {
                                 </div>
                             </div>
 
-                            {/* Payment & Rate */}
-                            <div className="grid grid-cols-3 gap-3">
-                                <div>
-                                    <label className="text-[10px] text-gray-400 mb-0.5 block">Pago Mín.</label>
-                                    <input type="number" value={form.pagoMinimo} onChange={e => setForm({ ...form, pagoMinimo: e.target.value })} placeholder="500" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                            {/* Minimum Payments */}
+                            <div>
+                                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Pagos Mínimos</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[10px] text-gray-400 mb-0.5 block">DOP</label>
+                                        <input type="number" value={form.pagoMinimo} onChange={e => setForm({ ...form, pagoMinimo: e.target.value })} placeholder="500" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-gray-400 mb-0.5 block">USD</label>
+                                        <input type="number" value={form.pagoMinimoUSD} onChange={e => setForm({ ...form, pagoMinimoUSD: e.target.value })} placeholder="25" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                    </div>
                                 </div>
+                            </div>
+
+                            {/* Rate & Cutoff */}
+                            <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="text-[10px] text-gray-400 mb-0.5 block">Tasa %/año</label>
                                     <input type="number" value={form.interestRate} onChange={e => setForm({ ...form, interestRate: e.target.value })} placeholder="40" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
@@ -528,6 +627,63 @@ export default function CreditCards() {
                                 </button>
                             )}
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ══════════ PAYMENT MODAL ══════════ */}
+            {paymentCard && (
+                <div className="fixed inset-0 z-50 flex items-end justify-center">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setPaymentCard(null)} />
+                    <div className="relative w-full max-w-md bg-white rounded-t-[32px] p-6 pb-8 animate-in slide-in-from-bottom duration-300">
+                        <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-5" />
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Pago a</p>
+                                <p className="text-lg font-extrabold text-gray-900">{paymentCard.name}</p>
+                            </div>
+                            <button onClick={() => setPaymentCard(null)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                                <span className="material-symbols-rounded text-gray-400">close</span>
+                            </button>
+                        </div>
+
+                        <div className="flex bg-gray-100 rounded-2xl p-1 mb-4">
+                            <button
+                                onClick={() => setPaymentCurrency('DOP')}
+                                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${paymentCurrency === 'DOP' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`}
+                            >
+                                DOP
+                            </button>
+                            <button
+                                onClick={() => setPaymentCurrency('USD')}
+                                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${paymentCurrency === 'USD' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`}
+                            >
+                                USD
+                            </button>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Monto a abonar</label>
+                            <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-3">
+                                <span className="text-sm font-bold text-gray-500">{paymentCurrencyLabel}</span>
+                                <input
+                                    type="number"
+                                    value={paymentAmount}
+                                    onChange={(e) => setPaymentAmount(e.target.value)}
+                                    placeholder="0"
+                                    className="flex-1 bg-transparent text-sm font-semibold outline-none"
+                                />
+                            </div>
+                            <p className="text-[10px] text-gray-400">Balance actual: {paymentCurrencyLabel} {formatMoney(paymentBalance)}</p>
+                        </div>
+
+                        <button
+                            onClick={handlePayment}
+                            disabled={processingPayment || !paymentAmount}
+                            className="w-full mt-6 bg-gradient-to-r from-slate-800 to-slate-950 text-white font-bold py-4 rounded-2xl disabled:opacity-50 active:scale-[0.98] transition-transform"
+                        >
+                            {processingPayment ? 'Procesando...' : 'Registrar Pago'}
+                        </button>
                     </div>
                 </div>
             )}

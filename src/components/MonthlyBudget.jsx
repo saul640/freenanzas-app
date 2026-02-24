@@ -16,10 +16,13 @@ function getBarColor(pct) {
     return { bar: 'bg-primary', text: 'text-primary', label: 'Bien' };
 }
 
+const getCardBalanceDOP = (card) => card.balanceDOP ?? card.balanceALaFecha ?? card.balance ?? 0;
+
 export default function MonthlyBudget() {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
     const monthKey = CURRENT_MONTH_KEY();
+    const appId = import.meta.env.VITE_FIREBASE_APP_ID;
 
     const [globalLimit, setGlobalLimit] = useState(0);
     const [categoryLimits, setCategoryLimits] = useState({});
@@ -78,11 +81,14 @@ export default function MonthlyBudget() {
     }, [currentUser]);
 
     useEffect(() => {
-        if (!currentUser || !db) return;
-        return onSnapshot(collection(db, 'users', currentUser.uid, 'creditCards'), snap => {
+        if (!currentUser || !db || !appId) {
+            setCreditCards([]);
+            return;
+        }
+        return onSnapshot(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'creditCards'), snap => {
             setCreditCards(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
-    }, [currentUser]);
+    }, [currentUser, appId]);
 
     const monthlyIncome = useMemo(() => {
         const now = new Date();
@@ -93,7 +99,7 @@ export default function MonthlyBudget() {
         }).reduce((s, t) => s + (t.amount || 0), 0);
     }, [allTx]);
 
-    const totalCardDebt = useMemo(() => creditCards.reduce((s, c) => s + (c.balanceALaFecha || c.balance || 0), 0), [creditCards]);
+    const totalCardDebt = useMemo(() => creditCards.reduce((s, c) => s + getCardBalanceDOP(c), 0), [creditCards]);
     const credimasDebt = useMemo(() => creditCards.reduce((s, c) => s + (c.credimasTotalAdeudado || 0), 0), [creditCards]);
     const totalDeudaGlobal = totalCardDebt + (loans.reduce((s, l) => s + (l.balancePendiente || 0), 0)) + credimasDebt;
     const ahorroRecomendado = useMemo(() => calcAhorroRecomendado(monthlyIncome, totalDeudaGlobal), [monthlyIncome, totalDeudaGlobal]);
