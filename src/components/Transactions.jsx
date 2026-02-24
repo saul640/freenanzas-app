@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useTransactions } from '../hooks/useTransactions';
 import { formatMoney, formatDate, getCategoryIcon, getCategoryColor } from '../utils/format';
 import BottomNav from './BottomNav';
+import PendingPayments from './PendingPayments';
 
 export default function Transactions() {
     const navigate = useNavigate();
@@ -28,6 +29,11 @@ export default function Transactions() {
                     </button>
                 </div>
             </header>
+
+            {/* Pending Payments Section */}
+            <div className="px-6 mt-6 relative z-10">
+                <PendingPayments />
+            </div>
 
             {/* List */}
             <div className="flex-1 mt-6 px-6 relative z-10">
