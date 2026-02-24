@@ -91,6 +91,7 @@ function calcSnowball(cards, extraMonthly) {
 
 const EMPTY_FORM = {
     name: '', limitePesos: '', limiteDolares: '', balanceALaFecha: '', balanceAlCorte: '',
+    balanceDolaresALaFecha: '', balanceDolaresAlCorte: '',
     pagoMinimo: '', fechaLimitePago: '25', cutoffDay: '15', interestRate: '40',
     credimasLimiteAprobado: '', credimasDisponible: '', credimasTotalAdeudado: '', credimasCuotaMensual: '',
 };
@@ -122,7 +123,10 @@ export default function CreditCards() {
         setForm({
             name: card.name || '', limitePesos: String(card.limitePesos || card.limit || ''),
             limiteDolares: String(card.limiteDolares || ''), balanceALaFecha: String(card.balanceALaFecha || card.balance || ''),
-            balanceAlCorte: String(card.balanceAlCorte || ''), pagoMinimo: String(card.pagoMinimo || card.minPayment || ''),
+            balanceAlCorte: String(card.balanceAlCorte || ''),
+            balanceDolaresALaFecha: String(card.balanceDolaresALaFecha || ''),
+            balanceDolaresAlCorte: String(card.balanceDolaresAlCorte || ''),
+            pagoMinimo: String(card.pagoMinimo || card.minPayment || ''),
             fechaLimitePago: String(card.fechaLimitePago || card.paymentDueDay || '25'),
             cutoffDay: String(card.cutoffDay || '15'), interestRate: String(card.interestRate || '40'),
             credimasLimiteAprobado: String(card.credimasLimiteAprobado || ''),
@@ -142,6 +146,8 @@ export default function CreditCards() {
             limiteDolares: parseFloat(form.limiteDolares) || 0,
             balanceALaFecha: parseFloat(form.balanceALaFecha) || 0,
             balanceAlCorte: parseFloat(form.balanceAlCorte) || 0,
+            balanceDolaresALaFecha: parseFloat(form.balanceDolaresALaFecha) || 0,
+            balanceDolaresAlCorte: parseFloat(form.balanceDolaresAlCorte) || 0,
             pagoMinimo: parseFloat(form.pagoMinimo) || 0,
             fechaLimitePago: parseInt(form.fechaLimitePago) || 25,
             cutoffDay: parseInt(form.cutoffDay) || 15,
@@ -176,6 +182,8 @@ export default function CreditCards() {
 
     const totalDebt = useMemo(() => cards.reduce((s, c) => s + (c.balanceALaFecha || c.balance || 0) + (c.credimasTotalAdeudado || 0), 0), [cards]);
     const totalLimit = useMemo(() => cards.reduce((s, c) => s + (c.limitePesos || c.limit || 0), 0), [cards]);
+    const totalDebtUSD = useMemo(() => cards.reduce((s, c) => s + (c.balanceDolaresALaFecha || 0), 0), [cards]);
+    const totalLimitUSD = useMemo(() => cards.reduce((s, c) => s + (c.limiteDolares || 0), 0), [cards]);
     const totalCredimas = useMemo(() => cards.reduce((s, c) => s + (c.credimasCuotaMensual || 0), 0), [cards]);
     const avalanche = useMemo(() => calcAvalanche(cards, parseFloat(extraPayment) || 2000), [cards, extraPayment]);
     const snowball = useMemo(() => calcSnowball(cards, parseFloat(extraPayment) || 2000), [cards, extraPayment]);
@@ -195,7 +203,13 @@ export default function CreditCards() {
                     <p className="text-white/60 text-xs font-bold uppercase tracking-wider">Deuda Total (TC + Credimás)</p>
                     <p className="text-3xl font-extrabold text-white mt-1">RD$ {formatMoney(totalDebt)}</p>
                     <p className="text-white/50 text-xs mt-1">Crédito disponible: RD$ {formatMoney(Math.max(totalLimit - totalDebt, 0))}</p>
-                    <div className="flex gap-3 mt-3">
+                    <div className="flex gap-3 mt-3 flex-wrap">
+                        {totalLimitUSD > 0 && (
+                            <div className="bg-cyan-500/20 rounded-xl px-3 py-2">
+                                <p className="text-cyan-300 text-[10px] font-bold uppercase">USD</p>
+                                <p className="text-white font-extrabold text-sm">US$ {formatMoney(totalDebtUSD)} <span className="text-white/50 text-[10px]">/ {formatMoney(totalLimitUSD)}</span></p>
+                            </div>
+                        )}
                         {totalCredimas > 0 && (
                             <div className="bg-white/10 rounded-xl px-3 py-2">
                                 <p className="text-white/60 text-[10px] font-bold uppercase">Credimás/Mes</p>
@@ -219,6 +233,10 @@ export default function CreditCards() {
                             const limDolares = card.limiteDolares || 0;
                             const balCorte = card.balanceAlCorte || 0;
                             const usagePesos = limPesos > 0 ? Math.round((bal / limPesos) * 100) : 0;
+                            const balUSD = card.balanceDolaresALaFecha || 0;
+                            const dispDOP = Math.max(limPesos - bal, 0);
+                            const dispUSD = Math.max(limDolares - balUSD, 0);
+                            const usageUSD = limDolares > 0 ? Math.round((balUSD / limDolares) * 100) : 0;
                             const daysPay = daysUntil(card.fechaLimitePago || card.paymentDueDay || 25);
                             const daysCut = daysUntil(card.cutoffDay || 15);
                             const isUrgent = daysPay <= 5 && balCorte > 0;
@@ -246,27 +264,34 @@ export default function CreditCards() {
                                             </div>
                                         </div>
 
-                                        {/* Dual Limits */}
-                                        <div className="space-y-2 mb-3">
-                                            {/* Pesos */}
-                                            <div>
+                                        <div className="space-y-3 mb-3">
+                                            {/* DOP Section */}
+                                            <div className="bg-white/10 rounded-xl px-3 py-2.5">
                                                 <div className="flex justify-between text-white/60 text-[10px] font-semibold mb-1">
-                                                    <span>Límite DOP</span>
-                                                    <span>{usagePesos}% · RD$ {formatMoney(limPesos)}</span>
+                                                    <span>🇩🇴 DOP</span>
+                                                    <span>{usagePesos}% usado</span>
                                                 </div>
                                                 <div className="w-full h-2 bg-white/20 rounded-full overflow-hidden">
                                                     <div className={`h-full rounded-full transition-all duration-700 ${usagePesos > 80 ? 'bg-red-400' : usagePesos > 50 ? 'bg-amber-400' : 'bg-white'}`} style={{ width: `${Math.min(usagePesos, 100)}%` }} />
                                                 </div>
+                                                <div className="flex justify-between mt-1.5">
+                                                    <span className="text-white/50 text-[10px]">Límite: RD$ {formatMoney(limPesos)}</span>
+                                                    <span className="text-white/50 text-[10px]">Disp: RD$ {formatMoney(dispDOP)}</span>
+                                                </div>
                                             </div>
-                                            {/* Dólares */}
+                                            {/* USD Section */}
                                             {limDolares > 0 && (
-                                                <div>
-                                                    <div className="flex justify-between text-white/60 text-[10px] font-semibold mb-1">
-                                                        <span>Límite USD</span>
-                                                        <span>US$ {formatMoney(limDolares)}</span>
+                                                <div className="bg-cyan-500/15 rounded-xl px-3 py-2.5">
+                                                    <div className="flex justify-between text-cyan-200/80 text-[10px] font-semibold mb-1">
+                                                        <span>🇺🇸 USD</span>
+                                                        <span>{usageUSD}% usado</span>
                                                     </div>
-                                                    <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-                                                        <div className="h-full rounded-full bg-cyan-300/60" style={{ width: '0%' }} />
+                                                    <div className="w-full h-2 bg-white/15 rounded-full overflow-hidden">
+                                                        <div className={`h-full rounded-full transition-all duration-700 ${usageUSD > 80 ? 'bg-red-400' : usageUSD > 50 ? 'bg-amber-400' : 'bg-cyan-300'}`} style={{ width: `${Math.min(usageUSD, 100)}%` }} />
+                                                    </div>
+                                                    <div className="flex justify-between mt-1.5">
+                                                        <span className="text-cyan-200/60 text-[10px]">Límite: US$ {formatMoney(limDolares)}</span>
+                                                        <span className="text-cyan-200/60 text-[10px]">Disp: US$ {formatMoney(dispUSD)}</span>
                                                     </div>
                                                 </div>
                                             )}
@@ -413,9 +438,9 @@ export default function CreditCards() {
                                 </div>
                             </div>
 
-                            {/* Balances */}
+                            {/* Balances DOP */}
                             <div>
-                                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Balances</p>
+                                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Balances DOP</p>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="text-[10px] text-gray-400 mb-0.5 block">A la Fecha</label>
@@ -424,6 +449,21 @@ export default function CreditCards() {
                                     <div>
                                         <label className="text-[10px] text-gray-400 mb-0.5 block">Al Corte</label>
                                         <input type="number" value={form.balanceAlCorte} onChange={e => setForm({ ...form, balanceAlCorte: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Balances USD */}
+                            <div>
+                                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Balances USD</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[10px] text-gray-400 mb-0.5 block">A la Fecha (USD)</label>
+                                        <input type="number" value={form.balanceDolaresALaFecha} onChange={e => setForm({ ...form, balanceDolaresALaFecha: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-gray-400 mb-0.5 block">Al Corte (USD)</label>
+                                        <input type="number" value={form.balanceDolaresAlCorte} onChange={e => setForm({ ...form, balanceDolaresAlCorte: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
                                     </div>
                                 </div>
                             </div>
