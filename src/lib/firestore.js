@@ -3,9 +3,12 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
+  limit,
+  startAfter,
   serverTimestamp,
   setDoc,
   where,
@@ -58,13 +61,14 @@ export const addTransaction = async ({ userId, type, amount, categoryId }) => {
   })
 }
 
-export const subscribeTransactions = (userId, onData, onError) => {
+export const subscribeTransactions = (userId, onData, onError, limitCount = 20) => {
   if (!userId) return () => { }
   const transactionsRef = collection(db, 'transactions')
   const q = query(
     transactionsRef,
     where('userId', '==', userId),
     orderBy('timestamp', 'desc'),
+    limit(limitCount),
   )
 
   return onSnapshot(
@@ -78,11 +82,38 @@ export const subscribeTransactions = (userId, onData, onError) => {
           createdAt: docData.timestamp?.toDate?.() ?? null,
         }
       })
-
-      onData(data)
+      const lastVisible = snapshot.docs[snapshot.docs.length - 1] || null
+      onData(data, lastVisible, snapshot.docs.length < limitCount)
     },
     onError,
   )
+}
+
+/**
+ * Fetch next page of transactions (cursor-based pagination).
+ * Returns { data, lastDoc, isLastPage }
+ */
+export const fetchMoreTransactions = async (userId, lastDoc, limitCount = 20) => {
+  if (!userId || !lastDoc) return { data: [], lastDoc: null, isLastPage: true }
+  const transactionsRef = collection(db, 'transactions')
+  const q = query(
+    transactionsRef,
+    where('userId', '==', userId),
+    orderBy('timestamp', 'desc'),
+    startAfter(lastDoc),
+    limit(limitCount),
+  )
+  const snapshot = await getDocs(q)
+  const data = snapshot.docs.map((docSnapshot) => {
+    const docData = docSnapshot.data()
+    return {
+      id: docSnapshot.id,
+      ...docData,
+      createdAt: docData.timestamp?.toDate?.() ?? null,
+    }
+  })
+  const newLastDoc = snapshot.docs[snapshot.docs.length - 1] || null
+  return { data, lastDoc: newLastDoc, isLastPage: snapshot.docs.length < limitCount }
 }
 
 export const seedBudgets = async (userId, monthKey) => {
