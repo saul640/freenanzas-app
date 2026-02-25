@@ -3,40 +3,79 @@ import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
     signOut,
-    onAuthStateChanged
+    onAuthStateChanged,
+    GoogleAuthProvider,
+    signInWithPopup,
+    updateProfile
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { AuthContext } from './AuthContext.js';
+
+const googleProvider = new GoogleAuthProvider();
 
 export function AuthProvider({ children }) {
     const [currentUser, setCurrentUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    // Registro de usuario y guardado de perfil inicial en Firestore
+    /**
+     * Crea el documento de perfil en Firestore SOLO si no existe ya.
+     * Esto protege los datos de usuarios existentes de ser sobrescritos.
+     */
+    async function ensureUserProfile(user, extraData = {}) {
+        if (!db) return;
+        const userRef = doc(db, 'users', user.uid);
+        const snap = await getDoc(userRef);
+        if (!snap.exists()) {
+            await setDoc(userRef, {
+                uid: user.uid,
+                email: user.email,
+                name: extraData.name || user.displayName || '',
+                photoURL: user.photoURL || null,
+                createdAt: new Date(),
+                emergencyFundGoal: 10000,
+                ...extraData,
+            });
+        }
+    }
+
+    // Registro con correo y contraseña
     async function signup(email, password, name) {
         if (!auth || !db) throw new Error("Firebase no está configurado (falta .env.local).");
 
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        // Crear documento del usuario en base de datos
-        await setDoc(doc(db, 'users', user.uid), {
-            uid: user.uid,
-            email: user.email,
-            name: name,
-            createdAt: new Date(),
-            emergencyFundGoal: 10000 // Valor por defecto sugerido en el Onboarding
-        });
+        // Establecer displayName en Firebase Auth
+        await updateProfile(user, { displayName: name });
+
+        // Crear documento del usuario solo si no existe
+        await ensureUserProfile(user, { name });
 
         return userCredential;
     }
 
+    // Inicio de sesión con correo y contraseña
     function login(email, password) {
         if (!auth) return Promise.reject(new Error("Firebase no está configurado (falta .env.local)."));
         return signInWithEmailAndPassword(auth, email, password);
     }
 
+    // Inicio de sesión / registro con Google
+    async function loginWithGoogle() {
+        if (!auth || !db) throw new Error("Firebase no está configurado (falta .env.local).");
+
+        const result = await signInWithPopup(auth, googleProvider);
+        const user = result.user;
+
+        // Crear perfil solo si es la primera vez (no sobrescribe datos existentes)
+        await ensureUserProfile(user, {
+            name: user.displayName || '',
+            photoURL: user.photoURL || null,
+        });
+
+        return result;
+    }
 
     function logout() {
         return signOut(auth);
@@ -61,6 +100,7 @@ export function AuthProvider({ children }) {
         currentUser,
         signup,
         login,
+        loginWithGoogle,
         logout
     };
 
