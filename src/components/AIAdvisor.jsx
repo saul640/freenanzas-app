@@ -13,9 +13,8 @@ const CURRENT_MONTH_KEY = () => { const d = new Date(); return `${d.getFullYear(
 
 export default function AIAdvisor() {
     const navigate = useNavigate();
-    const { currentUser, userData } = useAuth();
+    const { currentUser, userData, isProUser: isPro } = useAuth();
     const { loans } = useLoans(currentUser?.uid);
-    const isPro = userData?.isPro === true || userData?.isPro === undefined;
 
     const [transactions, setTransactions] = useState([]);
     const [insights, setInsights] = useState(null);

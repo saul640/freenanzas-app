@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useLoans } from '../hooks/useLoans';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from './BottomNav';
@@ -9,7 +10,8 @@ import TransactionDetailModal from './TransactionDetailModal';
 
 export default function Dashboard() {
     const navigate = useNavigate();
-    const { currentUser, logout } = useAuth();
+    const { currentUser, logout, isProUser, userData } = useAuth(); // Added isProUser and userData
+    const { loans } = useLoans(currentUser?.uid); // Added loans hook
 
     const [transactions, setTransactions] = useState([]);
     const [balance, setBalance] = useState({ total: 0, income: 0, expense: 0 });
@@ -46,9 +48,10 @@ export default function Dashboard() {
     // Load credit cards for modal payment method resolution
     useEffect(() => {
         if (!currentUser || !db) return;
+        const setCards = (val) => setCreditCards(val); // Defined setCards before usage
         const unsubscribe = onSnapshot(
             collection(db, 'users', currentUser.uid, 'creditCards'),
-            (snap) => setCreditCards(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+            (snap) => setCards(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
             (err) => console.error('Error loading cards:', err),
         );
         return unsubscribe;
@@ -56,6 +59,36 @@ export default function Dashboard() {
 
     const userName = currentUser?.displayName?.split(' ')[0] || 'Usuario';
     const budgetUsed = balance.income > 0 ? Math.min(Math.round((balance.expense / balance.income) * 100), 100) : 0;
+
+    // Lógica de Recomendaciones (Affiliate Engine)
+    const recommendation = useMemo(() => {
+        const getCardBalanceDOP = (card) => card.balanceDOP ?? card.balanceALaFecha ?? card.balance ?? 0;
+
+        const highInterestCards = creditCards.filter(c => (Number(c.interestRate) || 0) > 25 && getCardBalanceDOP(c) > 0);
+        const highInterestLoans = (loans || []).filter(l => (Number(l.tasaInteres) || 0) > 25 && l.balancePendiente > 0);
+
+        const allDebts = [
+            ...highInterestCards.map(c => ({ name: c.name, rate: Number(c.interestRate), type: 'tarjeta' })),
+            ...highInterestLoans.map(l => ({ name: l.nombrePrestamo, rate: Number(l.tasaInteres), type: 'préstamo' }))
+        ];
+
+        if (allDebts.length > 0) {
+            const worstDebt = allDebts.sort((a, b) => b.rate - a.rate)[0];
+            return {
+                title: "🚨 Alerta de Interés Alto",
+                content: `Estás pagando un ${worstDebt.rate}% de interés en tu ${worstDebt.type} "${worstDebt.name}". Una consolidación al 15% te ahorraría miles de pesos.`,
+                cta: "Ver oferta de consolidación",
+                link: import.meta.env.VITE_AFFILIATE_LOAN_LINK || "https://ejemplo-banco.com/afiliado"
+            };
+        }
+
+        return {
+            title: "💡 Tip Financiero",
+            content: "Mantén tu ahorro del 10% hoy. Tu 'yo' del futuro te lo agradecerá enormemente.",
+            cta: null,
+            link: null
+        };
+    }, [creditCards, loans]);
 
     const handleLogout = async () => {
         try {
@@ -71,7 +104,12 @@ export default function Dashboard() {
                 <div className="flex justify-between items-center">
                     <div>
                         <p className="text-sm text-gray-500">Bienvenido de nuevo,</p>
-                        <h1 className="text-2xl font-bold">Hola, {userName} 👋</h1>
+                        <h1 className="text-2xl font-bold flex items-center gap-2">
+                            Hola, {userName} 👋
+                            {(userData?.isPro === true || userData?.isPro === undefined) && (
+                                <span className="material-symbols-rounded text-amber-500 text-xl" title="Usuario PRO">crown</span>
+                            )}
+                        </h1>
                         <p className="text-xs text-emerald-700/70 mt-1">Construyendo tu libertad financiera</p>
                     </div>
                     <button onClick={handleLogout} className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center overflow-hidden">
@@ -122,6 +160,28 @@ export default function Dashboard() {
                         <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700/80">Insight del dia</p>
                         <p className="text-sm text-amber-900">El 1% administra su dinero en frio, antes de gastarlo.</p>
                     </div>
+                </div>
+
+                {/* Ofertas para ti (Lead Gen Engine) */}
+                <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 overflow-hidden relative">
+                    <div className="absolute top-0 right-0 p-3">
+                        <span className="material-symbols-rounded text-primary/20 text-4xl leading-none">request_quote</span>
+                    </div>
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Ofertas para ti</h3>
+                    <p className="text-sm font-bold text-gray-800 mb-1">{recommendation.title}</p>
+                    <p className="text-xs text-gray-500 mb-4 pr-10">{recommendation.content}</p>
+
+                    {recommendation.cta && (
+                        <a
+                            href={recommendation.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 bg-primary text-black text-xs font-bold px-4 py-2.5 rounded-xl active:scale-95 transition-transform shadow-sm"
+                        >
+                            {recommendation.cta}
+                            <span className="material-symbols-rounded text-sm">open_in_new</span>
+                        </a>
+                    )}
                 </div>
 
                 {/* Quick Actions */}

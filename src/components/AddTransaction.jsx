@@ -46,8 +46,7 @@ const getCardBalanceDOP = (card) => card.balanceDOP ?? card.balanceALaFecha ?? c
 
 export default function AddTransaction() {
     const navigate = useNavigate();
-    const { currentUser, userData } = useAuth();
-    const isPro = userData?.isPro === true || userData?.isPro === undefined;
+    const { currentUser, userData, isProUser: isPro } = useAuth();
     const appId = 'finanzas_boveda_dual_v2';
 
     const [type, setType] = useState('expense');

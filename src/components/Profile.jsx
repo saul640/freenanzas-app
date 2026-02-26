@@ -5,7 +5,7 @@ import BottomNav from './BottomNav';
 
 export default function Profile() {
     const navigate = useNavigate();
-    const { currentUser, logout } = useAuth();
+    const { currentUser, userData, logout } = useAuth();
 
     const handleLogout = async () => {
         try {
@@ -36,7 +36,17 @@ export default function Profile() {
                 </div>
 
                 <h2 className="text-xl font-bold text-gray-800">{userName}</h2>
-                <p className="text-sm text-gray-500 mb-8">{userEmail}</p>
+                <p className="text-sm text-gray-500 mb-2">{userEmail}</p>
+
+                {/* PRO Badge - Solo se muestra si es PRO real, no en trial */}
+                {(userData?.isPro === true || userData?.isPro === undefined) && (
+                    <div className="flex items-center gap-1.5 bg-gradient-to-r from-yellow-400 to-amber-500 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-sm mb-8 animate-pulse">
+                        <span className="material-symbols-rounded text-[14px]">crown</span>
+                        USUARIO PRO
+                    </div>
+                )}
+
+                {!(userData?.isPro === true || userData?.isPro === undefined) && <div className="mb-8" />}
 
                 <div className="w-full bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     <button

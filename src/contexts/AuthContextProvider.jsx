@@ -29,14 +29,19 @@ export function AuthProvider({ children }) {
         const userRef = doc(db, 'users', user.uid);
         const snap = await getDoc(userRef);
         if (!snap.exists()) {
+            const now = new Date();
+            const trialDays = 7;
+            const trialEndsAt = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
+
             await setDoc(userRef, {
                 uid: user.uid,
                 email: user.email,
                 name: extraData.name || user.displayName || '',
                 photoURL: user.photoURL || null,
-                createdAt: new Date(),
+                createdAt: now,
                 emergencyFundGoal: 10000,
                 isPro: false,
+                trialEndsAt: trialEndsAt,
                 ...extraData,
             });
         }
@@ -116,9 +121,24 @@ export function AuthProvider({ children }) {
         return () => unsub();
     }, [currentUser]);
 
+    const isProUser = React.useMemo(() => {
+        if (!userData) return false;
+        // 1. Grandfathering: si isPro no existe, es Pro (usuario antiguo)
+        if (userData.isPro === undefined || userData.isPro === null) return true;
+        // 2. Explícitamente Pro
+        if (userData.isPro === true) return true;
+        // 3. Periodo de Trial (7 días)
+        if (userData.trialEndsAt) {
+            const ends = userData.trialEndsAt.toDate ? userData.trialEndsAt.toDate() : new Date(userData.trialEndsAt);
+            if (new Date() < ends) return true;
+        }
+        return false;
+    }, [userData]);
+
     const value = {
         currentUser,
         userData,
+        isProUser,
         signup,
         login,
         loginWithGoogle,
