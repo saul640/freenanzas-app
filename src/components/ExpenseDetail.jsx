@@ -6,11 +6,14 @@ import { formatMoney, getCategoryIcon, getCategoryColor } from '../utils/format'
 import { exportExpensesToPdf } from '../utils/exportPdf';
 import { exportExpensesToExcel } from '../utils/exportExcel';
 import BottomNav from './BottomNav';
+import PaywallModal from './PaywallModal';
 
 export default function ExpenseDetail() {
     const navigate = useNavigate();
-    const { currentUser } = useAuth();
+    const { currentUser, userData } = useAuth();
+    const isPro = userData?.isPro === true || userData?.isPro === undefined;
     const { transactions, loading } = useTransactions(currentUser?.uid);
+    const [showPaywall, setShowPaywall] = useState(false);
 
     // ─── Filters ───
     const [typeFilter, setTypeFilter] = useState('all'); // all | expense | income
@@ -43,11 +46,19 @@ export default function ExpenseDetail() {
     // ─── Export handlers ───
     const handleExportPdf = () => {
         if (filtered.length === 0) return;
+        if (!isPro) {
+            setShowPaywall(true);
+            return;
+        }
         exportExpensesToPdf(filtered);
     };
 
     const handleExportExcel = () => {
         if (filtered.length === 0) return;
+        if (!isPro) {
+            setShowPaywall(true);
+            return;
+        }
         exportExpensesToExcel(filtered);
     };
 
@@ -255,6 +266,7 @@ export default function ExpenseDetail() {
             </div>
 
             <BottomNav />
+            <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} />
         </div>
     );
 }

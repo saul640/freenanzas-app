@@ -11,11 +11,13 @@ import {
 import { auth, db } from '../firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { AuthContext } from './AuthContext.js';
+import { onSnapshot } from 'firebase/firestore';
 
 const googleProvider = new GoogleAuthProvider();
 
 export function AuthProvider({ children }) {
     const [currentUser, setCurrentUser] = useState(null);
+    const [userData, setUserData] = useState(null);
     const [loading, setLoading] = useState(true);
 
     /**
@@ -34,6 +36,7 @@ export function AuthProvider({ children }) {
                 photoURL: user.photoURL || null,
                 createdAt: new Date(),
                 emergencyFundGoal: 10000,
+                isPro: false,
                 ...extraData,
             });
         }
@@ -96,8 +99,26 @@ export function AuthProvider({ children }) {
         return unsubscribe;
     }, []);
 
+    useEffect(() => {
+        if (!currentUser || !db) {
+            setUserData(null);
+            return;
+        }
+
+        const unsub = onSnapshot(doc(db, 'users', currentUser.uid), (docSnap) => {
+            if (docSnap.exists()) {
+                setUserData(docSnap.data());
+            } else {
+                setUserData(null);
+            }
+        });
+
+        return () => unsub();
+    }, [currentUser]);
+
     const value = {
         currentUser,
+        userData,
         signup,
         login,
         loginWithGoogle,

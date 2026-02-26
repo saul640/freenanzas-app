@@ -6,6 +6,7 @@ import { db } from '../firebase';
 import { useLoans } from '../hooks/useLoans';
 import { calcAhorroRecomendado } from '../lib/gemini';
 import BottomNav from './BottomNav';
+import PaywallModal from './PaywallModal';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
@@ -22,7 +23,9 @@ const getCardBalanceDOP = (card) => card.balanceDOP ?? card.balanceALaFecha ?? c
 
 export default function MonthlyBudget() {
     const navigate = useNavigate();
-    const { currentUser } = useAuth();
+    const { currentUser, userData } = useAuth();
+    const isPro = userData?.isPro === true || userData?.isPro === undefined;
+    const [showPaywall, setShowPaywall] = useState(false);
     const monthKey = CURRENT_MONTH_KEY();
     const appId = import.meta.env.VITE_FIREBASE_APP_ID;
 
@@ -164,6 +167,11 @@ export default function MonthlyBudget() {
     const now = new Date();
 
     const generatePDF = () => {
+        if (!isPro) {
+            setShowPaywall(true);
+            return;
+        }
+
         const doc = new jsPDF();
 
         doc.setFontSize(18);
@@ -389,6 +397,8 @@ export default function MonthlyBudget() {
                     </button>
                 </div>
             </div>
+
+            <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} />
             <BottomNav />
         </div>
     );

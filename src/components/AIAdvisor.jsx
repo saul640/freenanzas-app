@@ -6,14 +6,16 @@ import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/fire
 import { db } from '../firebase';
 import { analyzeSpending, analyzeSpendingLocal, analyzeLoanStrategy, analyzeLoanStrategyLocal } from '../lib/gemini';
 import BottomNav from './BottomNav';
+import PaywallModal from './PaywallModal';
 
 const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const CURRENT_MONTH_KEY = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
 
 export default function AIAdvisor() {
     const navigate = useNavigate();
-    const { currentUser } = useAuth();
+    const { currentUser, userData } = useAuth();
     const { loans } = useLoans(currentUser?.uid);
+    const isPro = userData?.isPro === true || userData?.isPro === undefined;
 
     const [transactions, setTransactions] = useState([]);
     const [insights, setInsights] = useState(null);
@@ -22,6 +24,7 @@ export default function AIAdvisor() {
     const [loadingDebt, setLoadingDebt] = useState(false);
     const [error, setError] = useState(null);
     const [budgetLimit, setBudgetLimit] = useState(0);
+    const [showPaywall, setShowPaywall] = useState(false);
 
     useEffect(() => {
         if (!currentUser || !db) return;
@@ -66,6 +69,10 @@ export default function AIAdvisor() {
     const formatMoney = useCallback(n => new Intl.NumberFormat('es-DO').format(n), []);
 
     const handleAnalyze = async () => {
+        if (!isPro) {
+            setShowPaywall(true);
+            return;
+        }
         setLoading(true);
         setError(null);
         const monthName = MONTH_NAMES[new Date().getMonth()];
@@ -82,6 +89,10 @@ export default function AIAdvisor() {
     };
 
     const handleAnalyzeDebt = async () => {
+        if (!isPro) {
+            setShowPaywall(true);
+            return;
+        }
         if (loans.length === 0) return;
         setLoadingDebt(true);
         const monthName = MONTH_NAMES[new Date().getMonth()];
@@ -358,6 +369,8 @@ export default function AIAdvisor() {
                     </div>
                 )}
             </div>
+
+            <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} />
             <BottomNav />
         </div>
     );

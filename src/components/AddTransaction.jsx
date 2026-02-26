@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, doc, getDoc, onSnapshot, query, where, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../contexts/AuthContext';
 import { useLoans } from '../hooks/useLoans';
 import { scanReceiptWithAI, getBestCategory, consultPreventiveAI, consultPreventiveAILocal, calcAhorroRecomendado } from '../lib/gemini';
+import PaywallModal from './PaywallModal';
 
 const expenseCategories = [
     { name: 'Comida', icon: 'shopping_cart' },
@@ -45,7 +46,8 @@ const getCardBalanceDOP = (card) => card.balanceDOP ?? card.balanceALaFecha ?? c
 
 export default function AddTransaction() {
     const navigate = useNavigate();
-    const { currentUser } = useAuth();
+    const { currentUser, userData } = useAuth();
+    const isPro = userData?.isPro === true || userData?.isPro === undefined;
     const appId = 'finanzas_boveda_dual_v2';
 
     const [type, setType] = useState('expense');
@@ -82,6 +84,9 @@ export default function AddTransaction() {
     const [aiItemPrice, setAiItemPrice] = useState('');
     const [aiResult, setAiResult] = useState(null);
     const [aiLoading, setAiLoading] = useState(false);
+
+    // Paywall state
+    const [showPaywall, setShowPaywall] = useState(false);
 
     const baseCategories = type === 'expense' ? expenseCategories : incomeCategories;
     const normalizedBaseNames = baseCategories.map((cat) => normalizeCategoryName(cat.name));
@@ -479,6 +484,12 @@ export default function AddTransaction() {
                                 capture="environment"
                                 id="cameraInput"
                                 className="hidden"
+                                onClick={(e) => {
+                                    if (!isPro) {
+                                        e.preventDefault();
+                                        setShowPaywall(true);
+                                    }
+                                }}
                                 onChange={handleCameraCapture}
                                 disabled={scanning}
                             />
@@ -783,7 +794,13 @@ export default function AddTransaction() {
                     {type === 'expense' && (
                         <button
                             type="button"
-                            onClick={() => { setAiItemName(note || ''); setAiItemPrice(amount || ''); setAiResult(null); setShowAIConsult(true); }}
+                            onClick={() => {
+                                if (!isPro) {
+                                    setShowPaywall(true);
+                                    return;
+                                }
+                                setAiItemName(note || ''); setAiItemPrice(amount || ''); setAiResult(null); setShowAIConsult(true);
+                            }}
                             className="w-full mb-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-3 rounded-2xl active:scale-[0.98] transition-transform flex items-center justify-center gap-2 text-sm shadow-md"
                         >
                             <span className="material-symbols-rounded text-lg">smart_toy</span>
@@ -879,6 +896,7 @@ export default function AddTransaction() {
                     </div>
                 </div>
             )}
+            <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} />
         </div>
     );
 }
