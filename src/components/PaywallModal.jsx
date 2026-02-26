@@ -1,35 +1,56 @@
 import React, { useState } from 'react';
-import { getStripe } from '../utils/stripe';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { FaCrown, FaTimes } from 'react-icons/fa';
+import { PayPalButtons } from "@paypal/react-paypal-js";
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 export default function PaywallModal({ isOpen, onClose }) {
     const { currentUser } = useAuth();
     const [loading, setLoading] = useState(false);
+    const [errorMsg, setErrorMsg] = useState("");
+    const [billingCycle, setBillingCycle] = useState("monthly"); // "monthly" or "annual"
 
     if (!isOpen) return null;
 
-    const handleUpgrade = async () => {
-        setLoading(true);
-        try {
-            const stripe = await getStripe();
-            if (!stripe) {
-                alert("Stripe no está configurado (Faltan variables de entorno).");
-                return;
-            }
+    const planIdMonthly = import.meta.env.VITE_PAYPAL_PLAN_ID_MONTHLY || "P-MONTHLY-TODO";
+    const planIdAnnual = import.meta.env.VITE_PAYPAL_PLAN_ID_ANNUAL || "P-ANNUAL-TODO";
+    const currentPlanId = billingCycle === "annual" ? planIdAnnual : planIdMonthly;
 
-            alert("En entorno de producción, redirigiremos a Stripe Checkout aquí mediante Payment Links o Cloud Functions.");
+    const handleApprove = async (data, actions) => {
+        setLoading(true);
+        setErrorMsg("");
+        try {
+            if (currentUser && db) {
+                const userRef = doc(db, 'users', currentUser.uid);
+                await updateDoc(userRef, {
+                    isPro: true,
+                    paypalSubscriptionId: data.subscriptionID
+                });
+                // Alert o notificación de éxito
+                alert("¡Suscripción exitosa! Ahora eres usuario PRO y tienes acceso a todas las funciones de IA.");
+                onClose();
+            }
         } catch (error) {
-            console.error(error);
-            alert("Error al iniciar checkout: " + error.message);
+            console.error("Error al actualizar estado PRO:", error);
+            setErrorMsg("Hubo un error al actualizar tu cuenta. Por favor contacta a soporte.");
         } finally {
             setLoading(false);
         }
     };
 
+    const handleError = (err) => {
+        console.error("PayPal Error:", err);
+        setErrorMsg("Hubo un error de red o en la pasarela. Inténtalo de nuevo.");
+    };
+
+    const handleCancel = (data) => {
+        setErrorMsg("El pago fue cancelado. Inténtalo de nuevo.");
+    };
+
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl p-6 sm:p-8 w-full max-w-md relative animate-fade-in-up">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl p-6 sm:p-8 w-full max-w-md relative animate-fade-in-up my-auto">
                 <button
                     onClick={onClose}
                     className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
@@ -71,15 +92,61 @@ export default function PaywallModal({ isOpen, onClose }) {
                         </ul>
                     </div>
 
-                    <button
-                        onClick={handleUpgrade}
-                        disabled={loading}
-                        className="w-full py-4 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-white font-bold text-lg transition-all transform hover:-translate-y-1 shadow-xl shadow-yellow-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {loading ? "Procesando..." : "Mejorar a PRO ahora"}
-                    </button>
+                    {errorMsg && (
+                        <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 p-3 rounded-lg w-full mb-4 text-sm font-medium">
+                            {errorMsg}
+                        </div>
+                    )}
+
+                    <div className="w-full mb-6">
+                        <div className="flex justify-center bg-gray-100 dark:bg-gray-700/50 p-1 rounded-xl w-full">
+                            <button
+                                onClick={() => setBillingCycle("monthly")}
+                                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${billingCycle === "monthly"
+                                        ? "bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-white"
+                                        : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                                    }`}
+                            >
+                                Mensual
+                            </button>
+                            <button
+                                onClick={() => setBillingCycle("annual")}
+                                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${billingCycle === "annual"
+                                        ? "bg-gradient-to-r from-yellow-400 to-yellow-500 shadow text-white"
+                                        : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                                    }`}
+                            >
+                                Anual (-20%)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="w-full relative z-0">
+                        {loading && <p className="text-amber-600 font-medium mb-4 animate-pulse">Procesando tu suscripción...</p>}
+
+                        {/* We use a key to force re-render of PayPal buttons when plan changes */}
+                        <div key={billingCycle}>
+                            <PayPalButtons
+                                createSubscription={(data, actions) => {
+                                    return actions.subscription.create({
+                                        plan_id: currentPlanId
+                                    });
+                                }}
+                                onApprove={handleApprove}
+                                onError={handleError}
+                                onCancel={handleCancel}
+                                style={{
+                                    shape: 'rect',
+                                    color: 'gold',
+                                    layout: 'vertical',
+                                    label: 'subscribe'
+                                }}
+                            />
+                        </div>
+                    </div>
+
                     <p className="text-xs text-gray-400 mt-4">
-                        Cancela en cualquier momento. Cobro seguro mediante Stripe.
+                        Cancela en cualquier momento. Cobro seguro mediante PayPal.
                     </p>
                 </div>
             </div>
