@@ -70,7 +70,7 @@ export default function ExpenseDetail() {
     };
 
     return (
-        <div className="flex flex-col min-h-screen bg-[#f7f9f8] max-w-md mx-auto relative shadow-2xl overflow-x-hidden pb-32">
+        <div className="flex flex-col min-h-screen bg-[#f7f9f8] max-w-md mx-auto relative shadow-2xl overflow-x-hidden pb-40">
             {/* Header */}
             <header className="bg-gradient-to-br from-[#0df259] to-emerald-800 text-black px-6 pt-12 pb-6 rounded-b-[2rem] shadow-lg relative z-10">
                 <div className="absolute -top-16 -right-10 w-40 h-40 bg-white/20 rounded-full blur-3xl" aria-hidden="true"></div>

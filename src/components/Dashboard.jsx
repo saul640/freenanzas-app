@@ -5,6 +5,7 @@ import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestor
 import { db } from '../firebase';
 import BottomNav from './BottomNav';
 import { formatMoney, formatDate, getCategoryIcon, getCategoryColor } from '../utils/format';
+import TransactionDetailModal from './TransactionDetailModal';
 
 export default function Dashboard() {
     const navigate = useNavigate();
@@ -13,6 +14,8 @@ export default function Dashboard() {
     const [transactions, setTransactions] = useState([]);
     const [balance, setBalance] = useState({ total: 0, income: 0, expense: 0 });
     const [showBalance, setShowBalance] = useState(true);
+    const [selectedTx, setSelectedTx] = useState(null);
+    const [creditCards, setCreditCards] = useState([]);
 
     useEffect(() => {
         if (!currentUser || !db) return;
@@ -37,6 +40,17 @@ export default function Dashboard() {
             setBalance({ total: income - expense, income, expense });
         });
 
+        return unsubscribe;
+    }, [currentUser]);
+
+    // Load credit cards for modal payment method resolution
+    useEffect(() => {
+        if (!currentUser || !db) return;
+        const unsubscribe = onSnapshot(
+            collection(db, 'users', currentUser.uid, 'creditCards'),
+            (snap) => setCreditCards(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+            (err) => console.error('Error loading cards:', err),
+        );
         return unsubscribe;
     }, [currentUser]);
 
@@ -71,7 +85,7 @@ export default function Dashboard() {
             </header>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto px-6 space-y-5 pb-28">
+            <div className="flex-1 overflow-y-auto px-6 space-y-5 pb-40">
 
                 {/* Balance Card */}
                 <div className="relative overflow-hidden rounded-3xl p-6 shadow-xl border border-white/10 bg-gradient-to-br from-[#0df259] to-emerald-800">
@@ -202,7 +216,7 @@ export default function Dashboard() {
                 <section>
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-bold">Gastos Recientes</h3>
-                        <button className="text-primary text-sm font-medium">Ver todo</button>
+                        <button onClick={() => navigate('/transactions')} className="text-primary text-sm font-medium hover:underline transition-all">Ver todo</button>
                     </div>
 
                     {transactions.length === 0 ? (
@@ -214,7 +228,11 @@ export default function Dashboard() {
                     ) : (
                         <div className="space-y-3">
                             {transactions.slice(0, 5).map(tx => (
-                                <div key={tx.id} className="flex items-center justify-between bg-white rounded-2xl p-4 shadow-md border border-gray-50 transition-transform duration-200 hover:-translate-y-1 hover:shadow-lg">
+                                <button
+                                    key={tx.id}
+                                    onClick={() => setSelectedTx(tx)}
+                                    className="w-full flex items-center justify-between bg-white rounded-2xl p-4 shadow-md border border-gray-50 transition-transform duration-200 hover:-translate-y-1 hover:shadow-lg text-left active:scale-[0.98]"
+                                >
                                     <div className="flex items-center gap-3">
                                         <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${getCategoryColor(tx.category)}`}>
                                             <span className="material-symbols-rounded text-xl">{getCategoryIcon(tx.category)}</span>
@@ -227,12 +245,21 @@ export default function Dashboard() {
                                     <span className={`font-bold text-sm ${tx.type === 'expense' ? 'text-gray-800' : 'text-primary'}`}>
                                         {tx.type === 'expense' ? '- ' : '+ '}RD$ {formatMoney(tx.amount)}
                                     </span>
-                                </div>
+                                </button>
                             ))}
                         </div>
                     )}
                 </section>
             </div>
+
+            {/* Transaction Detail Modal */}
+            {selectedTx && (
+                <TransactionDetailModal
+                    transaction={selectedTx}
+                    creditCards={creditCards}
+                    onClose={() => setSelectedTx(null)}
+                />
+            )}
 
             {/* Bottom Navigation */}
             <BottomNav />

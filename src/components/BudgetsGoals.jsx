@@ -157,7 +157,7 @@ export default function Analytics() {
     const selectedIconData = selectedCategory ? getIconData(selectedCategory) : null;
 
     return (
-        <div className="flex flex-col min-h-screen bg-[#f5f7f6]">
+        <div className="flex flex-col min-h-screen bg-[#f7f9f8] max-w-md mx-auto relative shadow-2xl overflow-x-hidden pb-40">
             {/* Header Mirror/iOS Style */}
             <header className="fixed top-0 left-0 right-0 max-w-md mx-auto z-20 bg-[#f5f7f6]/90 backdrop-blur-md px-6 pt-12 pb-4 flex items-center justify-between">
                 <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-black/5 active:scale-95 transition-all">
@@ -170,7 +170,7 @@ export default function Analytics() {
             </header>
 
             {/* Content Spacer */}
-            <div className="pt-28 pb-28 px-5 space-y-5">
+            <div className="pt-28 pb-40 px-5 space-y-5">
 
                 {/* Tabs Switcher */}
                 <div className="bg-white/50 border border-gray-200/50 p-1.5 rounded-2xl flex max-w-[280px] mx-auto shadow-sm">

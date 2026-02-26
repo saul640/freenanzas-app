@@ -447,7 +447,7 @@ export default function AddTransaction() {
             </header>
 
             <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
-                <div className="flex-1 overflow-y-auto px-6 space-y-6 pb-28">
+                <div className="flex-1 overflow-y-auto px-6 space-y-6 pb-44">
                     {error && <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm text-center font-medium">{error}</div>}
 
                     {/* Type Toggle */}
@@ -644,14 +644,16 @@ export default function AddTransaction() {
                         <>
                             {cardsLoading ? (
                                 /* Skeleton while cards are loading */
-                                <div className="bg-white rounded-2xl p-4 border border-gray-100 animate-pulse">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-gray-100" />
-                                        <div className="flex-1 space-y-2">
-                                            <div className="h-3 bg-gray-100 rounded w-2/3" />
-                                            <div className="h-2 bg-gray-50 rounded w-1/2" />
+                                <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-gray-100 animate-pulse" />
+                                            <div className="space-y-2">
+                                                <div className="h-3 bg-gray-100 rounded w-24 animate-pulse" />
+                                                <div className="h-2 bg-gray-50 rounded w-32 animate-pulse" />
+                                            </div>
                                         </div>
-                                        <div className="w-11 h-6 bg-gray-100 rounded-full" />
+                                        <div className="w-11 h-6 bg-gray-100 rounded-full animate-pulse" />
                                     </div>
                                 </div>
                             ) : creditCards.length === 0 ? (
@@ -662,8 +664,8 @@ export default function AddTransaction() {
                                             <span className="material-symbols-rounded text-orange-400">credit_card_off</span>
                                         </div>
                                         <div className="flex-1">
-                                            <p className="font-semibold text-sm text-gray-500">¿Pagado con Tarjeta?</p>
-                                            <p className="text-[11px] text-gray-400 mt-0.5">No tienes tarjetas registradas.</p>
+                                            <p className="font-bold text-sm text-gray-500">¿Pagado con Tarjeta?</p>
+                                            <p className="text-[11px] text-gray-400 mt-0.5">Actívalo registrando una tarjeta en tu Cartera.</p>
                                         </div>
                                         <button
                                             type="button"
@@ -703,17 +705,20 @@ export default function AddTransaction() {
                                     </div>
 
                                     {isCreditCardPayment && (
-                                        <div className="pt-2 border-t border-gray-50 animate-in fade-in slide-in-from-top-2 duration-300">
+                                        <div className="pt-2 border-t border-gray-50 animate-in fade-in slide-in-from-top-2 duration-300 relative">
                                             <select
                                                 value={selectedCardId}
                                                 onChange={(e) => setSelectedCardId(e.target.value)}
-                                                className="w-full bg-gray-50 border border-gray-100 text-gray-900 text-sm rounded-xl focus:ring-orange-500 focus:border-orange-500 block p-3 font-medium outline-none appearance-none"
+                                                className="w-full bg-gray-50 border border-gray-100 text-gray-900 text-sm rounded-xl focus:ring-orange-500 focus:border-orange-500 block p-3.5 pr-10 font-bold outline-none appearance-none cursor-pointer"
                                             >
                                                 <option value="" disabled>Selecciona una tarjeta...</option>
                                                 {creditCards.map(c => (
                                                     <option key={c.id} value={c.id}>💳 {c.name}</option>
                                                 ))}
                                             </select>
+                                            <div className="absolute right-3 top-[calc(50%+4px)] -translate-y-1/2 pointer-events-none">
+                                                <span className="material-symbols-rounded text-gray-400">expand_more</span>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -773,7 +778,7 @@ export default function AddTransaction() {
                 </div>
 
                 {/* Submit Button */}
-                <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto p-6 bg-[#f7f9f8]">
+                <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto p-6 bg-gradient-to-t from-[#f7f9f8] via-[#f7f9f8] to-transparent pt-10">
                     {/* AI Quick-Consult Button */}
                     {type === 'expense' && (
                         <button

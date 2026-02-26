@@ -288,7 +288,7 @@ export default function PendingPayments() {
             {selectedPayment && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !paymentProcessing && setSelectedPayment(null)} />
-                    <div className="relative w-full max-w-md bg-white rounded-[32px] p-6 shadow-xl animate-in zoom-in-95 duration-200">
+                    <div className="relative w-full max-w-md bg-white rounded-[32px] p-6 shadow-xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
                         <h3 className="text-xl font-extrabold text-gray-900 mb-2">Pago de Deuda</h3>
                         <p className="text-sm font-medium text-gray-500 mb-6">Estás a punto de abonar a <strong className="text-gray-800">{selectedPayment.name}</strong>.</p>
 

@@ -265,7 +265,7 @@ export default function MonthlyBudget() {
                 </button>
             </header>
 
-            <div className="pt-28 pb-28 px-5 space-y-5">
+            <div className="pt-28 pb-40 px-5 space-y-5">
                 {/* Global Budget Card */}
                 <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-[28px] p-6 shadow-lg relative overflow-hidden">
                     <div className="absolute -top-10 -right-8 w-32 h-32 bg-white/10 rounded-full blur-2xl" />

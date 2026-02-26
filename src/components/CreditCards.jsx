@@ -290,7 +290,7 @@ export default function CreditCards() {
                 <button onClick={openAdd} className="w-10 h-10 flex items-center justify-center rounded-xl bg-primary/10 hover:bg-primary/20 active:scale-95 transition-all"><span className="material-symbols-rounded text-2xl text-primary">add</span></button>
             </header>
 
-            <div className="pt-28 pb-28 px-5 space-y-5">
+            <div className="pt-28 pb-40 px-5 space-y-5">
                 {/* ══════════ SUMMARY ══════════ */}
                 <div className="bg-gradient-to-br from-slate-800 to-slate-950 rounded-[28px] p-6 shadow-lg relative overflow-hidden">
                     <div className="absolute -top-8 -right-8 w-28 h-28 bg-white/5 rounded-full blur-2xl" />
