@@ -28,7 +28,7 @@ export default function Transactions() {
     }, [currentUser]);
 
     return (
-        <div className="flex flex-col min-h-screen bg-[#f7f9f8] max-w-md mx-auto relative shadow-2xl overflow-hidden pb-32">
+        <div className="flex flex-col min-h-screen bg-[#f7f9f8] max-w-md mx-auto relative shadow-2xl overflow-x-hidden pb-32">
             {/* Header */}
             <header className="bg-primary text-black px-6 pt-12 pb-6 rounded-b-[2rem] shadow-sm relative z-10 transition-all duration-300">
                 <div className="flex justify-between items-center mb-0">

@@ -518,136 +518,140 @@ export default function CreditCards() {
             {showForm && (
                 <div className="fixed inset-0 z-50 flex items-end justify-center">
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setShowForm(false); setEditId(null); }} />
-                    <div className="relative w-full max-w-md bg-white rounded-t-[32px] p-6 pb-8 max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom duration-300">
-                        <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-5" />
-                        <h2 className="text-xl font-extrabold text-gray-900 mb-5">{editId ? 'Editar Tarjeta' : 'Nueva Tarjeta'}</h2>
+                    <div className="relative w-full max-w-md bg-white rounded-t-[32px] max-h-[85vh] flex flex-col animate-in slide-in-from-bottom duration-300">
+                        <div className="shrink-0 pt-6 px-6">
+                            <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-5" />
+                            <h2 className="text-xl font-extrabold text-gray-900 mb-5">{editId ? 'Editar Tarjeta' : 'Nueva Tarjeta'}</h2>
+                        </div>
 
-                        <div className="space-y-4">
-                            {/* Name */}
-                            <div>
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Nombre del Plástico</label>
-                                <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ej. Visa Gold, MC Platinum" className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm font-medium outline-none" />
-                            </div>
-
-                            {/* Dual Limits */}
-                            <div>
-                                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Límites</p>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="text-[10px] text-gray-400 mb-0.5 block">Pesos (DOP)</label>
-                                        <input type="number" value={form.limitePesos} onChange={e => setForm({ ...form, limitePesos: e.target.value })} placeholder="200,000" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] text-gray-400 mb-0.5 block">Dólares (USD)</label>
-                                        <input type="number" value={form.limiteDolares} onChange={e => setForm({ ...form, limiteDolares: e.target.value })} placeholder="3,500" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Balances DOP */}
-                            <div>
-                                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Balances DOP</p>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="text-[10px] text-gray-400 mb-0.5 block">A la Fecha</label>
-                                        <input type="number" value={form.balanceALaFecha} onChange={e => setForm({ ...form, balanceALaFecha: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] text-gray-400 mb-0.5 block">Al Corte</label>
-                                        <input type="number" value={form.balanceAlCorte} onChange={e => setForm({ ...form, balanceAlCorte: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Balances USD */}
-                            <div>
-                                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Balances USD</p>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="text-[10px] text-gray-400 mb-0.5 block">A la Fecha (USD)</label>
-                                        <input type="number" value={form.balanceDolaresALaFecha} onChange={e => setForm({ ...form, balanceDolaresALaFecha: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] text-gray-400 mb-0.5 block">Al Corte (USD)</label>
-                                        <input type="number" value={form.balanceDolaresAlCorte} onChange={e => setForm({ ...form, balanceDolaresAlCorte: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Minimum Payments */}
-                            <div>
-                                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Pagos Mínimos</p>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="text-[10px] text-gray-400 mb-0.5 block">DOP</label>
-                                        <input type="number" value={form.pagoMinimo} onChange={e => setForm({ ...form, pagoMinimo: e.target.value })} placeholder="500" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] text-gray-400 mb-0.5 block">USD</label>
-                                        <input type="number" value={form.pagoMinimoUSD} onChange={e => setForm({ ...form, pagoMinimoUSD: e.target.value })} placeholder="25" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Rate & Cutoff */}
-                            <div className="grid grid-cols-2 gap-3">
+                        <div className="flex-1 overflow-y-auto px-6">
+                            <div className="space-y-4">
+                                {/* Name */}
                                 <div>
-                                    <label className="text-[10px] text-gray-400 mb-0.5 block">Tasa %/año</label>
-                                    <input type="number" value={form.interestRate} onChange={e => setForm({ ...form, interestRate: e.target.value })} placeholder="40" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Nombre del Plástico</label>
+                                    <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ej. Visa Gold, MC Platinum" className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm font-medium outline-none" />
                                 </div>
+
+                                {/* Dual Limits */}
                                 <div>
-                                    <label className="text-[10px] text-gray-400 mb-0.5 block">Día Corte</label>
-                                    <input type="number" value={form.cutoffDay} onChange={e => setForm({ ...form, cutoffDay: e.target.value })} placeholder="15" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Límites</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-[10px] text-gray-400 mb-0.5 block">Pesos (DOP)</label>
+                                            <input type="number" value={form.limitePesos} onChange={e => setForm({ ...form, limitePesos: e.target.value })} placeholder="200,000" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-400 mb-0.5 block">Dólares (USD)</label>
+                                            <input type="number" value={form.limiteDolares} onChange={e => setForm({ ...form, limiteDolares: e.target.value })} placeholder="3,500" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
 
-                            {/* Payment Due */}
-                            <div>
-                                <label className="text-[10px] text-gray-400 mb-0.5 block">Día Límite de Pago</label>
-                                <input type="number" value={form.fechaLimitePago} onChange={e => setForm({ ...form, fechaLimitePago: e.target.value })} placeholder="25" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                            </div>
-
-                            {/* Alerts Toggle */}
-                            <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between mt-2">
+                                {/* Balances DOP */}
                                 <div>
-                                    <p className="text-sm font-bold text-gray-700">Notificaciones de Pago</p>
-                                    <p className="text-[10px] text-gray-400">Recibir alertas de vencimiento (5 días antes)</p>
+                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Balances DOP</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-[10px] text-gray-400 mb-0.5 block">A la Fecha</label>
+                                            <input type="number" value={form.balanceALaFecha} onChange={e => setForm({ ...form, balanceALaFecha: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-400 mb-0.5 block">Al Corte</label>
+                                            <input type="number" value={form.balanceAlCorte} onChange={e => setForm({ ...form, balanceAlCorte: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                        </div>
+                                    </div>
                                 </div>
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" checked={form.notificacionesPago} onChange={e => setForm({ ...form, notificacionesPago: e.target.checked })} className="sr-only peer" />
-                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-slate-900 border border-gray-100"></div>
-                                </label>
-                            </div>
 
-                            {/* Credimás Section */}
-                            <div className="border-t border-gray-100 pt-4">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <span className="material-symbols-rounded text-cyan-500 text-lg">add_card</span>
-                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Extra Crédito (Credimás)</p>
+                                {/* Balances USD */}
+                                <div>
+                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Balances USD</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-[10px] text-gray-400 mb-0.5 block">A la Fecha (USD)</label>
+                                            <input type="number" value={form.balanceDolaresALaFecha} onChange={e => setForm({ ...form, balanceDolaresALaFecha: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-400 mb-0.5 block">Al Corte (USD)</label>
+                                            <input type="number" value={form.balanceDolaresAlCorte} onChange={e => setForm({ ...form, balanceDolaresAlCorte: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                        </div>
+                                    </div>
                                 </div>
+
+                                {/* Minimum Payments */}
+                                <div>
+                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Pagos Mínimos</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-[10px] text-gray-400 mb-0.5 block">DOP</label>
+                                            <input type="number" value={form.pagoMinimo} onChange={e => setForm({ ...form, pagoMinimo: e.target.value })} placeholder="500" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-400 mb-0.5 block">USD</label>
+                                            <input type="number" value={form.pagoMinimoUSD} onChange={e => setForm({ ...form, pagoMinimoUSD: e.target.value })} placeholder="25" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Rate & Cutoff */}
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label className="text-[10px] text-gray-400 mb-0.5 block">Límite Aprobado</label>
-                                        <input type="number" value={form.credimasLimiteAprobado} onChange={e => setForm({ ...form, credimasLimiteAprobado: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                        <label className="text-[10px] text-gray-400 mb-0.5 block">Tasa %/año</label>
+                                        <input type="number" value={form.interestRate} onChange={e => setForm({ ...form, interestRate: e.target.value })} placeholder="40" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
                                     </div>
                                     <div>
-                                        <label className="text-[10px] text-gray-400 mb-0.5 block">Disponible</label>
-                                        <input type="number" value={form.credimasDisponible} onChange={e => setForm({ ...form, credimasDisponible: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                        <label className="text-[10px] text-gray-400 mb-0.5 block">Día Corte</label>
+                                        <input type="number" value={form.cutoffDay} onChange={e => setForm({ ...form, cutoffDay: e.target.value })} placeholder="15" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
                                     </div>
+                                </div>
+
+                                {/* Payment Due */}
+                                <div>
+                                    <label className="text-[10px] text-gray-400 mb-0.5 block">Día Límite de Pago</label>
+                                    <input type="number" value={form.fechaLimitePago} onChange={e => setForm({ ...form, fechaLimitePago: e.target.value })} placeholder="25" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                </div>
+
+                                {/* Alerts Toggle */}
+                                <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between mt-2">
                                     <div>
-                                        <label className="text-[10px] text-gray-400 mb-0.5 block">Total Adeudado</label>
-                                        <input type="number" value={form.credimasTotalAdeudado} onChange={e => setForm({ ...form, credimasTotalAdeudado: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                        <p className="text-sm font-bold text-gray-700">Notificaciones de Pago</p>
+                                        <p className="text-[10px] text-gray-400">Recibir alertas de vencimiento (5 días antes)</p>
                                     </div>
-                                    <div>
-                                        <label className="text-[10px] text-gray-400 mb-0.5 block">Cuota Mensual</label>
-                                        <input type="number" value={form.credimasCuotaMensual} onChange={e => setForm({ ...form, credimasCuotaMensual: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" checked={form.notificacionesPago} onChange={e => setForm({ ...form, notificacionesPago: e.target.checked })} className="sr-only peer" />
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-slate-900 border border-gray-100"></div>
+                                    </label>
+                                </div>
+
+                                {/* Credimás Section */}
+                                <div className="border-t border-gray-100 pt-4">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="material-symbols-rounded text-cyan-500 text-lg">add_card</span>
+                                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Extra Crédito (Credimás)</p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-[10px] text-gray-400 mb-0.5 block">Límite Aprobado</label>
+                                            <input type="number" value={form.credimasLimiteAprobado} onChange={e => setForm({ ...form, credimasLimiteAprobado: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-400 mb-0.5 block">Disponible</label>
+                                            <input type="number" value={form.credimasDisponible} onChange={e => setForm({ ...form, credimasDisponible: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-400 mb-0.5 block">Total Adeudado</label>
+                                            <input type="number" value={form.credimasTotalAdeudado} onChange={e => setForm({ ...form, credimasTotalAdeudado: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-400 mb-0.5 block">Cuota Mensual</label>
+                                            <input type="number" value={form.credimasCuotaMensual} onChange={e => setForm({ ...form, credimasCuotaMensual: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Actions */}
-                        <div className="mt-6 space-y-3">
+                        {/* Sticky Actions — always visible */}
+                        <div className="shrink-0 px-6 pt-4 pb-6 space-y-3 border-t border-gray-100">
                             <button onClick={handleSave} disabled={saving || !form.name.trim()} className="w-full bg-gradient-to-r from-slate-800 to-slate-950 text-white font-bold py-4 rounded-2xl disabled:opacity-50 active:scale-[0.98] transition-transform">
                                 {saving ? 'Guardando...' : editId ? 'Actualizar Tarjeta' : '+ Agregar Tarjeta'}
                             </button>

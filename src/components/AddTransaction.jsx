@@ -69,6 +69,7 @@ export default function AddTransaction() {
     // Credit Card linking state
     const [isCreditCardPayment, setIsCreditCardPayment] = useState(false);
     const [selectedCardId, setSelectedCardId] = useState('');
+    const [cardsLoading, setCardsLoading] = useState(true);
     const [customCategories, setCustomCategories] = useState([]);
     const [showCategoryCreator, setShowCategoryCreator] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
@@ -193,10 +194,15 @@ export default function AddTransaction() {
     useEffect(() => {
         if (!currentUser || !db || !appId) {
             setCreditCards([]);
+            setCardsLoading(false);
             return;
         }
+        setCardsLoading(true);
         return onSnapshot(collection(db, 'users', currentUser.uid, 'creditCards'), snap => {
             setCreditCards(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            setCardsLoading(false);
+        }, () => {
+            setCardsLoading(false);
         });
     }, [currentUser, appId]);
 
@@ -634,48 +640,85 @@ export default function AddTransaction() {
                     </div>
 
                     {/* Credit Card Linking Toggle */}
-                    {type === 'expense' && creditCards.length > 0 && (
-                        <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
-                                        <span className="material-symbols-rounded text-orange-500">credit_card</span>
-                                    </div>
-                                    <div>
-                                        <p className="font-semibold text-sm text-gray-800">¿Pagado con Tarjeta?</p>
-                                        <p className="text-[10px] text-gray-400">Sumará a la deuda de la tarjeta</p>
+                    {type === 'expense' && (
+                        <>
+                            {cardsLoading ? (
+                                /* Skeleton while cards are loading */
+                                <div className="bg-white rounded-2xl p-4 border border-gray-100 animate-pulse">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-gray-100" />
+                                        <div className="flex-1 space-y-2">
+                                            <div className="h-3 bg-gray-100 rounded w-2/3" />
+                                            <div className="h-2 bg-gray-50 rounded w-1/2" />
+                                        </div>
+                                        <div className="w-11 h-6 bg-gray-100 rounded-full" />
                                     </div>
                                 </div>
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={isCreditCardPayment}
-                                        onChange={(e) => {
-                                            setIsCreditCardPayment(e.target.checked);
-                                            if (!e.target.checked) setSelectedCardId('');
-                                            else if (creditCards.length === 1) setSelectedCardId(creditCards[0].id);
-                                        }}
-                                        className="sr-only peer"
-                                    />
-                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500 border border-gray-100"></div>
-                                </label>
-                            </div>
+                            ) : creditCards.length === 0 ? (
+                                /* No cards registered — friendly message */
+                                <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+                                            <span className="material-symbols-rounded text-orange-400">credit_card_off</span>
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-semibold text-sm text-gray-500">¿Pagado con Tarjeta?</p>
+                                            <p className="text-[11px] text-gray-400 mt-0.5">No tienes tarjetas registradas.</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate('/cards')}
+                                            className="text-xs font-bold text-orange-500 bg-orange-50 px-3 py-1.5 rounded-lg hover:bg-orange-100 transition-colors whitespace-nowrap"
+                                        >
+                                            + Añadir
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                /* Cards available — show toggle */
+                                <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+                                                <span className="material-symbols-rounded text-orange-500">credit_card</span>
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold text-sm text-gray-800">¿Pagado con Tarjeta?</p>
+                                                <p className="text-[10px] text-gray-400">Sumará a la deuda de la tarjeta</p>
+                                            </div>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={isCreditCardPayment}
+                                                onChange={(e) => {
+                                                    setIsCreditCardPayment(e.target.checked);
+                                                    if (!e.target.checked) setSelectedCardId('');
+                                                    else if (creditCards.length === 1) setSelectedCardId(creditCards[0].id);
+                                                }}
+                                                className="sr-only peer"
+                                            />
+                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500 border border-gray-100"></div>
+                                        </label>
+                                    </div>
 
-                            {isCreditCardPayment && (
-                                <div className="pt-2 border-t border-gray-50 animate-in fade-in slide-in-from-top-2 duration-300">
-                                    <select
-                                        value={selectedCardId}
-                                        onChange={(e) => setSelectedCardId(e.target.value)}
-                                        className="w-full bg-gray-50 border border-gray-100 text-gray-900 text-sm rounded-xl focus:ring-orange-500 focus:border-orange-500 block p-3 font-medium outline-none appearance-none"
-                                    >
-                                        <option value="" disabled>Selecciona una tarjeta...</option>
-                                        {creditCards.map(c => (
-                                            <option key={c.id} value={c.id}>💳 {c.name}</option>
-                                        ))}
-                                    </select>
+                                    {isCreditCardPayment && (
+                                        <div className="pt-2 border-t border-gray-50 animate-in fade-in slide-in-from-top-2 duration-300">
+                                            <select
+                                                value={selectedCardId}
+                                                onChange={(e) => setSelectedCardId(e.target.value)}
+                                                className="w-full bg-gray-50 border border-gray-100 text-gray-900 text-sm rounded-xl focus:ring-orange-500 focus:border-orange-500 block p-3 font-medium outline-none appearance-none"
+                                            >
+                                                <option value="" disabled>Selecciona una tarjeta...</option>
+                                                {creditCards.map(c => (
+                                                    <option key={c.id} value={c.id}>💳 {c.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
                                 </div>
                             )}
-                        </div>
+                        </>
                     )}
 
                     {/* Detalles Extra Toggle */}
