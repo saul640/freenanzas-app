@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 // Your web app's Firebase configuration
 // You should store these values in a .env.local file created at the root of the project
@@ -14,13 +15,14 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase only if config is present
-let app, auth, db;
+let app, auth, db, storage;
 
 try {
     if (firebaseConfig.apiKey) {
         app = initializeApp(firebaseConfig);
         auth = getAuth(app);
         db = getFirestore(app);
+        storage = getStorage(app);
     } else {
         console.warn("Firebase config is missing. Please add your credentials to .env.local");
     }
@@ -28,5 +30,5 @@ try {
     console.error("Firebase initialization error", error);
 }
 
-export { auth, db };
+export { auth, db, storage };
 export default app;

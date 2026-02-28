@@ -2,22 +2,26 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useLoans } from '../hooks/useLoans';
+import { useDailyInsight } from '../hooks/useDailyInsight';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from './BottomNav';
+import PaywallModal from './PaywallModal';
 import { formatMoney, formatDate, getCategoryIcon, getCategoryColor } from '../utils/format';
 import TransactionDetailModal from './TransactionDetailModal';
 
 export default function Dashboard() {
     const navigate = useNavigate();
-    const { currentUser, logout, isProUser, userData } = useAuth(); // Added isProUser and userData
+    const { currentUser, logout, isProUser, isTrialUser, userData } = useAuth();
     const { loans } = useLoans(currentUser?.uid); // Added loans hook
+    const { insight: dailyInsightText, loading: insightLoading } = useDailyInsight(userData, currentUser);
 
     const [transactions, setTransactions] = useState([]);
     const [balance, setBalance] = useState({ total: 0, income: 0, expense: 0 });
     const [showBalance, setShowBalance] = useState(true);
     const [selectedTx, setSelectedTx] = useState(null);
     const [creditCards, setCreditCards] = useState([]);
+    const [showPaywall, setShowPaywall] = useState(false);
 
     useEffect(() => {
         if (!currentUser || !db) return;
@@ -62,24 +66,28 @@ export default function Dashboard() {
 
     // Lógica de Recomendaciones (Affiliate Engine)
     const recommendation = useMemo(() => {
-        const getCardBalanceDOP = (card) => card.balanceDOP ?? card.balanceALaFecha ?? card.balance ?? 0;
+        try {
+            const getCardBalanceDOP = (card) => card.balanceDOP ?? card.balanceALaFecha ?? card.balance ?? 0;
 
-        const highInterestCards = creditCards.filter(c => (Number(c.interestRate) || 0) > 25 && getCardBalanceDOP(c) > 0);
-        const highInterestLoans = (loans || []).filter(l => (Number(l.tasaInteres) || 0) > 25 && l.balancePendiente > 0);
+            const highInterestCards = creditCards.filter(c => (Number(c.interestRate) || 0) > 25 && getCardBalanceDOP(c) > 0);
+            const highInterestLoans = (loans || []).filter(l => (Number(l.tasaInteres) || 0) > 25 && l.balancePendiente > 0);
 
-        const allDebts = [
-            ...highInterestCards.map(c => ({ name: c.name, rate: Number(c.interestRate), type: 'tarjeta' })),
-            ...highInterestLoans.map(l => ({ name: l.nombrePrestamo, rate: Number(l.tasaInteres), type: 'préstamo' }))
-        ];
+            const allDebts = [
+                ...highInterestCards.map(c => ({ name: c.name, rate: Number(c.interestRate), type: 'tarjeta' })),
+                ...highInterestLoans.map(l => ({ name: l.nombrePrestamo, rate: Number(l.tasaInteres), type: 'préstamo' }))
+            ];
 
-        if (allDebts.length > 0) {
-            const worstDebt = allDebts.sort((a, b) => b.rate - a.rate)[0];
-            return {
-                title: "🚨 Alerta de Interés Alto",
-                content: `Estás pagando un ${worstDebt.rate}% de interés en tu ${worstDebt.type} "${worstDebt.name}". Una consolidación al 15% te ahorraría miles de pesos.`,
-                cta: "Ver oferta de consolidación",
-                link: import.meta.env.VITE_AFFILIATE_LOAN_LINK || "https://ejemplo-banco.com/afiliado"
-            };
+            if (allDebts.length > 0) {
+                const worstDebt = allDebts.sort((a, b) => b.rate - a.rate)[0];
+                return {
+                    title: "🚨 Alerta de Interés Alto",
+                    content: `Estás pagando un ${worstDebt.rate}% de interés en tu ${worstDebt.type} "${worstDebt.name}". Una consolidación al 15% te ahorraría miles de pesos.`,
+                    cta: "Ver oferta de consolidación",
+                    link: import.meta.env.VITE_AFFILIATE_LOAN_LINK || "https://ejemplo-banco.com/afiliado"
+                };
+            }
+        } catch (error) {
+            console.error("Error al procesar datos para afiliados:", error);
         }
 
         return {
@@ -106,7 +114,7 @@ export default function Dashboard() {
                         <p className="text-sm text-gray-500">Bienvenido de nuevo,</p>
                         <h1 className="text-2xl font-bold flex items-center gap-2">
                             Hola, {userName} 👋
-                            {(userData?.isPro === true || userData?.isPro === undefined) && (
+                            {isProUser && !isTrialUser && (
                                 <span className="material-symbols-rounded text-amber-500 text-xl" title="Usuario PRO">crown</span>
                             )}
                         </h1>
@@ -153,12 +161,20 @@ export default function Dashboard() {
 
                 {/* Insight del día */}
                 <div className="flex items-start gap-3 rounded-2xl border border-amber-100 bg-gradient-to-r from-amber-50 via-amber-50 to-emerald-50 p-4 shadow-sm">
-                    <div className="w-11 h-11 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shadow-sm">
-                        <span className="material-symbols-rounded">lightbulb</span>
+                    <div className="w-11 h-11 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shadow-sm shrink-0">
+                        {insightLoading ? (
+                            <span className="material-symbols-rounded animate-spin opacity-50">sync</span>
+                        ) : (
+                            <span className="material-symbols-rounded">lightbulb</span>
+                        )}
                     </div>
-                    <div>
+                    <div className="flex-1">
                         <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700/80">Insight del dia</p>
-                        <p className="text-sm text-amber-900">El 1% administra su dinero en frio, antes de gastarlo.</p>
+                        {insightLoading ? (
+                            <p className="text-sm text-amber-900/60 animate-pulse">Analizando tus finanzas...</p>
+                        ) : (
+                            <p className="text-sm text-amber-900">{dailyInsightText || "Un presupuesto es decir a tu dinero a dónde ir en lugar de preguntarte a dónde fue."}</p>
+                        )}
                     </div>
                 </div>
 
@@ -230,6 +246,23 @@ export default function Dashboard() {
                         </button>
                     </div>
                 </div>
+
+                {/* Hazte PRO Banner — solo para usuarios free/trial expirado */}
+                {!isProUser && (
+                    <button
+                        onClick={() => setShowPaywall(true)}
+                        className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 rounded-2xl p-4 flex items-center gap-4 shadow-lg active:scale-[0.98] transition-transform text-left"
+                    >
+                        <div className="w-12 h-12 rounded-full bg-white/30 flex items-center justify-center">
+                            <span className="material-symbols-rounded text-white text-2xl">crown</span>
+                        </div>
+                        <div className="flex-1">
+                            <p className="font-bold text-white text-sm">Desbloquea Freenanzas PRO</p>
+                            <p className="text-white/80 text-xs">IA ilimitada, reportes avanzados y más</p>
+                        </div>
+                        <span className="material-symbols-rounded text-white/80">chevron_right</span>
+                    </button>
+                )}
                 {/* Gastos vs Ingresos Dashboard */}
                 <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] border border-gray-100">
                     <h3 className="text-lg font-bold text-gray-800 mb-5">Flujo de Caja</h3>
@@ -322,6 +355,7 @@ export default function Dashboard() {
             )}
 
             {/* Bottom Navigation */}
+            <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} />
             <BottomNav />
         </div>
     );

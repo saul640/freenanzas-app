@@ -401,6 +401,56 @@ export function calcAhorroRecomendado(income, totalDeuda) {
 }
 
 /**
+ * Fallback static insights in case Gemini API fails
+ */
+const FALLBACK_INSIGHTS = [
+    "Un presupuesto es decir a tu dinero a dónde ir en lugar de preguntarte a dónde fue.",
+    "El 1% administra su dinero en frío, antes de gastarlo.",
+    "No ahorres lo que te queda después de gastar; gasta lo que te queda después de ahorrar.",
+    "La riqueza no es cuánto dinero ganas, sino cuánto conservas y haces crecer.",
+    "Págate a ti mismo primero. Es la regla número uno de las finanzas personales.",
+    "El interés compuesto es la octava maravilla del mundo. Quien lo entiende, lo gana; quien no, lo paga.",
+    "Evita las deudas de consumo, son el mayor obstáculo para tu libertad financiera.",
+    "Tu mayor activo es tu capacidad de generar ingresos.",
+    "Comprar cosas que no necesitas para impresionar a gente que no te importa es un mal negocio.",
+    "Planifica para el futuro, porque es donde vas a pasar el resto de tu vida."
+];
+
+/**
+ * Generate a daily financial insight using Gemini AI, avoiding repeated topics
+ * @param {Array<string>} history - Array of previously generated insights/topics to avoid
+ * @returns {Promise<string>} - The generated insight
+ */
+export async function generateDailyInsight(history = []) {
+    try {
+        const model = getModel();
+
+        const historyText = history.length > 0
+            ? `Para evitar repetir temas, NO hables de nada relacionado con estos temas pasados:\n${history.map(h => `- ${h}`).join('\n')}`
+            : '';
+
+        const prompt = `Eres un asesor financiero experto. Dame un consejo de finanzas personales corto, inspirador y muy práctico (máximo 3 líneas).
+${historyText}
+
+Responde ÚNICAMENTE con el texto del consejo, sin comillas, sin formato markdown y directo al grano.`;
+
+        const result = await model.generateContent([prompt]);
+        let text = result.response.text().trim();
+
+        // Remove markdown or quotes if Gemini adds them anyway
+        text = text.replace(/^["']|["']$/g, '').replace(/^```[\s\S]*?```$/m, '').trim();
+
+        if (!text) throw new Error('Empty response from Gemini');
+        return text;
+    } catch (error) {
+        console.warn('Error generating daily insight from Gemini, using fallback:', error.message);
+        // Fallback to a random static insight
+        const randomIndex = Math.floor(Math.random() * FALLBACK_INSIGHTS.length);
+        return FALLBACK_INSIGHTS[randomIndex];
+    }
+}
+
+/**
  * Preventive AI: Should the user buy this item?
  * Enhanced with Real Liquidity, cash flow context, and traffic light risk.
  * @param {Object} data

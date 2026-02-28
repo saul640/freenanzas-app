@@ -6,7 +6,11 @@ import {
     onAuthStateChanged,
     GoogleAuthProvider,
     signInWithPopup,
-    updateProfile
+    updateProfile,
+    sendEmailVerification,
+    updatePassword,
+    EmailAuthProvider,
+    reauthenticateWithCredential
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -96,8 +100,15 @@ export function AuthProvider({ children }) {
             return;
         }
 
-        const unsubscribe = onAuthStateChanged(auth, user => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
             setCurrentUser(user);
+            if (user) {
+                try {
+                    await ensureUserProfile(user);
+                } catch (e) {
+                    console.error('Error asegurando perfil de usuario:', e);
+                }
+            }
             setLoading(false);
         });
 
@@ -135,14 +146,33 @@ export function AuthProvider({ children }) {
         return false;
     }, [userData]);
 
+    // Indica si el usuario está en periodo de prueba activo (NO debe ver badge PRO)
+    const isTrialUser = React.useMemo(() => {
+        if (!userData) return false;
+        // Si es PRO pagado o grandfathered, no es trial
+        if (userData.isPro === true || userData.isPro === undefined || userData.isPro === null) return false;
+        // Es trial si isPro === false y trialEndsAt aún no ha pasado
+        if (userData.trialEndsAt) {
+            const ends = userData.trialEndsAt.toDate ? userData.trialEndsAt.toDate() : new Date(userData.trialEndsAt);
+            if (new Date() < ends) return true;
+        }
+        return false;
+    }, [userData]);
+
     const value = {
         currentUser,
         userData,
         isProUser,
+        isTrialUser,
         signup,
         login,
         loginWithGoogle,
-        logout
+        logout,
+        updateProfile,
+        sendEmailVerification,
+        updatePassword,
+        EmailAuthProvider,
+        reauthenticateWithCredential
     };
 
     return (
