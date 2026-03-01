@@ -6,7 +6,7 @@ class ErrorBoundary extends React.Component {
         this.state = { hasError: false, errorId: null };
     }
 
-    static getDerivedStateFromError(error) {
+    static getDerivedStateFromError(_error) {
         // Update state so the next render will show the fallback UI.
         return { hasError: true };
     }
@@ -49,7 +49,7 @@ class ErrorBoundary extends React.Component {
                     console.error("Failed to send error report to N8N webhook:", fetchError);
                 });
         } else {
-            console.log("Error reporting disabled: VITE_N8N_WEBHOOK_URL is not configured.");
+            // Error reporting disabled: N8N webhook URL is not configured
         }
     }
 

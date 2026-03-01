@@ -10,7 +10,7 @@ import PaywallModal from './PaywallModal';
 
 export default function ExpenseDetail() {
     const navigate = useNavigate();
-    const { currentUser, userData, isProUser: isPro } = useAuth();
+    const { currentUser, isProUser: isPro } = useAuth();
     const { transactions, loading } = useTransactions(currentUser?.uid);
     const [showPaywall, setShowPaywall] = useState(false);
 

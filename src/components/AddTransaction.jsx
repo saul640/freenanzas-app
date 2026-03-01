@@ -46,7 +46,7 @@ const getCardBalanceDOP = (card) => card.balanceDOP ?? card.balanceALaFecha ?? c
 
 export default function AddTransaction() {
     const navigate = useNavigate();
-    const { currentUser, userData, isProUser: isPro } = useAuth();
+    const { currentUser, isProUser: isPro } = useAuth();
     const appId = 'finanzas_boveda_dual_v2';
 
     const [type, setType] = useState('expense');
@@ -88,11 +88,13 @@ export default function AddTransaction() {
     const [showPaywall, setShowPaywall] = useState(false);
 
     const baseCategories = type === 'expense' ? expenseCategories : incomeCategories;
-    const normalizedBaseNames = baseCategories.map((cat) => normalizeCategoryName(cat.name));
-    const typeCustomCategories = customCategories
-        .filter((cat) => cat.type === type)
-        .filter((cat) => !normalizedBaseNames.includes(normalizeCategoryName(cat.name)));
-    const mergedCategories = [...baseCategories, ...typeCustomCategories];
+    const mergedCategories = useMemo(() => {
+        const normalizedBaseNames = baseCategories.map((cat) => normalizeCategoryName(cat.name));
+        const typeCustomCategories = customCategories
+            .filter((cat) => cat.type === type)
+            .filter((cat) => !normalizedBaseNames.includes(normalizeCategoryName(cat.name)));
+        return [...baseCategories, ...typeCustomCategories];
+    }, [baseCategories, customCategories, type]);
     const visibleCategories = showAllCats ? mergedCategories : mergedCategories.slice(0, 6);
 
     // ─── AI-powered receipt scanning ───
@@ -106,7 +108,7 @@ export default function AddTransaction() {
             setError('');
 
             const scanResult = await scanReceiptWithAI(file);
-            console.log('AI Scan Result:', scanResult);
+
 
             setScanProgress('Datos extraídos ✓');
 

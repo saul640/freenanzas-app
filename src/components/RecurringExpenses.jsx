@@ -285,7 +285,7 @@ export default function RecurringExpenses() {
                 });
             }
             resetForm();
-        } catch (e) { /* intentionally empty */ }
+        } catch (_e) { /* intentionally empty */ }
         setSaving(false);
     };
 
@@ -296,11 +296,6 @@ export default function RecurringExpenses() {
         setConfirmDelete(null);
     };
 
-    // ─── Toggle active/paused ───
-    const toggleActive = async (item) => {
-        if (!currentUser || !db) return;
-        await updateDoc(doc(db, 'users', currentUser.uid, 'recurring', item.id), { active: !item.active });
-    };
     // ─── Mark as paid/unpaid for current month ───
     const togglePaid = async (item) => {
         if (!currentUser || !db) return;

@@ -133,8 +133,6 @@ export default function CreditCards() {
     useEffect(() => {
         if (!currentUser || !db || !appId) {
             setCards([]);
-            setRecurring([]);
-            setTransactions([]);
             setExpandedCard(null);
             setShowForm(false);
             setEditId(null);

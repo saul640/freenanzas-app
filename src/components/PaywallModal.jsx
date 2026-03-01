@@ -17,7 +17,7 @@ export default function PaywallModal({ isOpen, onClose }) {
     const planIdAnnual = import.meta.env.VITE_PAYPAL_PLAN_ANNUAL || "P-ANNUAL-TODO";
     const currentPlanId = billingCycle === "annual" ? planIdAnnual : planIdMonthly;
 
-    const handleApprove = async (data, actions) => {
+    const handleApprove = async (data, _actions) => {
         setLoading(true);
         setErrorMsg("");
         try {
@@ -44,12 +44,12 @@ export default function PaywallModal({ isOpen, onClose }) {
         setErrorMsg("Hubo un error de red o en la pasarela. Inténtalo de nuevo.");
     };
 
-    const handleCancel = (data) => {
+    const handleCancel = (_data) => {
         setErrorMsg("El pago fue cancelado. Inténtalo de nuevo.");
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
             <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl p-6 sm:p-8 w-full max-w-md relative animate-fade-in-up my-auto">
                 <button
                     onClick={onClose}

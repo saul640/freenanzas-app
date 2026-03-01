@@ -1,5 +1,19 @@
 import React from 'react';
-import { formatMoney, formatDate, getCategoryIcon, getCategoryColor } from '../utils/format';
+import { formatMoney, getCategoryIcon, getCategoryColor } from '../utils/format';
+
+/** Reusable row for transaction detail display */
+const DetailRow = ({ icon, label, value, valueClass = '' }) => {
+    if (!value || value === '') return null;
+    return (
+        <div className="flex items-start gap-3 py-3 border-b border-gray-100 last:border-b-0">
+            <span className="material-symbols-rounded text-gray-400 text-[20px] mt-0.5 shrink-0">{icon}</span>
+            <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+                <p className={`text-[14px] font-semibold text-gray-800 mt-0.5 break-words ${valueClass}`}>{value}</p>
+            </div>
+        </div>
+    );
+};
 
 /**
  * TransactionDetailModal
@@ -49,19 +63,6 @@ export default function TransactionDetailModal({ transaction, creditCards, onClo
             return tx.date || 'Sin fecha';
         }
     })();
-
-    const DetailRow = ({ icon, label, value, valueClass = '' }) => {
-        if (!value || value === '') return null;
-        return (
-            <div className="flex items-start gap-3 py-3 border-b border-gray-100 last:border-b-0">
-                <span className="material-symbols-rounded text-gray-400 text-[20px] mt-0.5 shrink-0">{icon}</span>
-                <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
-                    <p className={`text-[14px] font-semibold text-gray-800 mt-0.5 break-words ${valueClass}`}>{value}</p>
-                </div>
-            </div>
-        );
-    };
 
     return (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">

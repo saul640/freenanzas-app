@@ -1,4 +1,5 @@
 export const formatMoney = (amount) => {
+  if (amount == null || isNaN(amount)) return '0';
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
 };
 
