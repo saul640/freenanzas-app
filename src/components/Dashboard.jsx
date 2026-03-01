@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useLoans } from '../hooks/useLoans';
 import { useDailyInsight } from '../hooks/useDailyInsight';
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
+import { collection, query, where, onSnapshot, orderBy, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { db, auth } from '../firebase';
 import BottomNav from './BottomNav';
 import PaywallModal from './PaywallModal';
 import { formatMoney, formatDate, getCategoryIcon, getCategoryColor } from '../utils/format';
@@ -22,6 +22,8 @@ export default function Dashboard() {
     const [selectedTx, setSelectedTx] = useState(null);
     const [creditCards, setCreditCards] = useState([]);
     const [showPaywall, setShowPaywall] = useState(false);
+
+
 
     useEffect(() => {
         if (!currentUser || !db) return;
@@ -120,13 +122,16 @@ export default function Dashboard() {
                         </h1>
                         <p className="text-xs text-emerald-700/70 mt-1">Construyendo tu libertad financiera</p>
                     </div>
-                    <button onClick={handleLogout} className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center overflow-hidden">
-                        {currentUser?.photoURL ? (
-                            <img src={currentUser.photoURL} alt="Avatar" className="w-full h-full object-cover" />
-                        ) : (
-                            <span className="material-symbols-rounded text-orange-600">person</span>
-                        )}
-                    </button>
+                    <div className="flex items-center gap-2">
+
+                        <button onClick={handleLogout} className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center overflow-hidden">
+                            {currentUser?.photoURL ? (
+                                <img src={currentUser.photoURL} alt="Avatar" className="w-full h-full object-cover" />
+                            ) : (
+                                <span className="material-symbols-rounded text-orange-600">person</span>
+                            )}
+                        </button>
+                    </div>
                 </div>
             </header>
 

@@ -18,8 +18,9 @@ import PrivateRoute from './components/PrivateRoute';
 function App() {
   const initialOptions = {
     "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID || "test",
-    currency: "MXN",
-    intent: "subscription" // Or "capture" if it's a one-time payment. User said: "opciones de suscripción (Mensual / Anual)". Let's assume subscription plan.
+    currency: "USD",
+    intent: "subscription",
+    vault: true
   };
 
   return (

@@ -99,12 +99,12 @@ export default function PaywallModal({ isOpen, onClose }) {
                     )}
 
                     <div className="w-full mb-6">
-                        <div className="flex justify-center bg-gray-100 dark:bg-gray-700/50 p-1 rounded-xl w-full">
+                        <div className="flex justify-center bg-gray-100 dark:bg-gray-700/50 p-1 rounded-xl w-full mb-4">
                             <button
                                 onClick={() => setBillingCycle("monthly")}
                                 className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${billingCycle === "monthly"
-                                        ? "bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-white"
-                                        : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                                    ? "bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-white"
+                                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                                     }`}
                             >
                                 Mensual
@@ -112,12 +112,33 @@ export default function PaywallModal({ isOpen, onClose }) {
                             <button
                                 onClick={() => setBillingCycle("annual")}
                                 className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${billingCycle === "annual"
-                                        ? "bg-gradient-to-r from-yellow-400 to-yellow-500 shadow text-white"
-                                        : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                                    ? "bg-gradient-to-r from-yellow-400 to-yellow-500 shadow text-white"
+                                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                                     }`}
                             >
                                 Anual (-20%)
                             </button>
+                        </div>
+
+                        {/* Pricing Display */}
+                        <div className="text-center py-2">
+                            {billingCycle === "monthly" ? (
+                                <div>
+                                    <span className="text-4xl font-extrabold text-gray-900 dark:text-white">$4.99</span>
+                                    <span className="text-gray-500 dark:text-gray-400 font-medium ml-1">USD / mes</span>
+                                </div>
+                            ) : (
+                                <div>
+                                    <div className="flex items-center justify-center space-x-2 mb-1">
+                                        <span className="text-lg line-through text-gray-400 font-medium">$59.88 USD</span>
+                                        <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full dark:bg-green-900/30 dark:text-green-400">
+                                            ¡Ahorra un 20%!
+                                        </span>
+                                    </div>
+                                    <span className="text-4xl font-extrabold text-gray-900 dark:text-white">$47.90</span>
+                                    <span className="text-gray-500 dark:text-gray-400 font-medium ml-1">USD / año</span>
+                                </div>
+                            )}
                         </div>
                     </div>
 
