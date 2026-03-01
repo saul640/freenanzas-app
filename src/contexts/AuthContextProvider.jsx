@@ -137,7 +137,17 @@ export function AuthProvider({ children }) {
         // 1. Grandfathering: si isPro no existe, es Pro (usuario antiguo)
         if (userData.isPro === undefined || userData.isPro === null) return true;
         // 2. Explícitamente Pro
-        if (userData.isPro === true) return true;
+        if (userData.isPro === true) {
+            // 2a. Si canceló, verificar grace period
+            if (userData.cancelAtPeriodEnd === true && userData.currentPeriodEnd) {
+                const periodEnd = userData.currentPeriodEnd.toDate
+                    ? userData.currentPeriodEnd.toDate()
+                    : new Date(userData.currentPeriodEnd);
+                // Si ya pasó la fecha de fin del periodo, revocar acceso
+                if (new Date() >= periodEnd) return false;
+            }
+            return true;
+        }
         // 3. Periodo de Trial (7 días)
         if (userData.trialEndsAt) {
             const ends = userData.trialEndsAt.toDate ? userData.trialEndsAt.toDate() : new Date(userData.trialEndsAt);

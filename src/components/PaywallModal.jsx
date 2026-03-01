@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { FaCrown, FaTimes } from 'react-icons/fa';
-import { PayPalButtons } from "@paypal/react-paypal-js";
+import { PayPalButtons, usePayPalScriptReducer } from "@paypal/react-paypal-js";
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export default function PaywallModal({ isOpen, onClose }) {
     const { currentUser } = useAuth();
+    const [{ isPending, isRejected }] = usePayPalScriptReducer();
     const [loading, setLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState("");
     const [billingCycle, setBillingCycle] = useState("monthly"); // "monthly" or "annual"
@@ -22,17 +23,24 @@ export default function PaywallModal({ isOpen, onClose }) {
         setErrorMsg("");
         try {
             if (currentUser && db) {
+                const now = new Date();
+                const periodDays = billingCycle === "annual" ? 365 : 30;
+                const currentPeriodEnd = new Date(now.getTime() + periodDays * 24 * 60 * 60 * 1000);
+
                 const userRef = doc(db, 'users', currentUser.uid);
                 await updateDoc(userRef, {
                     isPro: true,
-                    paypalSubscriptionId: data.subscriptionID
+                    paypalSubscriptionId: data.subscriptionID,
+                    // Additive subscription metadata
+                    planType: billingCycle, // "monthly" or "annual"
+                    currentPeriodEnd: currentPeriodEnd,
+                    cancelAtPeriodEnd: false,
+                    subscriptionStartDate: now,
                 });
-                // Alert o notificación de éxito
                 alert("¡Suscripción exitosa! Ahora eres usuario PRO y tienes acceso a todas las funciones de IA.");
                 onClose();
             }
         } catch (error) {
-            console.error("Error al actualizar estado PRO:", error);
             setErrorMsg("Hubo un error al actualizar tu cuenta. Por favor contacta a soporte.");
         } finally {
             setLoading(false);
@@ -41,7 +49,12 @@ export default function PaywallModal({ isOpen, onClose }) {
 
     const handleError = (err) => {
         console.error("PayPal Error:", err);
-        setErrorMsg("Hubo un error de red o en la pasarela. Inténtalo de nuevo.");
+        const detail = err?.message || (typeof err === 'string' ? err : '');
+        setErrorMsg(
+            detail
+                ? `Error de PayPal: ${detail}`
+                : "Hubo un error de red o en la pasarela. Inténtalo de nuevo."
+        );
     };
 
     const handleCancel = (_data) => {
@@ -145,25 +158,41 @@ export default function PaywallModal({ isOpen, onClose }) {
                     <div className="w-full relative z-0">
                         {loading && <p className="text-amber-600 font-medium mb-4 animate-pulse">Procesando tu suscripción...</p>}
 
+                        {isPending && (
+                            <div className="flex flex-col items-center py-6">
+                                <div className="w-8 h-8 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin mb-3"></div>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">Cargando pasarela de pago...</p>
+                            </div>
+                        )}
+
+                        {isRejected && (
+                            <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 p-3 rounded-lg w-full mb-4 text-sm font-medium">
+                                No se pudo cargar PayPal. Verifica tu conexión a internet e inténtalo de nuevo.
+                            </div>
+                        )}
+
                         {/* We use a key to force re-render of PayPal buttons when plan changes */}
-                        <div key={billingCycle}>
-                            <PayPalButtons
-                                createSubscription={(data, actions) => {
-                                    return actions.subscription.create({
-                                        plan_id: currentPlanId
-                                    });
-                                }}
-                                onApprove={handleApprove}
-                                onError={handleError}
-                                onCancel={handleCancel}
-                                style={{
-                                    shape: 'rect',
-                                    color: 'gold',
-                                    layout: 'vertical',
-                                    label: 'subscribe'
-                                }}
-                            />
-                        </div>
+                        {!isPending && !isRejected && (
+                            <div key={billingCycle}>
+                                <PayPalButtons
+                                    createSubscription={(data, actions) => {
+                                        setErrorMsg("");
+                                        return actions.subscription.create({
+                                            plan_id: currentPlanId
+                                        });
+                                    }}
+                                    onApprove={handleApprove}
+                                    onError={handleError}
+                                    onCancel={handleCancel}
+                                    style={{
+                                        shape: 'rect',
+                                        color: 'gold',
+                                        layout: 'vertical',
+                                        label: 'subscribe'
+                                    }}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     <p className="text-xs text-gray-400 mt-4">

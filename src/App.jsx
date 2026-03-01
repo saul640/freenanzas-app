@@ -20,7 +20,8 @@ function App() {
     "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID || "test",
     currency: "USD",
     intent: "subscription",
-    vault: true
+    vault: true,
+    components: "buttons"
   };
 
   return (

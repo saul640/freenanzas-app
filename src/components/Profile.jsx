@@ -1,12 +1,14 @@
 import React, { useState, useRef } from 'react';
+import { deleteUser } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import BottomNav from './BottomNav';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast, Toaster } from 'react-hot-toast';
 import PaywallModal from './PaywallModal';
+import SubscriptionCard from './SubscriptionCard';
 
 export default function Profile() {
     const navigate = useNavigate();
@@ -34,6 +36,8 @@ export default function Profile() {
 
     const fileInputRef = useRef(null);
     const [showPaywall, setShowPaywall] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const userName = currentUser?.displayName || userData?.name || 'Usuario de Freenanzas';
     const userEmail = currentUser?.email || '';
@@ -190,6 +194,29 @@ export default function Profile() {
 
     // isPro ya viene del contexto centralizado (isProUser)
 
+    const handleDeleteAccount = async () => {
+        if (!currentUser) return;
+        setIsDeleting(true);
+        try {
+            // Delete Firestore document first
+            const userRef = doc(db, 'users', currentUser.uid);
+            await deleteDoc(userRef);
+            // Then delete Firebase Auth account
+            await deleteUser(currentUser);
+            toast.success('Tu cuenta ha sido eliminada.');
+            navigate('/onboarding');
+        } catch (error) {
+            if (error.code === 'auth/requires-recent-login') {
+                toast.error('Por seguridad, inicia sesión de nuevo antes de eliminar tu cuenta.');
+            } else {
+                toast.error('Error al eliminar la cuenta. Intenta de nuevo.');
+            }
+        } finally {
+            setIsDeleting(false);
+            setShowDeleteConfirm(false);
+        }
+    };
+
     return (
         <div className="flex flex-col min-h-screen bg-[#f7f9f8] max-w-md mx-auto relative shadow-2xl overflow-hidden pb-32">
             <Toaster position="top-center" />
@@ -331,6 +358,9 @@ export default function Profile() {
                         )}
                     </div>
 
+                    {/* Subscription Management Card */}
+                    <SubscriptionCard onOpenPaywall={() => setShowPaywall(true)} />
+
                     {/* Security Card */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                         <button
@@ -386,8 +416,53 @@ export default function Profile() {
                         )}
                     </div>
 
+                    {/* Help & Legal Card */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div className="flex items-center gap-2 p-4 pb-2">
+                            <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-500 flex items-center justify-center">
+                                <span className="material-symbols-rounded text-[20px]">help</span>
+                            </div>
+                            <h3 className="font-semibold text-gray-800">Ayuda y Legal</h3>
+                        </div>
+
+                        <a
+                            href="mailto:saul640@gmail.com?subject=Soporte%20Freenanzas"
+                            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                        >
+                            <div className="flex items-center gap-3 text-gray-700 text-sm font-medium">
+                                <span className="material-symbols-rounded text-[18px] text-gray-400">mail</span>
+                                Contactar Soporte
+                            </div>
+                            <span className="material-symbols-rounded text-gray-300 text-[18px]">chevron_right</span>
+                        </a>
+
+                        <a
+                            href="#"
+                            onClick={(e) => { e.preventDefault(); toast('Próximamente: Términos de Servicio'); }}
+                            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors border-t border-gray-50"
+                        >
+                            <div className="flex items-center gap-3 text-gray-700 text-sm font-medium">
+                                <span className="material-symbols-rounded text-[18px] text-gray-400">description</span>
+                                Términos de Servicio
+                            </div>
+                            <span className="material-symbols-rounded text-gray-300 text-[18px]">chevron_right</span>
+                        </a>
+
+                        <a
+                            href="#"
+                            onClick={(e) => { e.preventDefault(); toast('Próximamente: Política de Privacidad'); }}
+                            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors border-t border-gray-50"
+                        >
+                            <div className="flex items-center gap-3 text-gray-700 text-sm font-medium">
+                                <span className="material-symbols-rounded text-[18px] text-gray-400">privacy_tip</span>
+                                Política de Privacidad
+                            </div>
+                            <span className="material-symbols-rounded text-gray-300 text-[18px]">chevron_right</span>
+                        </a>
+                    </div>
+
                     {/* Logout Card */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mt-6">
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mt-4">
                         <button
                             onClick={handleLogout}
                             className="w-full flex items-center justify-between p-4 text-left hover:bg-red-50 transition-colors cursor-pointer"
@@ -398,6 +473,49 @@ export default function Profile() {
                             </div>
                             <span className="material-symbols-rounded text-gray-300">chevron_right</span>
                         </button>
+                    </div>
+
+                    {/* Delete Account */}
+                    <div className="mt-8 mb-4">
+                        {!showDeleteConfirm ? (
+                            <button
+                                onClick={() => setShowDeleteConfirm(true)}
+                                className="w-full py-2.5 text-xs text-red-400 hover:text-red-600 font-medium transition-colors flex items-center justify-center gap-1"
+                            >
+                                <span className="material-symbols-rounded text-[14px]">delete_forever</span>
+                                Eliminar mi cuenta
+                            </button>
+                        ) : (
+                            <div className="bg-red-50 rounded-2xl border border-red-200 p-4 animate-fade-in">
+                                <p className="text-sm text-red-700 font-semibold text-center mb-1">¿Eliminar tu cuenta?</p>
+                                <p className="text-xs text-red-500 text-center mb-4">
+                                    Esta acción es permanente. Se borrarán todos tus datos y no podrás recuperarlos.
+                                </p>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setShowDeleteConfirm(false)}
+                                        disabled={isDeleting}
+                                        className="flex-1 py-2 bg-white hover:bg-gray-50 text-gray-700 font-medium rounded-xl text-sm transition-colors border border-gray-200 disabled:opacity-50"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={handleDeleteAccount}
+                                        disabled={isDeleting}
+                                        className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
+                                    >
+                                        {isDeleting ? (
+                                            <>
+                                                <span className="animate-spin material-symbols-rounded text-[14px]">progress_activity</span>
+                                                Eliminando...
+                                            </>
+                                        ) : (
+                                            'Sí, eliminar'
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                 </div>
