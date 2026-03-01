@@ -49,12 +49,7 @@ export default function PaywallModal({ isOpen, onClose }) {
 
     const handleError = (err) => {
         console.error("PayPal Error:", err);
-        const detail = err?.message || (typeof err === 'string' ? err : '');
-        setErrorMsg(
-            detail
-                ? `Error de PayPal: ${detail}`
-                : "Hubo un error de red o en la pasarela. Inténtalo de nuevo."
-        );
+        setErrorMsg("En este momento estamos experimentando intermitencias con nuestro proveedor de pagos. Por favor, inténtalo de nuevo en unos minutos.");
     };
 
     const handleCancel = (_data) => {
@@ -65,7 +60,7 @@ export default function PaywallModal({ isOpen, onClose }) {
         dispatch({
             type: DISPATCH_ACTION.RESET_OPTIONS,
             value: {
-                clientId: import.meta.env.VITE_PAYPAL_CLIENT_ID,
+                "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID || "test",
                 intent: 'subscription',
                 vault: true,
             },
