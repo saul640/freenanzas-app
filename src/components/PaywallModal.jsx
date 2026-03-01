@@ -13,8 +13,8 @@ export default function PaywallModal({ isOpen, onClose }) {
 
     if (!isOpen) return null;
 
-    const planIdMonthly = import.meta.env.VITE_PAYPAL_PLAN_ID_MONTHLY || "P-MONTHLY-TODO";
-    const planIdAnnual = import.meta.env.VITE_PAYPAL_PLAN_ID_ANNUAL || "P-ANNUAL-TODO";
+    const planIdMonthly = import.meta.env.VITE_PAYPAL_PLAN_MONTHLY || "P-MONTHLY-TODO";
+    const planIdAnnual = import.meta.env.VITE_PAYPAL_PLAN_ANNUAL || "P-ANNUAL-TODO";
     const currentPlanId = billingCycle === "annual" ? planIdAnnual : planIdMonthly;
 
     const handleApprove = async (data, actions) => {
