@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { FaCrown, FaTimes } from 'react-icons/fa';
-import { PayPalButtons, usePayPalScriptReducer } from "@paypal/react-paypal-js";
+import { PayPalButtons, usePayPalScriptReducer, DISPATCH_ACTION } from "@paypal/react-paypal-js";
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export default function PaywallModal({ isOpen, onClose }) {
     const { currentUser } = useAuth();
-    const [{ isPending, isRejected }] = usePayPalScriptReducer();
+    const [{ isPending, isRejected }, dispatch] = usePayPalScriptReducer();
     const [loading, setLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState("");
     const [billingCycle, setBillingCycle] = useState("monthly"); // "monthly" or "annual"
@@ -61,9 +61,20 @@ export default function PaywallModal({ isOpen, onClose }) {
         setErrorMsg("El pago fue cancelado. Inténtalo de nuevo.");
     };
 
+    const handleRetryPayPal = () => {
+        dispatch({
+            type: DISPATCH_ACTION.RESET_OPTIONS,
+            value: {
+                clientId: import.meta.env.VITE_PAYPAL_CLIENT_ID,
+                intent: 'subscription',
+                vault: true,
+            },
+        });
+    };
+
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-            <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl p-6 sm:p-8 w-full max-w-md relative animate-fade-in-up my-auto">
+            <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl p-6 sm:p-8 w-full max-w-md relative animate-fade-in-up my-auto max-h-[90vh] overflow-y-auto">
                 <button
                     onClick={onClose}
                     className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
@@ -166,8 +177,20 @@ export default function PaywallModal({ isOpen, onClose }) {
                         )}
 
                         {isRejected && (
-                            <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 p-3 rounded-lg w-full mb-4 text-sm font-medium">
-                                No se pudo cargar PayPal. Verifica tu conexión a internet e inténtalo de nuevo.
+                            <div className="bg-red-50 dark:bg-red-900/30 rounded-2xl p-4 w-full mb-4 text-center">
+                                <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
+                                    <span className="material-symbols-rounded text-red-500 text-[24px]">wifi_off</span>
+                                </div>
+                                <p className="text-sm font-medium text-red-600 dark:text-red-400 mb-3">
+                                    No se pudo cargar PayPal. Verifica tu conexión a internet.
+                                </p>
+                                <button
+                                    onClick={handleRetryPayPal}
+                                    className="w-full py-2.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-1.5 active:scale-[0.98]"
+                                >
+                                    <span className="material-symbols-rounded text-[16px]">refresh</span>
+                                    Reintentar
+                                </button>
                             </div>
                         )}
 
@@ -195,7 +218,7 @@ export default function PaywallModal({ isOpen, onClose }) {
                         )}
                     </div>
 
-                    <p className="text-xs text-gray-400 mt-4">
+                    <p className="text-xs text-gray-400 mt-4 pb-2">
                         Cancela en cualquier momento. Cobro seguro mediante PayPal.
                     </p>
                 </div>
