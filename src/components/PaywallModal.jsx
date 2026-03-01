@@ -165,26 +165,21 @@ export default function PaywallModal({ isOpen, onClose }) {
                         {loading && <p className="text-amber-600 font-medium mb-4 animate-pulse">Procesando tu suscripción...</p>}
 
                         {isPending && (
-                            <div className="flex flex-col items-center py-6">
-                                <div className="w-8 h-8 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin mb-3"></div>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">Cargando pasarela de pago...</p>
+                            <div className="flex justify-center items-center py-6">
+                                <p className="text-gray-500 text-sm">Cargando métodos de pago...</p>
                             </div>
                         )}
 
                         {isRejected && (
-                            <div className="bg-red-50 dark:bg-red-900/30 rounded-2xl p-4 w-full mb-4 text-center">
-                                <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
-                                    <span className="material-symbols-rounded text-red-500 text-[24px]">wifi_off</span>
-                                </div>
-                                <p className="text-sm font-medium text-red-600 dark:text-red-400 mb-3">
+                            <div className="flex flex-col items-center gap-3 py-6 bg-red-50 rounded-xl p-4">
+                                <p className="text-red-500 text-sm text-center">
                                     No se pudo cargar PayPal. Verifica tu conexión a internet.
                                 </p>
                                 <button
-                                    onClick={handleRetryPayPal}
-                                    className="w-full py-2.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-1.5 active:scale-[0.98]"
+                                    onClick={() => window.location.reload()}
+                                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 shadow-sm"
                                 >
-                                    <span className="material-symbols-rounded text-[16px]">refresh</span>
-                                    Reintentar
+                                    <span className="material-symbols-rounded text-[18px]">refresh</span> Reintentar
                                 </button>
                             </div>
                         )}
@@ -193,6 +188,7 @@ export default function PaywallModal({ isOpen, onClose }) {
                         {!isPending && !isRejected && (
                             <div key={billingCycle}>
                                 <PayPalButtons
+                                    style={{ layout: "vertical", shape: "pill", color: "gold", label: "subscribe" }}
                                     createSubscription={(data, actions) => {
                                         setErrorMsg("");
                                         return actions.subscription.create({
@@ -200,14 +196,11 @@ export default function PaywallModal({ isOpen, onClose }) {
                                         });
                                     }}
                                     onApprove={handleApprove}
-                                    onError={handleError}
-                                    onCancel={handleCancel}
-                                    style={{
-                                        shape: 'rect',
-                                        color: 'gold',
-                                        layout: 'vertical',
-                                        label: 'subscribe'
+                                    onError={(err) => {
+                                        console.error("PayPal Error:", err);
+                                        setErrorMsg("Estamos experimentando intermitencias. Por favor, intenta de nuevo.");
                                     }}
+                                    onCancel={handleCancel}
                                 />
                             </div>
                         )}

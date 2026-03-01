@@ -17,7 +17,7 @@ import PrivateRoute from './components/PrivateRoute';
 
 function App() {
   const initialOptions = {
-    "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID || "test",
+    "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID,
     currency: "USD",
     intent: "subscription",
     vault: true,
