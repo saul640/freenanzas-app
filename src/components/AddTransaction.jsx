@@ -1,6 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { collection, addDoc, doc, getDoc, onSnapshot, query, where, serverTimestamp, updateDoc } from 'firebase/firestore';
+
+// ─── Exponential Backoff Utility ───
+const retryWithBackoff = async (fn, maxRetries = 3) => {
+    for (let i = 0; i < maxRetries; i++) {
+        try { return await fn(); }
+        catch (err) {
+            if (i === maxRetries - 1) throw err;
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
+        }
+    }
+};
 import { db } from '../firebase';
 import { useAuth } from '../hooks/useAuth';
 import { useLoans } from '../hooks/useLoans';
@@ -46,8 +57,13 @@ const getCardBalanceDOP = (card) => card.balanceDOP ?? card.balanceALaFecha ?? c
 
 export default function AddTransaction() {
     const navigate = useNavigate();
+    const { txId } = useParams();
     const { currentUser, isProUser: isPro } = useAuth();
     const appId = 'finanzas_boveda_dual_v2';
+
+    // ─── Edit Mode State ───
+    const [editingRecord, setEditingRecord] = useState(null);
+    const isEditMode = editingRecord !== null;
 
     const [type, setType] = useState('expense');
     const [amount, setAmount] = useState('');
@@ -86,6 +102,51 @@ export default function AddTransaction() {
 
     // Paywall state
     const [showPaywall, setShowPaywall] = useState(false);
+
+    // ─── Load existing transaction for editing ───
+    useEffect(() => {
+        if (!txId || !db || !currentUser) {
+            setEditingRecord(null);
+            return;
+        }
+        const loadTransaction = async () => {
+            try {
+                setLoading(true);
+                const docRef = doc(db, 'transactions', txId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists() && docSnap.data().userId === currentUser.uid) {
+                    const data = { id: docSnap.id, ...docSnap.data() };
+                    setEditingRecord(data);
+                    // Pre-populate form fields
+                    setType(data.type || 'expense');
+                    setAmount(data.amount?.toString() || '');
+                    setCategory(data.category || 'Comida');
+                    setDate(data.date || new Date().toISOString().split('T')[0]);
+                    setNote(data.note || '');
+                    setMerchant(data.merchant || '');
+                    setRnc(data.rnc || '');
+                    setTicketNumber(data.ticketNumber || '');
+                    setOperator(data.operator || '');
+                    setLocation(data.location || '');
+                    setDetails(data.details || '');
+                    if (data.tarjetaCreditoId) {
+                        setIsCreditCardPayment(true);
+                        setSelectedCardId(data.tarjetaCreditoId);
+                    }
+                    if (data.merchant || data.rnc || data.ticketNumber || data.operator || data.location || data.details) {
+                        setShowExtraFields(true);
+                    }
+                } else {
+                    setError('No se encontró la transacción o no tienes permisos para editarla.');
+                }
+            } catch (err) {
+                setError('Error al cargar la transacción para editar.');
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadTransaction();
+    }, [txId, currentUser]);
 
     const baseCategories = type === 'expense' ? expenseCategories : incomeCategories;
     const mergedCategories = useMemo(() => {
@@ -371,6 +432,38 @@ export default function AddTransaction() {
         }
     };
 
+    // ─── Update handler (edit mode) with exponential backoff ───
+    const handleUpdate = async () => {
+        if (!editingRecord?.id || !db || !currentUser) return;
+        const parsedAmount = parseFloat(amount);
+
+        const updatedData = {
+            type,
+            amount: parsedAmount,
+            category,
+            date,
+            note: note.trim(),
+            merchant: merchant.trim(),
+            rnc: rnc.trim(),
+            ticketNumber: ticketNumber.trim(),
+            operator: operator.trim(),
+            location: location.trim(),
+            details: details.trim(),
+            updatedAt: serverTimestamp(),
+        };
+
+        if (type === 'expense' && isCreditCardPayment && selectedCardId) {
+            updatedData.tarjetaCreditoId = selectedCardId;
+            updatedData.metodoPago = 'tarjeta';
+        } else {
+            updatedData.tarjetaCreditoId = '';
+            updatedData.metodoPago = '';
+        }
+
+        const txRef = doc(db, 'transactions', editingRecord.id);
+        await retryWithBackoff(() => updateDoc(txRef, updatedData));
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         const parsedAmount = parseFloat(amount);
@@ -393,49 +486,55 @@ export default function AddTransaction() {
             setError('');
 
             if (db && currentUser) {
-                const txData = {
-                    userId: currentUser.uid,
-                    type,
-                    amount: parsedAmount,
-                    category,
-                    date,
-                    note: note.trim(),
-                    merchant: merchant.trim(),
-                    rnc: rnc.trim(),
-                    ticketNumber: ticketNumber.trim(),
-                    operator: operator.trim(),
-                    location: location.trim(),
-                    details: details.trim(),
-                    timestamp: serverTimestamp()
-                };
+                if (isEditMode) {
+                    // ─── Edit Mode: update existing doc ───
+                    await handleUpdate();
+                } else {
+                    // ─── Create Mode: add new doc ───
+                    const txData = {
+                        userId: currentUser.uid,
+                        type,
+                        amount: parsedAmount,
+                        category,
+                        date,
+                        note: note.trim(),
+                        merchant: merchant.trim(),
+                        rnc: rnc.trim(),
+                        ticketNumber: ticketNumber.trim(),
+                        operator: operator.trim(),
+                        location: location.trim(),
+                        details: details.trim(),
+                        timestamp: serverTimestamp()
+                    };
 
-                if (type === 'expense' && isCreditCardPayment && selectedCardId) {
-                    txData.tarjetaCreditoId = selectedCardId;
-                    txData.metodoPago = 'tarjeta';
-                }
+                    if (type === 'expense' && isCreditCardPayment && selectedCardId) {
+                        txData.tarjetaCreditoId = selectedCardId;
+                        txData.metodoPago = 'tarjeta';
+                    }
 
-                await addDoc(collection(db, 'transactions'), txData);
+                    await addDoc(collection(db, 'transactions'), txData);
 
-                // Update Credit Card Balance
-                if (type === 'expense' && isCreditCardPayment && selectedCardId) {
-                    const card = creditCards.find(c => c.id === selectedCardId);
-                    if (card) {
-                        const currentBalance = Number(card.balanceDOP || card.balanceALaFecha || card.balance || 0);
-                        const newBalance = currentBalance + parsedAmount;
-                        const cardRef = doc(db, 'users', currentUser.uid, 'creditCards', selectedCardId);
-                        await updateDoc(cardRef, {
-                            ...(card.balanceDOP !== undefined && { balanceDOP: newBalance }),
-                            ...(card.balanceALaFecha !== undefined && { balanceALaFecha: newBalance }),
-                            ...(card.balance !== undefined && { balance: newBalance })
-                        }).catch(console.error);
+                    // Update Credit Card Balance
+                    if (type === 'expense' && isCreditCardPayment && selectedCardId) {
+                        const card = creditCards.find(c => c.id === selectedCardId);
+                        if (card) {
+                            const currentBalance = Number(card.balanceDOP || card.balanceALaFecha || card.balance || 0);
+                            const newBalance = currentBalance + parsedAmount;
+                            const cardRef = doc(db, 'users', currentUser.uid, 'creditCards', selectedCardId);
+                            await updateDoc(cardRef, {
+                                ...(card.balanceDOP !== undefined && { balanceDOP: newBalance }),
+                                ...(card.balanceALaFecha !== undefined && { balanceALaFecha: newBalance }),
+                                ...(card.balance !== undefined && { balance: newBalance })
+                            }).catch(console.error);
+                        }
                     }
                 }
             }
 
             navigate('/');
         } catch (err) {
-            console.error('Error adding document: ', err);
-            setError('Error al guardar la transacción.');
+            console.error(isEditMode ? 'Error updating document: ' : 'Error adding document: ', err);
+            setError(isEditMode ? 'Error al actualizar la transacción.' : 'Error al guardar la transacción.');
         } finally {
             setLoading(false);
         }
@@ -447,8 +546,8 @@ export default function AddTransaction() {
         <div className="flex flex-col min-h-screen bg-[#f7f9f8]">
             {/* Header */}
             <header className="px-6 py-4 flex items-center justify-between">
-                <button onClick={() => navigate(-1)} className="text-sm text-gray-500 font-medium">Cancelar</button>
-                <h1 className="text-lg font-bold">Añadir Transacción</h1>
+                <button onClick={() => { if (isEditMode) { setEditingRecord(null); } navigate(-1); }} className="text-sm text-gray-500 font-medium">{isEditMode ? 'Cancelar Edición' : 'Cancelar'}</button>
+                <h1 className="text-lg font-bold">{isEditMode ? 'Editar Transacción' : 'Añadir Transacción'}</h1>
                 <div className="w-16" />
             </header>
 
@@ -816,7 +915,7 @@ export default function AddTransaction() {
                         {loading ? (
                             <span className="material-symbols-rounded animate-spin">progress_activity</span>
                         ) : (
-                            'Guardar Transacción'
+                            isEditMode ? 'Actualizar Transacción' : 'Guardar Transacción'
                         )}
                     </button>
                 </div>

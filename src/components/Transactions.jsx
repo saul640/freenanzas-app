@@ -137,6 +137,10 @@ export default function Transactions() {
                     transaction={selectedTx}
                     creditCards={creditCards}
                     onClose={() => setSelectedTx(null)}
+                    onEdit={(tx) => {
+                        setSelectedTx(null);
+                        navigate(`/add/${tx.id}`);
+                    }}
                 />
             )}
 

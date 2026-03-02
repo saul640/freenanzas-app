@@ -34,6 +34,7 @@ function App() {
                 <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
                 <Route path="/onboarding" element={<Onboarding />} />
                 <Route path="/add" element={<PrivateRoute><AddTransaction /></PrivateRoute>} />
+                <Route path="/add/:txId" element={<PrivateRoute><AddTransaction /></PrivateRoute>} />
                 <Route path="/budgets" element={<PrivateRoute><BudgetsGoals /></PrivateRoute>} />
                 <Route path="/transactions" element={<PrivateRoute><Transactions /></PrivateRoute>} />
                 <Route path="/expenses" element={<PrivateRoute><ExpenseDetail /></PrivateRoute>} />

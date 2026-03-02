@@ -20,7 +20,7 @@ const DetailRow = ({ icon, label, value, valueClass = '' }) => {
  * Shows full detail of a transaction in a slide-up modal.
  * All data comes from client state — no extra DB calls.
  */
-export default function TransactionDetailModal({ transaction, creditCards, onClose }) {
+export default function TransactionDetailModal({ transaction, creditCards, onClose, onEdit }) {
     if (!transaction) return null;
 
     const tx = transaction;
@@ -133,11 +133,20 @@ export default function TransactionDetailModal({ transaction, creditCards, onClo
                     </div>
                 </div>
 
-                {/* Sticky Close Button — always visible */}
-                <div className="shrink-0 px-6 pt-3 pb-6" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 24px) + 8px)' }}>
+                {/* Sticky Action Buttons — always visible */}
+                <div className="shrink-0 px-6 pt-3 pb-6 flex gap-3" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 24px) + 8px)' }}>
+                    {onEdit && (
+                        <button
+                            onClick={() => onEdit(tx)}
+                            className="flex-1 py-3.5 rounded-2xl font-bold text-white bg-primary hover:bg-primary/90 transition-colors active:scale-[0.98] flex items-center justify-center gap-2"
+                        >
+                            <span className="material-symbols-rounded text-lg">edit</span>
+                            Editar
+                        </button>
+                    )}
                     <button
                         onClick={onClose}
-                        className="w-full py-3.5 rounded-2xl font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors active:scale-[0.98]"
+                        className={`${onEdit ? 'flex-1' : 'w-full'} py-3.5 rounded-2xl font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors active:scale-[0.98]`}
                     >
                         Cerrar
                     </button>
