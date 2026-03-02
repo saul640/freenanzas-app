@@ -12,7 +12,7 @@ import TransactionDetailModal from './TransactionDetailModal';
 
 export default function Dashboard() {
     const navigate = useNavigate();
-    const { currentUser, logout, isProUser, isTrialUser, userData } = useAuth();
+    const { currentUser, logout, isProUser, isTrialUser, userData, userStatus, trialDaysLeft } = useAuth();
     const { loans } = useLoans(currentUser?.uid); // Added loans hook
     const { insight: dailyInsightText, loading: insightLoading } = useDailyInsight(userData, currentUser);
 
@@ -134,6 +134,22 @@ export default function Dashboard() {
                     </div>
                 </div>
             </header>
+
+            {/* Trial countdown banner */}
+            {userStatus === 'TRIAL' && (
+                <div className="mx-6 mt-1 mb--2 flex items-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-2xl px-4 py-3 shadow-md">
+                    <span className="material-symbols-rounded text-xl">hourglass_top</span>
+                    <p className="flex-1 text-sm font-medium">
+                        Te {trialDaysLeft === 1 ? 'queda' : 'quedan'} <strong>{trialDaysLeft} día{trialDaysLeft !== 1 ? 's' : ''}</strong> de prueba gratuita
+                    </p>
+                    <button
+                        onClick={() => setShowPaywall(true)}
+                        className="bg-white text-indigo-600 text-xs font-bold px-3 py-1.5 rounded-xl active:scale-95 transition-transform whitespace-nowrap"
+                    >
+                        Ir a PRO
+                    </button>
+                </div>
+            )}
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto px-6 space-y-5 pb-40">
@@ -361,6 +377,29 @@ export default function Dashboard() {
 
             {/* Bottom Navigation */}
             <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} />
+
+            {/* Expired overlay — blocks entire dashboard if trial expired & not PRO */}
+            {userStatus === 'EXPIRED' && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center p-6">
+                    <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
+                        <div className="w-16 h-16 mx-auto bg-amber-100 rounded-full flex items-center justify-center mb-4">
+                            <span className="material-symbols-rounded text-amber-500 text-3xl">lock</span>
+                        </div>
+                        <h2 className="text-xl font-bold text-gray-900 mb-2">Tu prueba gratuita ha expirado</h2>
+                        <p className="text-sm text-gray-500 mb-6">
+                            Suscríbete a PRO para seguir disfrutando de Freenanzas con todas sus funciones.
+                        </p>
+                        <button
+                            onClick={() => setShowPaywall(true)}
+                            className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 text-white font-bold py-3.5 rounded-2xl shadow-lg active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+                        >
+                            <span className="material-symbols-rounded">crown</span>
+                            Suscribirme a PRO
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <BottomNav />
         </div>
     );

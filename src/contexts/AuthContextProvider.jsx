@@ -169,11 +169,30 @@ export function AuthProvider({ children }) {
         return false;
     }, [userData]);
 
+    // ── Derived: unified status string ──
+    const userStatus = React.useMemo(() => {
+        if (isProUser && !isTrialUser) return 'PRO';
+        if (isTrialUser) return 'TRIAL';
+        return 'EXPIRED';
+    }, [isProUser, isTrialUser]);
+
+    // ── Derived: days left in trial (0 if not in trial) ──
+    const trialDaysLeft = React.useMemo(() => {
+        if (!isTrialUser || !userData?.trialEndsAt) return 0;
+        const ends = userData.trialEndsAt.toDate
+            ? userData.trialEndsAt.toDate()
+            : new Date(userData.trialEndsAt);
+        const ms = ends.getTime() - Date.now();
+        return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
+    }, [isTrialUser, userData]);
+
     const value = {
         currentUser,
         userData,
         isProUser,
         isTrialUser,
+        userStatus,
+        trialDaysLeft,
         signup,
         login,
         loginWithGoogle,
