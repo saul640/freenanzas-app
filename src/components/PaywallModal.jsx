@@ -2,15 +2,27 @@ import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { FaCrown, FaTimes } from 'react-icons/fa';
 import { PayPalButtons, usePayPalScriptReducer, DISPATCH_ACTION } from "@paypal/react-paypal-js";
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { toast } from 'react-hot-toast';
+
+// ─── Exponential Backoff Utility ───
+const retryWithBackoff = async (fn, maxRetries = 3) => {
+    for (let i = 0; i < maxRetries; i++) {
+        try { return await fn(); }
+        catch (err) {
+            if (i === maxRetries - 1) throw err;
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
+        }
+    }
+};
 
 export default function PaywallModal({ isOpen, onClose }) {
     const { currentUser } = useAuth();
     const [{ isPending, isRejected }, dispatch] = usePayPalScriptReducer();
     const [loading, setLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState("");
-    const [billingCycle, setBillingCycle] = useState("monthly"); // "monthly" or "annual"
+    const [billingCycle, setBillingCycle] = useState("monthly");
 
     if (!isOpen) return null;
 
@@ -18,28 +30,35 @@ export default function PaywallModal({ isOpen, onClose }) {
     const planIdAnnual = import.meta.env.VITE_PAYPAL_PLAN_ANNUAL || "P-ANNUAL-TODO";
     const currentPlanId = billingCycle === "annual" ? planIdAnnual : planIdMonthly;
 
+    // ─── Auth + SDK readiness guard ───
+    const isReady = !!currentUser && !isPending && !isRejected;
+
     const handleApprove = async (data, _actions) => {
+        if (!currentUser || !db) {
+            setErrorMsg("Tu sesión ha expirado. Por favor, recarga la página e inténtalo de nuevo.");
+            return;
+        }
         setLoading(true);
         setErrorMsg("");
         try {
-            if (currentUser && db) {
-                const now = new Date();
-                const periodDays = billingCycle === "annual" ? 365 : 30;
-                const currentPeriodEnd = new Date(now.getTime() + periodDays * 24 * 60 * 60 * 1000);
+            const now = new Date();
+            const periodDays = billingCycle === "annual" ? 365 : 30;
+            const currentPeriodEnd = new Date(now.getTime() + periodDays * 24 * 60 * 60 * 1000);
 
-                const userRef = doc(db, 'users', currentUser.uid);
-                await updateDoc(userRef, {
+            const userRef = doc(db, 'users', currentUser.uid);
+            await retryWithBackoff(() =>
+                setDoc(userRef, {
                     isPro: true,
                     paypalSubscriptionId: data.subscriptionID,
-                    // Additive subscription metadata
-                    planType: billingCycle, // "monthly" or "annual"
+                    planType: billingCycle,
                     currentPeriodEnd: currentPeriodEnd,
                     cancelAtPeriodEnd: false,
                     subscriptionStartDate: now,
-                });
-                alert("¡Suscripción exitosa! Ahora eres usuario PRO y tienes acceso a todas las funciones de IA.");
-                onClose();
-            }
+                }, { merge: true })
+            );
+
+            toast.success('¡Suscripción exitosa! Ahora eres usuario PRO 🎉', { duration: 5000 });
+            onClose();
         } catch (error) {
             setErrorMsg("Hubo un error al actualizar tu cuenta. Por favor contacta a soporte.");
         } finally {
@@ -48,31 +67,36 @@ export default function PaywallModal({ isOpen, onClose }) {
     };
 
     const handleError = (err) => {
-        console.error("PayPal Error:", err);
-        setErrorMsg("En este momento estamos experimentando intermitencias con nuestro proveedor de pagos. Por favor, inténtalo de nuevo en unos minutos.");
+        const msg = err?.message || String(err);
+        if (msg.includes('INSTRUMENT_DECLINED') || msg.includes('funding')) {
+            setErrorMsg("Tu método de pago fue rechazado. Verifica tus fondos o intenta con otro método.");
+        } else if (msg.includes('popup') || msg.includes('window')) {
+            setErrorMsg("La ventana de PayPal se cerró antes de completar el pago. Intenta de nuevo.");
+        } else {
+            setErrorMsg("En este momento estamos experimentando intermitencias con PayPal. Intenta de nuevo en unos minutos.");
+        }
     };
 
     const handleCancel = (_data) => {
-        setErrorMsg("El pago fue cancelado. Inténtalo de nuevo.");
-    };
-
-    const handleRetryPayPal = () => {
-        dispatch({
-            type: DISPATCH_ACTION.RESET_OPTIONS,
-            value: {
-                "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID || "test",
-                intent: 'subscription',
-                vault: true,
-            },
-        });
+        setErrorMsg("El pago fue cancelado. Inténtalo de nuevo cuando estés listo.");
     };
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+            {/* ── Full-screen loading overlay during payment processing ── */}
+            {loading && (
+                <div className="fixed inset-0 bg-black/60 z-[60] flex flex-col items-center justify-center gap-4">
+                    <span className="material-symbols-rounded text-5xl text-white animate-spin">progress_activity</span>
+                    <p className="text-white text-lg font-semibold animate-pulse">Procesando tu suscripción…</p>
+                    <p className="text-white/60 text-sm">No cierres esta ventana</p>
+                </div>
+            )}
+
             <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl p-6 sm:p-8 w-full max-w-md relative animate-fade-in-up my-auto max-h-[90vh] overflow-y-auto">
                 <button
                     onClick={onClose}
-                    className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                    disabled={loading}
+                    className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors disabled:opacity-30"
                 >
                     <FaTimes size={20} />
                 </button>
@@ -112,8 +136,9 @@ export default function PaywallModal({ isOpen, onClose }) {
                     </div>
 
                     {errorMsg && (
-                        <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 p-3 rounded-lg w-full mb-4 text-sm font-medium">
-                            {errorMsg}
+                        <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 p-3 rounded-lg w-full mb-4 text-sm font-medium flex items-start gap-2">
+                            <span className="material-symbols-rounded text-[18px] mt-0.5 shrink-0">error</span>
+                            <span>{errorMsg}</span>
                         </div>
                     )}
 
@@ -162,11 +187,11 @@ export default function PaywallModal({ isOpen, onClose }) {
                     </div>
 
                     <div className="w-full relative z-0">
-                        {loading && <p className="text-amber-600 font-medium mb-4 animate-pulse">Procesando tu suscripción...</p>}
-
-                        {isPending && (
-                            <div className="flex justify-center items-center py-6">
-                                <p className="text-gray-500 text-sm">Cargando métodos de pago...</p>
+                        {/* Auth/SDK not ready — show loading */}
+                        {!isReady && !isRejected && (
+                            <div className="flex flex-col items-center gap-2 py-6">
+                                <span className="material-symbols-rounded text-3xl text-gray-400 animate-spin">progress_activity</span>
+                                <p className="text-gray-500 text-sm">Preparando métodos de pago…</p>
                             </div>
                         )}
 
@@ -184,8 +209,8 @@ export default function PaywallModal({ isOpen, onClose }) {
                             </div>
                         )}
 
-                        {/* We use a key to force re-render of PayPal buttons when plan changes */}
-                        {!isPending && !isRejected && (
+                        {/* PayPal buttons ONLY when auth + SDK are both ready */}
+                        {isReady && (
                             <div key={billingCycle}>
                                 <PayPalButtons
                                     style={{ layout: "vertical", shape: "pill", color: "gold", label: "subscribe" }}
@@ -196,10 +221,7 @@ export default function PaywallModal({ isOpen, onClose }) {
                                         });
                                     }}
                                     onApprove={handleApprove}
-                                    onError={(err) => {
-                                        console.error("PayPal Error:", err);
-                                        setErrorMsg("Estamos experimentando intermitencias. Por favor, intenta de nuevo.");
-                                    }}
+                                    onError={handleError}
                                     onCancel={handleCancel}
                                 />
                             </div>

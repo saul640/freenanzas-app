@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { collection, addDoc, doc, getDoc, onSnapshot, query, where, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+import { useAuth } from '../hooks/useAuth';
+import { useLoans } from '../hooks/useLoans';
+import { scanReceiptWithAI, getBestCategory, consultPreventiveAI, consultPreventiveAILocal, calcAhorroRecomendado } from '../lib/gemini';
+import PaywallModal from './PaywallModal';
 
 // ─── Exponential Backoff Utility ───
 const retryWithBackoff = async (fn, maxRetries = 3) => {
@@ -12,11 +17,6 @@ const retryWithBackoff = async (fn, maxRetries = 3) => {
         }
     }
 };
-import { db } from '../firebase';
-import { useAuth } from '../hooks/useAuth';
-import { useLoans } from '../hooks/useLoans';
-import { scanReceiptWithAI, getBestCategory, consultPreventiveAI, consultPreventiveAILocal, calcAhorroRecomendado } from '../lib/gemini';
-import PaywallModal from './PaywallModal';
 
 const expenseCategories = [
     { name: 'Comida', icon: 'shopping_cart' },

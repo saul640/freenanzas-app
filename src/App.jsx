@@ -25,8 +25,8 @@ function App() {
   };
 
   return (
-    <PayPalScriptProvider options={initialOptions}>
-      <AuthProvider>
+    <AuthProvider>
+      <PayPalScriptProvider options={initialOptions}>
         <Router>
           <div className="min-h-screen bg-background-light dark:bg-background-dark text-text-main dark:text-gray-100 transition-colors duration-300 font-display">
             <main className="max-w-md mx-auto bg-surface-light dark:bg-surface-dark min-h-screen shadow-soft relative overflow-hidden">
@@ -48,8 +48,8 @@ function App() {
             </main>
           </div>
         </Router>
-      </AuthProvider>
-    </PayPalScriptProvider>
+      </PayPalScriptProvider>
+    </AuthProvider>
   );
 }
 
