@@ -49,18 +49,21 @@ export default function SubscriptionCard({ onOpenPaywall }) {
     };
 
     // ── Determine plan label & status ──
+    // CRITICAL: Use `isPro` from useAuth() as single source of truth.
+    // Never check `userData?.isPro === true` independently — that breaks
+    // for grandfathered users where isPro is undefined in Firestore.
     const getPlanInfo = () => {
-        // PRO active (not cancelled)
-        if (isPro && userData?.isPro === true && !cancelAtPeriodEnd) {
-            const cycle = planType === 'annual' ? 'Anual' : 'Mensual';
+        // PRO active (not cancelled, not trial)
+        if (isPro && !isTrialUser && !cancelAtPeriodEnd) {
+            const cycle = planType === 'annual' ? 'Anual' : (planType === 'monthly' ? 'Mensual' : null);
             return {
-                label: `Plan PRO (${cycle})`,
+                label: cycle ? `Plan PRO (${cycle})` : 'Plan PRO',
                 badge: 'pro',
-                dateLabel: 'Próxima renovación',
-                date: currentPeriodEnd,
-                showCancel: true,
+                dateLabel: currentPeriodEnd ? 'Próxima renovación' : null,
+                date: currentPeriodEnd || null,
+                showCancel: !!subscriptionId,
                 showUpgrade: false,
-                showChangePlan: true,
+                showChangePlan: !!subscriptionId,
                 showReactivate: false,
             };
         }

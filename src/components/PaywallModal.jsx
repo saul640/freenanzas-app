@@ -81,6 +81,22 @@ export default function PaywallModal({ isOpen, onClose }) {
         setErrorMsg("El pago fue cancelado. Inténtalo de nuevo cuando estés listo.");
     };
 
+    // ─── Reset PayPal state without page reload ───
+    const resetPaymentState = () => {
+        setErrorMsg("");
+        setLoading(false);
+        dispatch({
+            type: DISPATCH_ACTION.RESET_OPTIONS,
+            value: {
+                "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID || "test",
+                currency: "USD",
+                intent: "subscription",
+                vault: true,
+                components: "buttons",
+            },
+        });
+    };
+
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
             {/* ── Full-screen loading overlay during payment processing ── */}
@@ -201,7 +217,7 @@ export default function PaywallModal({ isOpen, onClose }) {
                                     No se pudo cargar PayPal. Verifica tu conexión a internet.
                                 </p>
                                 <button
-                                    onClick={() => window.location.reload()}
+                                    onClick={resetPaymentState}
                                     className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 shadow-sm"
                                 >
                                     <span className="material-symbols-rounded text-[18px]">refresh</span> Reintentar
