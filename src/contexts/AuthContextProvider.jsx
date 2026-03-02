@@ -132,36 +132,31 @@ export function AuthProvider({ children }) {
         return () => unsub();
     }, [currentUser]);
 
+    // ── isProUser: SOLO usuarios pagados o grandfathered ──
+    // Trial NO otorga privilegios PRO
     const isProUser = React.useMemo(() => {
         if (!userData) return false;
         // 1. Grandfathering: si isPro no existe, es Pro (usuario antiguo)
         if (userData.isPro === undefined || userData.isPro === null) return true;
-        // 2. Explícitamente Pro
+        // 2. Explícitamente Pro (pagó)
         if (userData.isPro === true) {
             // 2a. Si canceló, verificar grace period
             if (userData.cancelAtPeriodEnd === true && userData.currentPeriodEnd) {
                 const periodEnd = userData.currentPeriodEnd.toDate
                     ? userData.currentPeriodEnd.toDate()
                     : new Date(userData.currentPeriodEnd);
-                // Si ya pasó la fecha de fin del periodo, revocar acceso
                 if (new Date() >= periodEnd) return false;
             }
             return true;
         }
-        // 3. Periodo de Trial (7 días)
-        if (userData.trialEndsAt) {
-            const ends = userData.trialEndsAt.toDate ? userData.trialEndsAt.toDate() : new Date(userData.trialEndsAt);
-            if (new Date() < ends) return true;
-        }
+        // 3. Trial NO da acceso PRO — el usuario debe pagar
         return false;
     }, [userData]);
 
-    // Indica si el usuario está en periodo de prueba activo (NO debe ver badge PRO)
+    // Indica si el usuario está en periodo de prueba (informativo, NO otorga acceso)
     const isTrialUser = React.useMemo(() => {
         if (!userData) return false;
-        // Si es PRO pagado o grandfathered, no es trial
         if (userData.isPro === true || userData.isPro === undefined || userData.isPro === null) return false;
-        // Es trial si isPro === false y trialEndsAt aún no ha pasado
         if (userData.trialEndsAt) {
             const ends = userData.trialEndsAt.toDate ? userData.trialEndsAt.toDate() : new Date(userData.trialEndsAt);
             if (new Date() < ends) return true;
@@ -169,14 +164,14 @@ export function AuthProvider({ children }) {
         return false;
     }, [userData]);
 
-    // ── Derived: unified status string ──
+    // ── Estado unificado ──
     const userStatus = React.useMemo(() => {
-        if (isProUser && !isTrialUser) return 'PRO';
-        if (isTrialUser) return 'TRIAL';
-        return 'EXPIRED';
+        if (isProUser) return 'PRO';
+        if (isTrialUser) return 'TRIAL';  // informativo, sin privilegios
+        return 'FREE';
     }, [isProUser, isTrialUser]);
 
-    // ── Derived: days left in trial (0 if not in trial) ──
+    // ── Días restantes de trial (informativo) ──
     const trialDaysLeft = React.useMemo(() => {
         if (!isTrialUser || !userData?.trialEndsAt) return 0;
         const ends = userData.trialEndsAt.toDate

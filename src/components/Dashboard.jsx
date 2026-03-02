@@ -135,12 +135,12 @@ export default function Dashboard() {
                 </div>
             </header>
 
-            {/* Trial countdown banner */}
+            {/* Promotional trial banner — no otorga acceso, solo informa */}
             {userStatus === 'TRIAL' && (
-                <div className="mx-6 mt-1 mb--2 flex items-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-2xl px-4 py-3 shadow-md">
-                    <span className="material-symbols-rounded text-xl">hourglass_top</span>
+                <div className="mx-6 mt-1 flex items-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-2xl px-4 py-3 shadow-md">
+                    <span className="material-symbols-rounded text-xl">auto_awesome</span>
                     <p className="flex-1 text-sm font-medium">
-                        Te {trialDaysLeft === 1 ? 'queda' : 'quedan'} <strong>{trialDaysLeft} día{trialDaysLeft !== 1 ? 's' : ''}</strong> de prueba gratuita
+                        Desbloquea IA y reportes avanzados
                     </p>
                     <button
                         onClick={() => setShowPaywall(true)}
@@ -378,16 +378,16 @@ export default function Dashboard() {
             {/* Bottom Navigation */}
             <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} />
 
-            {/* Expired overlay — blocks entire dashboard if trial expired & not PRO */}
-            {userStatus === 'EXPIRED' && (
+            {/* Paywall overlay — blocks dashboard for FREE users (trial expired) */}
+            {userStatus === 'FREE' && (
                 <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center p-6">
                     <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
                         <div className="w-16 h-16 mx-auto bg-amber-100 rounded-full flex items-center justify-center mb-4">
                             <span className="material-symbols-rounded text-amber-500 text-3xl">lock</span>
                         </div>
-                        <h2 className="text-xl font-bold text-gray-900 mb-2">Tu prueba gratuita ha expirado</h2>
+                        <h2 className="text-xl font-bold text-gray-900 mb-2">Suscríbete a PRO</h2>
                         <p className="text-sm text-gray-500 mb-6">
-                            Suscríbete a PRO para seguir disfrutando de Freenanzas con todas sus funciones.
+                            Activa tu suscripción para acceder a todas las funciones de Freenanzas.
                         </p>
                         <button
                             onClick={() => setShowPaywall(true)}
