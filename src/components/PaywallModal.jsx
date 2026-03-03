@@ -28,6 +28,10 @@ function PaywallModalContent({ onClose }) {
     const planIdAnnual = import.meta.env.VITE_PAYPAL_PLAN_ANNUAL || "P-ANNUAL-TODO";
     const currentPlanId = billingCycle === "annual" ? planIdAnnual : planIdMonthly;
 
+    const fallbackLinkMonthly = import.meta.env.VITE_PAYPAL_FALLBACK_MONTHLY || "";
+    const fallbackLinkAnnual = import.meta.env.VITE_PAYPAL_FALLBACK_ANNUAL || "";
+    const currentFallbackLink = billingCycle === "annual" ? fallbackLinkAnnual : fallbackLinkMonthly;
+
     // ─── Auth + SDK readiness guard ───
     const isReady = !!currentUser && !isPending && !isRejected;
 
@@ -210,16 +214,39 @@ function PaywallModalContent({ onClose }) {
                         )}
 
                         {isRejected && (
-                            <div className="flex flex-col items-center gap-3 py-6 bg-red-50 rounded-xl p-4">
-                                <p className="text-red-500 text-sm text-center">
-                                    No se pudo cargar PayPal. Verifica tu conexión a internet.
+                            <div className="flex flex-col items-center gap-3 py-6 bg-red-50 dark:bg-red-900/30 rounded-xl p-4">
+                                <p className="text-red-500 text-sm text-center font-medium">
+                                    No pudimos conectar con el sistema base de PayPal en este momento.
                                 </p>
-                                <button
-                                    onClick={resetPaymentState}
-                                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                                >
-                                    <span className="material-symbols-rounded text-[18px]">refresh</span> Reintentar
-                                </button>
+                                {currentFallbackLink ? (
+                                    <div className="flex flex-col items-center gap-2 w-full mt-2">
+                                        <p className="text-gray-700 dark:text-gray-300 text-xs text-center mb-1">
+                                            ¡No te preocupes! Puedes suscribirte de forma segura usando nuestro enlace de pago directo:
+                                        </p>
+                                        <a
+                                            href={currentFallbackLink}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="w-full bg-[#0070ba] hover:bg-[#003087] text-white px-4 py-3 rounded-full text-sm font-bold transition-colors shadow-md flex items-center justify-center gap-2"
+                                            onClick={() => onClose()}
+                                        >
+                                            Pagar con PayPal <span className="material-symbols-rounded text-[18px]">open_in_new</span>
+                                        </a>
+                                        <button
+                                            onClick={resetPaymentState}
+                                            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-xs mt-3 underline"
+                                        >
+                                            Reintentar cargar el módulo integrado
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={resetPaymentState}
+                                        className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 shadow-sm mt-2"
+                                    >
+                                        <span className="material-symbols-rounded text-[18px]">refresh</span> Reintentar
+                                    </button>
+                                )}
                             </div>
                         )}
 
