@@ -13,8 +13,9 @@ import TransactionDetailModal from './TransactionDetailModal';
 export default function Dashboard() {
     const navigate = useNavigate();
     const { currentUser, logout, isProUser, isTrialUser, userData, userStatus, trialDaysLeft } = useAuth();
-    const { loans } = useLoans(currentUser?.uid); // Added loans hook
+    const { loans } = useLoans(currentUser?.uid);
     const { insight: dailyInsightText, loading: insightLoading } = useDailyInsight(userData, currentUser);
+    const canAccessPremium = isProUser || isTrialUser;
 
     const [transactions, setTransactions] = useState([]);
     const [balance, setBalance] = useState({ total: 0, income: 0, expense: 0 });
@@ -249,21 +250,25 @@ export default function Dashboard() {
                             <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center"><span className="material-symbols-rounded text-emerald-500">account_balance</span></div>
                             <div><p className="text-sm font-bold text-gray-800">Presupuesto</p><p className="text-[10px] text-gray-400">Mensual</p></div>
                         </button>
-                        <button onClick={() => navigate('/cards')} className="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 active:scale-95 transition-transform text-left">
+                        <button onClick={() => canAccessPremium ? navigate('/cards') : setShowPaywall(true)} className={`bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 active:scale-95 transition-transform text-left relative ${!canAccessPremium ? 'opacity-70' : ''}`}>
                             <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center"><span className="material-symbols-rounded text-purple-500">credit_card</span></div>
                             <div><p className="text-sm font-bold text-gray-800">Tarjetas</p><p className="text-[10px] text-gray-400">Crédito</p></div>
+                            {!canAccessPremium && <span className="absolute top-2 right-2 material-symbols-rounded text-amber-500 text-sm">lock</span>}
                         </button>
-                        <button onClick={() => navigate('/advisor')} className="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 active:scale-95 transition-transform text-left">
+                        <button onClick={() => canAccessPremium ? navigate('/advisor') : setShowPaywall(true)} className={`bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 active:scale-95 transition-transform text-left relative ${!canAccessPremium ? 'opacity-70' : ''}`}>
                             <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center"><span className="material-symbols-rounded text-violet-500">auto_awesome</span></div>
                             <div><p className="text-sm font-bold text-gray-800">Asesor IA</p><p className="text-[10px] text-gray-400">Consejos</p></div>
+                            {!canAccessPremium && <span className="absolute top-2 right-2 material-symbols-rounded text-amber-500 text-sm">lock</span>}
                         </button>
-                        <button onClick={() => navigate('/loans')} className="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 active:scale-95 transition-transform text-left">
+                        <button onClick={() => canAccessPremium ? navigate('/loans') : setShowPaywall(true)} className={`bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 active:scale-95 transition-transform text-left relative ${!canAccessPremium ? 'opacity-70' : ''}`}>
                             <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center"><span className="material-symbols-rounded text-amber-500">account_balance</span></div>
                             <div><p className="text-sm font-bold text-gray-800">Préstamos</p><p className="text-[10px] text-gray-400">Deudas</p></div>
+                            {!canAccessPremium && <span className="absolute top-2 right-2 material-symbols-rounded text-amber-500 text-sm">lock</span>}
                         </button>
-                        <button onClick={() => navigate('/add')} className="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-cyan-100 active:scale-95 transition-transform text-left">
+                        <button onClick={() => canAccessPremium ? navigate('/add') : setShowPaywall(true)} className={`bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-cyan-100 active:scale-95 transition-transform text-left relative ${!canAccessPremium ? 'opacity-70' : ''}`}>
                             <div className="w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center"><span className="material-symbols-rounded text-cyan-500">smart_toy</span></div>
                             <div><p className="text-sm font-bold text-gray-800">Filtro IA</p><p className="text-[10px] text-gray-400">Preventivo</p></div>
+                            {!canAccessPremium && <span className="absolute top-2 right-2 material-symbols-rounded text-amber-500 text-sm">lock</span>}
                         </button>
                     </div>
                 </div>

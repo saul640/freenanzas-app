@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from './BottomNav';
+import PaywallModal from './PaywallModal';
 
 const GRADIENTS = [
     'from-slate-700 to-slate-900',
@@ -115,7 +116,9 @@ const EMPTY_FORM = {
 
 export default function CreditCards() {
     const navigate = useNavigate();
-    const { currentUser } = useAuth();
+    const { currentUser, isProUser, isTrialUser } = useAuth();
+    const canAccessPremium = isProUser || isTrialUser;
+    const [showPaywall, setShowPaywall] = useState(false);
     const [cards, setCards] = useState([]);
 
     const [showForm, setShowForm] = useState(false);
@@ -281,446 +284,474 @@ export default function CreditCards() {
     const paymentCurrencyLabel = paymentCurrency === 'USD' ? 'US$' : 'RD$';
 
     return (
-        <div className="flex flex-col min-h-screen bg-[#f5f7f6]">
-            <header className="fixed top-0 left-0 right-0 max-w-md mx-auto z-20 bg-[#f5f7f6]/90 backdrop-blur-md px-6 pt-12 pb-4 flex items-center justify-between">
-                <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-black/5 active:scale-95 transition-all"><span className="material-symbols-rounded text-2xl text-gray-800">arrow_back_ios_new</span></button>
-                <h1 className="text-xl font-bold text-gray-900">Tarjetas de Crédito</h1>
-                <button onClick={openAdd} className="w-10 h-10 flex items-center justify-center rounded-xl bg-primary/10 hover:bg-primary/20 active:scale-95 transition-all"><span className="material-symbols-rounded text-2xl text-primary">add</span></button>
-            </header>
-
-            <div className="pt-28 pb-40 px-5 space-y-5">
-                {/* ══════════ SUMMARY ══════════ */}
-                <div className="bg-gradient-to-br from-slate-800 to-slate-950 rounded-[28px] p-6 shadow-lg relative overflow-hidden">
-                    <div className="absolute -top-8 -right-8 w-28 h-28 bg-white/5 rounded-full blur-2xl" />
-                    <p className="text-white/60 text-xs font-bold uppercase tracking-wider">Deuda Total (TC + Credimás)</p>
-                    <p className="text-3xl font-extrabold text-white mt-1">RD$ {formatMoney(totalDebt)}</p>
-                    <p className="text-white/50 text-xs mt-1">Crédito disponible: RD$ {formatMoney(Math.max(totalLimit - totalDebt, 0))}</p>
-                    <div className="flex gap-3 mt-3 flex-wrap">
-                        {cards.length > 0 && (
-                            <div className="bg-cyan-500/20 rounded-xl px-3 py-2">
-                                <p className="text-cyan-300 text-[10px] font-bold uppercase">USD</p>
-                                <p className="text-white font-extrabold text-sm">US$ {formatMoney(totalDebtUSD)} <span className="text-white/50 text-[10px]">/ {formatMoney(totalLimitUSD)}</span></p>
-                            </div>
-                        )}
-                        {totalCredimas > 0 && (
-                            <div className="bg-white/10 rounded-xl px-3 py-2">
-                                <p className="text-white/60 text-[10px] font-bold uppercase">Credimás/Mes</p>
-                                <p className="text-white font-extrabold text-sm">RD$ {formatMoney(totalCredimas)}</p>
-                            </div>
-                        )}
-                        <div className="bg-white/10 rounded-xl px-3 py-2">
-                            <p className="text-white/60 text-[10px] font-bold uppercase">Tarjetas</p>
-                            <p className="text-white font-extrabold text-sm">{cards.length}</p>
+        <>
+            {/* PRO Lock Overlay */}
+            {!canAccessPremium && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center p-6">
+                    <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
+                        <div className="w-16 h-16 mx-auto bg-purple-100 rounded-full flex items-center justify-center mb-4">
+                            <span className="material-symbols-rounded text-purple-500 text-3xl">credit_card</span>
                         </div>
-                    </div>
-                    {totalDebt === 0 && <span className="inline-block mt-2 bg-green-500/20 text-green-300 text-xs font-bold px-3 py-1 rounded-full">🎉 Totalero — Sin deuda</span>}
-                </div>
-
-
-
-                {/* ══════════ CARD LIST ══════════ */}
-                {cards.length > 0 && (
-                    <div className="space-y-4">
-                        {cards.map((card, i) => {
-                            const bal = getCardBalanceDOP(card);
-                            const limPesos = getCardLimitDOP(card);
-                            const limDolares = getCardLimitUSD(card);
-                            const balCorte = card.balanceAlCorte || 0;
-                            const usagePesos = limPesos > 0 ? Math.round((bal / limPesos) * 100) : 0;
-                            const balUSD = getCardBalanceUSD(card);
-                            const dispDOP = Math.max(limPesos - bal, 0);
-                            const dispUSD = Math.max(limDolares - balUSD, 0);
-                            const usageUSD = limDolares > 0 ? Math.round((balUSD / limDolares) * 100) : 0;
-                            const minPaymentDOP = getCardMinPaymentDOP(card);
-                            const minPaymentUSD = getCardMinPaymentUSD(card);
-                            const daysPay = daysUntil(card.fechaLimitePago || card.paymentDueDay || 25);
-                            const daysCut = daysUntil(card.cutoffDay || 15);
-                            const isUrgent = daysPay <= 5 && balCorte > 0;
-                            const hasCredimas = (card.credimasLimiteAprobado || 0) > 0;
-                            const isExpanded = expandedCard === card.id;
-
-                            return (
-                                <div key={card.id} className="space-y-0">
-                                    {/* Main Card */}
-                                    <div className={`bg-gradient-to-br ${GRADIENTS[i % GRADIENTS.length]} rounded-[28px] p-6 shadow-lg relative overflow-hidden`}>
-                                        <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-white/5 rounded-full blur-xl" />
-
-                                        {/* Header */}
-                                        <div className="flex items-center justify-between mb-4">
-                                            <div>
-                                                <p className="text-white/70 text-xs font-bold uppercase tracking-wider">{card.name}</p>
-                                                <p className="text-2xl font-extrabold text-white mt-1">RD$ {formatMoney(bal)}</p>
-                                                <p className="text-white/50 text-[10px]">Balance a la fecha</p>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <button onClick={() => openPayment(card)} className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center active:scale-90 transition-transform">
-                                                    <span className="material-symbols-rounded text-white/70 text-lg">payments</span>
-                                                </button>
-                                                <button onClick={() => openEdit(card)} className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center active:scale-90 transition-transform">
-                                                    <span className="material-symbols-rounded text-white/70 text-lg">edit</span>
-                                                </button>
-                                                <span className="material-symbols-rounded text-3xl text-white/30">credit_card</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-3 mb-3">
-                                            {/* DOP Section */}
-                                            <div className="bg-white/10 rounded-xl px-3 py-2.5">
-                                                <div className="flex justify-between text-white/60 text-[10px] font-semibold mb-1">
-                                                    <span>🇩🇴 DOP</span>
-                                                    <span>{usagePesos}% usado</span>
-                                                </div>
-                                                <div className="w-full h-2 bg-white/20 rounded-full overflow-hidden">
-                                                    <div className={`h-full rounded-full transition-all duration-700 ${usagePesos > 80 ? 'bg-red-400' : usagePesos > 50 ? 'bg-amber-400' : 'bg-white'}`} style={{ width: `${Math.min(usagePesos, 100)}%` }} />
-                                                </div>
-                                                <div className="flex justify-between mt-1.5">
-                                                    <span className="text-white/50 text-[10px]">Límite: RD$ {formatMoney(limPesos)}</span>
-                                                    <span className="text-white/50 text-[10px]">Disp: RD$ {formatMoney(dispDOP)}</span>
-                                                </div>
-                                            </div>
-                                            {/* USD Section */}
-                                            <div className="bg-cyan-500/15 rounded-xl px-3 py-2.5">
-                                                <div className="flex justify-between text-cyan-200/80 text-[10px] font-semibold mb-1">
-                                                    <span>🇺🇸 USD</span>
-                                                    <span>{usageUSD}% usado</span>
-                                                </div>
-                                                <div className="w-full h-2 bg-white/15 rounded-full overflow-hidden">
-                                                    <div className={`h-full rounded-full transition-all duration-700 ${usageUSD > 80 ? 'bg-red-400' : usageUSD > 50 ? 'bg-amber-400' : 'bg-cyan-300'}`} style={{ width: `${Math.min(usageUSD, 100)}%` }} />
-                                                </div>
-                                                <div className="flex justify-between mt-1.5">
-                                                    <span className="text-cyan-200/60 text-[10px]">Límite: US$ {formatMoney(limDolares)}</span>
-                                                    <span className="text-cyan-200/60 text-[10px]">Disp: US$ {formatMoney(dispUSD)}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Dates & Alerts */}
-                                        <div className="flex gap-2 relative">
-                                            {isUrgent && card.notificacionesPago !== false && (
-                                                <div className="absolute -top-2 -right-2 flex h-4 w-4 z-10">
-                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                                    <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-slate-900 shadow"></span>
-                                                </div>
-                                            )}
-                                            <div className={`flex-1 rounded-xl px-3 py-2 text-center ${daysCut <= 5 ? 'bg-amber-500/30' : 'bg-white/10'}`}>
-                                                <p className="text-white/80 text-[10px] font-bold uppercase">Corte</p>
-                                                <p className="text-white text-sm font-extrabold">{daysCut}d</p>
-                                                <p className="text-white/60 text-[10px]">{formatDate(card.cutoffDay || 15)}</p>
-                                            </div>
-                                            <div className={`flex-1 rounded-xl px-3 py-2 text-center ${isUrgent ? 'bg-red-500/40 ring-1 ring-red-400/50' : 'bg-white/10'}`}>
-                                                <p className="text-white/80 text-[10px] font-bold uppercase">Pagar antes</p>
-                                                <p className="text-white text-sm font-extrabold">{daysPay}d</p>
-                                                <p className="text-white/60 text-[10px]">{formatDate(card.fechaLimitePago || card.paymentDueDay || 25)}</p>
-                                            </div>
-                                            <div className="flex-1 rounded-xl px-3 py-2 text-center bg-white/10">
-                                                <p className="text-white/80 text-[10px] font-bold uppercase">Pago mín</p>
-                                                <p className="text-white text-sm font-extrabold">RD$ {formatMoney(minPaymentDOP)}</p>
-                                                <p className="text-white/60 text-[10px]">US$ {formatMoney(minPaymentUSD)}</p>
-                                            </div>
-                                        </div>
-
-                                        {/* Balance al Corte Warning */}
-                                        {balCorte > 0 && (
-                                            <div className={`mt-3 rounded-xl px-3 py-2 ${isUrgent ? 'bg-red-500/30 border border-red-400/30' : 'bg-white/10'}`}>
-                                                <p className={`text-xs font-bold leading-snug ${isUrgent ? 'text-red-200' : 'text-amber-300'}`}>
-                                                    {isUrgent ? '🚨' : '💡'} Totalero: Paga RD$ {formatMoney(balCorte)} (al corte) antes del {formatDate(card.fechaLimitePago || card.paymentDueDay || 25)}.
-                                                </p>
-                                            </div>
-                                        )}
-
-                                        {/* Expand toggle */}
-                                        {hasCredimas && (
-                                            <button onClick={() => setExpandedCard(isExpanded ? null : card.id)} className="w-full mt-3 flex items-center justify-center gap-1 text-white/50 text-xs">
-                                                <span>{isExpanded ? 'Ocultar Credimás' : 'Ver Credimás'}</span>
-                                                <span className={`material-symbols-rounded text-sm transition-transform ${isExpanded ? 'rotate-180' : ''}`}>expand_more</span>
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    {/* Credimás Section (expandable) */}
-                                    {hasCredimas && isExpanded && (
-                                        <div className="bg-gradient-to-r from-cyan-600 to-blue-700 rounded-b-[28px] -mt-4 pt-7 pb-5 px-6 shadow-md">
-                                            <div className="flex items-center gap-2 mb-3">
-                                                <span className="material-symbols-rounded text-cyan-200 text-lg">add_card</span>
-                                                <p className="text-white font-bold text-sm">Extra Crédito (Credimás)</p>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div className="bg-white/15 rounded-xl px-3 py-2">
-                                                    <p className="text-white/70 text-[10px] font-bold uppercase">Aprobado</p>
-                                                    <p className="text-white font-extrabold text-sm">RD$ {formatMoney(card.credimasLimiteAprobado)}</p>
-                                                </div>
-                                                <div className="bg-white/15 rounded-xl px-3 py-2">
-                                                    <p className="text-white/70 text-[10px] font-bold uppercase">Disponible</p>
-                                                    <p className="text-white font-extrabold text-sm">RD$ {formatMoney(card.credimasDisponible || 0)}</p>
-                                                </div>
-                                                <div className="bg-white/15 rounded-xl px-3 py-2">
-                                                    <p className="text-white/70 text-[10px] font-bold uppercase">Adeudado</p>
-                                                    <p className="text-white font-extrabold text-sm">RD$ {formatMoney(card.credimasTotalAdeudado || 0)}</p>
-                                                </div>
-                                                <div className="bg-amber-500/30 rounded-xl px-3 py-2">
-                                                    <p className="text-white/70 text-[10px] font-bold uppercase">Cuota/Mes</p>
-                                                    <p className="text-white font-extrabold text-sm">RD$ {formatMoney(card.credimasCuotaMensual || 0)}</p>
-                                                </div>
-                                            </div>
-                                            <p className="text-cyan-200/70 text-[10px] mt-2 italic">⚠️ Usa Credimás solo para emergencias reales o bienes duraderos planificados.</p>
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {/* Empty State */}
-                {cards.length === 0 && !showForm && (
-                    <div className="text-center py-12">
-                        <span className="material-symbols-rounded text-6xl text-gray-200">credit_card</span>
-                        <p className="text-sm text-gray-400 mt-3">Aún no tienes tarjetas registradas.</p>
-                        <button onClick={openAdd} className="mt-3 text-primary font-bold text-sm">+ Agregar tarjeta</button>
-                    </div>
-                )}
-
-                {/* ══════════ DEBT PAYOFF ══════════ */}
-                {totalDebt > 0 && (
-                    <div className="bg-white rounded-[28px] p-6 shadow-sm">
-                        <h3 className="text-[17px] font-bold text-gray-900 mb-1">Plan para Salir de Deuda</h3>
-                        <p className="text-xs text-gray-400 mb-4">Pago extra mensual adicional a los mínimos</p>
-                        <div className="flex items-center gap-3 mb-5">
-                            <span className="text-sm font-bold text-gray-600">RD$</span>
-                            <input type="number" value={extraPayment} onChange={e => setExtraPayment(e.target.value)} className="flex-1 bg-gray-50 rounded-xl px-4 py-2.5 text-sm font-bold outline-none" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-4">
-                                <p className="text-xs font-bold text-indigo-600 mb-2">⚡ Avalancha</p>
-                                <p className="text-sm text-gray-500">Mayor tasa primero</p>
-                                <p className="text-2xl font-extrabold text-gray-900 mt-2">{avalanche.months} <span className="text-sm font-semibold text-gray-400">meses</span></p>
-                                <p className="text-[10px] text-gray-400 mt-1">Intereses: RD$ {formatMoney(avalanche.totalInterest)}</p>
-                            </div>
-                            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-4">
-                                <p className="text-xs font-bold text-emerald-600 mb-2">❄️ Bola de Nieve</p>
-                                <p className="text-sm text-gray-500">Menor saldo primero</p>
-                                <p className="text-2xl font-extrabold text-gray-900 mt-2">{snowball.months} <span className="text-sm font-semibold text-gray-400">meses</span></p>
-                                <p className="text-[10px] text-gray-400 mt-1">Intereses: RD$ {formatMoney(snowball.totalInterest)}</p>
-                            </div>
-                        </div>
-                        <p className="text-[10px] text-gray-400 mt-3 text-center">
-                            {avalanche.totalInterest < snowball.totalInterest
-                                ? '⚡ Avalancha ahorra más en intereses'
-                                : '❄️ Bola de Nieve ofrece victorias rápidas'}
+                        <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold px-3 py-1 rounded-full mb-3">Solo PRO</span>
+                        <h2 className="text-xl font-bold text-gray-900 mb-2">Módulo de Tarjetas</h2>
+                        <p className="text-sm text-gray-500 mb-6">
+                            Gestiona tus tarjetas de crédito, analiza deudas y optimiza pagos con tu suscripción PRO.
                         </p>
-                    </div>
-                )}
-            </div>
-
-            {/* ══════════ ADD/EDIT FORM MODAL ══════════ */}
-            {showForm && (
-                <div className="fixed inset-0 z-50 flex items-end justify-center">
-                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setShowForm(false); setEditId(null); }} />
-                    <div className="relative w-full max-w-md bg-white rounded-t-[32px] max-h-[85vh] flex flex-col animate-in slide-in-from-bottom duration-300">
-                        <div className="shrink-0 pt-6 px-6">
-                            <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-5" />
-                            <h2 className="text-xl font-extrabold text-gray-900 mb-5">{editId ? 'Editar Tarjeta' : 'Nueva Tarjeta'}</h2>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto px-6">
-                            <div className="space-y-4">
-                                {/* Name */}
-                                <div>
-                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Nombre del Plástico</label>
-                                    <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ej. Visa Gold, MC Platinum" className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm font-medium outline-none" />
-                                </div>
-
-                                {/* Dual Limits */}
-                                <div>
-                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Límites</p>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="text-[10px] text-gray-400 mb-0.5 block">Pesos (DOP)</label>
-                                            <input type="number" value={form.limitePesos} onChange={e => setForm({ ...form, limitePesos: e.target.value })} placeholder="200,000" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] text-gray-400 mb-0.5 block">Dólares (USD)</label>
-                                            <input type="number" value={form.limiteDolares} onChange={e => setForm({ ...form, limiteDolares: e.target.value })} placeholder="3,500" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Balances DOP */}
-                                <div>
-                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Balances DOP</p>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="text-[10px] text-gray-400 mb-0.5 block">A la Fecha</label>
-                                            <input type="number" value={form.balanceALaFecha} onChange={e => setForm({ ...form, balanceALaFecha: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] text-gray-400 mb-0.5 block">Al Corte</label>
-                                            <input type="number" value={form.balanceAlCorte} onChange={e => setForm({ ...form, balanceAlCorte: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Balances USD */}
-                                <div>
-                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Balances USD</p>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="text-[10px] text-gray-400 mb-0.5 block">A la Fecha (USD)</label>
-                                            <input type="number" value={form.balanceDolaresALaFecha} onChange={e => setForm({ ...form, balanceDolaresALaFecha: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] text-gray-400 mb-0.5 block">Al Corte (USD)</label>
-                                            <input type="number" value={form.balanceDolaresAlCorte} onChange={e => setForm({ ...form, balanceDolaresAlCorte: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Minimum Payments */}
-                                <div>
-                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Pagos Mínimos</p>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="text-[10px] text-gray-400 mb-0.5 block">DOP</label>
-                                            <input type="number" value={form.pagoMinimo} onChange={e => setForm({ ...form, pagoMinimo: e.target.value })} placeholder="500" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] text-gray-400 mb-0.5 block">USD</label>
-                                            <input type="number" value={form.pagoMinimoUSD} onChange={e => setForm({ ...form, pagoMinimoUSD: e.target.value })} placeholder="25" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Rate & Cutoff */}
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="text-[10px] text-gray-400 mb-0.5 block">Tasa %/año</label>
-                                        <input type="number" value={form.interestRate} onChange={e => setForm({ ...form, interestRate: e.target.value })} placeholder="40" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] text-gray-400 mb-0.5 block">Día Corte</label>
-                                        <input type="number" value={form.cutoffDay} onChange={e => setForm({ ...form, cutoffDay: e.target.value })} placeholder="15" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                    </div>
-                                </div>
-
-                                {/* Payment Due */}
-                                <div>
-                                    <label className="text-[10px] text-gray-400 mb-0.5 block">Día Límite de Pago</label>
-                                    <input type="number" value={form.fechaLimitePago} onChange={e => setForm({ ...form, fechaLimitePago: e.target.value })} placeholder="25" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                </div>
-
-                                {/* Alerts Toggle */}
-                                <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between mt-2">
-                                    <div>
-                                        <p className="text-sm font-bold text-gray-700">Notificaciones de Pago</p>
-                                        <p className="text-[10px] text-gray-400">Recibir alertas de vencimiento (5 días antes)</p>
-                                    </div>
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" checked={form.notificacionesPago} onChange={e => setForm({ ...form, notificacionesPago: e.target.checked })} className="sr-only peer" />
-                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-slate-900 border border-gray-100"></div>
-                                    </label>
-                                </div>
-
-                                {/* Credimás Section */}
-                                <div className="border-t border-gray-100 pt-4">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <span className="material-symbols-rounded text-cyan-500 text-lg">add_card</span>
-                                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Extra Crédito (Credimás)</p>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="text-[10px] text-gray-400 mb-0.5 block">Límite Aprobado</label>
-                                            <input type="number" value={form.credimasLimiteAprobado} onChange={e => setForm({ ...form, credimasLimiteAprobado: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] text-gray-400 mb-0.5 block">Disponible</label>
-                                            <input type="number" value={form.credimasDisponible} onChange={e => setForm({ ...form, credimasDisponible: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] text-gray-400 mb-0.5 block">Total Adeudado</label>
-                                            <input type="number" value={form.credimasTotalAdeudado} onChange={e => setForm({ ...form, credimasTotalAdeudado: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] text-gray-400 mb-0.5 block">Cuota Mensual</label>
-                                            <input type="number" value={form.credimasCuotaMensual} onChange={e => setForm({ ...form, credimasCuotaMensual: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Sticky Actions — always visible */}
-                        <div className="shrink-0 px-6 pt-4 pb-6 space-y-3 border-t border-gray-100">
-                            <button onClick={handleSave} disabled={saving || !form.name.trim()} className="w-full bg-gradient-to-r from-slate-800 to-slate-950 text-white font-bold py-4 rounded-2xl disabled:opacity-50 active:scale-[0.98] transition-transform">
-                                {saving ? 'Guardando...' : editId ? 'Actualizar Tarjeta' : '+ Agregar Tarjeta'}
-                            </button>
-                            {editId && (
-                                <button onClick={() => { handleDelete(editId); setShowForm(false); setEditId(null); }} className="w-full text-red-500 font-bold py-3 rounded-2xl bg-red-50 active:scale-[0.98] transition-transform">
-                                    Eliminar Tarjeta
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ══════════ PAYMENT MODAL ══════════ */}
-            {paymentCard && (
-                <div className="fixed inset-0 z-50 flex items-end justify-center">
-                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setPaymentCard(null)} />
-                    <div className="relative w-full max-w-md bg-white rounded-t-[32px] p-6 pb-8 animate-in slide-in-from-bottom duration-300">
-                        <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-5" />
-                        <div className="flex items-center justify-between mb-4">
-                            <div>
-                                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Pago a</p>
-                                <p className="text-lg font-extrabold text-gray-900">{paymentCard.name}</p>
-                            </div>
-                            <button onClick={() => setPaymentCard(null)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                                <span className="material-symbols-rounded text-gray-400">close</span>
-                            </button>
-                        </div>
-
-                        <div className="flex bg-gray-100 rounded-2xl p-1 mb-4">
-                            <button
-                                onClick={() => setPaymentCurrency('DOP')}
-                                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${paymentCurrency === 'DOP' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`}
-                            >
-                                DOP
-                            </button>
-                            <button
-                                onClick={() => setPaymentCurrency('USD')}
-                                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${paymentCurrency === 'USD' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`}
-                            >
-                                USD
-                            </button>
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Monto a abonar</label>
-                            <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-3">
-                                <span className="text-sm font-bold text-gray-500">{paymentCurrencyLabel}</span>
-                                <input
-                                    type="number"
-                                    value={paymentAmount}
-                                    onChange={(e) => setPaymentAmount(e.target.value)}
-                                    placeholder="0"
-                                    className="flex-1 bg-transparent text-sm font-semibold outline-none"
-                                />
-                            </div>
-                            <p className="text-[10px] text-gray-400">Balance actual: {paymentCurrencyLabel} {formatMoney(paymentBalance)}</p>
-                        </div>
-
                         <button
-                            onClick={handlePayment}
-                            disabled={processingPayment || !paymentAmount}
-                            className="w-full mt-6 bg-gradient-to-r from-slate-800 to-slate-950 text-white font-bold py-4 rounded-2xl disabled:opacity-50 active:scale-[0.98] transition-transform"
+                            onClick={() => setShowPaywall(true)}
+                            className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 text-white font-bold py-3.5 rounded-2xl shadow-lg active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
                         >
-                            {processingPayment ? 'Procesando...' : 'Registrar Pago'}
+                            <span className="material-symbols-rounded">crown</span>
+                            Desbloquear con PRO
+                        </button>
+                        <button onClick={() => navigate(-1)} className="mt-3 text-sm text-gray-400 font-medium">
+                            Volver
                         </button>
                     </div>
+                    <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} />
                 </div>
             )}
+            <div className="flex flex-col min-h-screen bg-[#f5f7f6]">
+                <header className="fixed top-0 left-0 right-0 max-w-md mx-auto z-20 bg-[#f5f7f6]/90 backdrop-blur-md px-6 pt-12 pb-4 flex items-center justify-between">
+                    <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-black/5 active:scale-95 transition-all"><span className="material-symbols-rounded text-2xl text-gray-800">arrow_back_ios_new</span></button>
+                    <h1 className="text-xl font-bold text-gray-900">Tarjetas de Crédito</h1>
+                    <button onClick={openAdd} className="w-10 h-10 flex items-center justify-center rounded-xl bg-primary/10 hover:bg-primary/20 active:scale-95 transition-all"><span className="material-symbols-rounded text-2xl text-primary">add</span></button>
+                </header>
 
-            <BottomNav />
-        </div>
+                <div className="pt-28 pb-40 px-5 space-y-5">
+                    {/* ══════════ SUMMARY ══════════ */}
+                    <div className="bg-gradient-to-br from-slate-800 to-slate-950 rounded-[28px] p-6 shadow-lg relative overflow-hidden">
+                        <div className="absolute -top-8 -right-8 w-28 h-28 bg-white/5 rounded-full blur-2xl" />
+                        <p className="text-white/60 text-xs font-bold uppercase tracking-wider">Deuda Total (TC + Credimás)</p>
+                        <p className="text-3xl font-extrabold text-white mt-1">RD$ {formatMoney(totalDebt)}</p>
+                        <p className="text-white/50 text-xs mt-1">Crédito disponible: RD$ {formatMoney(Math.max(totalLimit - totalDebt, 0))}</p>
+                        <div className="flex gap-3 mt-3 flex-wrap">
+                            {cards.length > 0 && (
+                                <div className="bg-cyan-500/20 rounded-xl px-3 py-2">
+                                    <p className="text-cyan-300 text-[10px] font-bold uppercase">USD</p>
+                                    <p className="text-white font-extrabold text-sm">US$ {formatMoney(totalDebtUSD)} <span className="text-white/50 text-[10px]">/ {formatMoney(totalLimitUSD)}</span></p>
+                                </div>
+                            )}
+                            {totalCredimas > 0 && (
+                                <div className="bg-white/10 rounded-xl px-3 py-2">
+                                    <p className="text-white/60 text-[10px] font-bold uppercase">Credimás/Mes</p>
+                                    <p className="text-white font-extrabold text-sm">RD$ {formatMoney(totalCredimas)}</p>
+                                </div>
+                            )}
+                            <div className="bg-white/10 rounded-xl px-3 py-2">
+                                <p className="text-white/60 text-[10px] font-bold uppercase">Tarjetas</p>
+                                <p className="text-white font-extrabold text-sm">{cards.length}</p>
+                            </div>
+                        </div>
+                        {totalDebt === 0 && <span className="inline-block mt-2 bg-green-500/20 text-green-300 text-xs font-bold px-3 py-1 rounded-full">🎉 Totalero — Sin deuda</span>}
+                    </div>
+
+
+
+                    {/* ══════════ CARD LIST ══════════ */}
+                    {cards.length > 0 && (
+                        <div className="space-y-4">
+                            {cards.map((card, i) => {
+                                const bal = getCardBalanceDOP(card);
+                                const limPesos = getCardLimitDOP(card);
+                                const limDolares = getCardLimitUSD(card);
+                                const balCorte = card.balanceAlCorte || 0;
+                                const usagePesos = limPesos > 0 ? Math.round((bal / limPesos) * 100) : 0;
+                                const balUSD = getCardBalanceUSD(card);
+                                const dispDOP = Math.max(limPesos - bal, 0);
+                                const dispUSD = Math.max(limDolares - balUSD, 0);
+                                const usageUSD = limDolares > 0 ? Math.round((balUSD / limDolares) * 100) : 0;
+                                const minPaymentDOP = getCardMinPaymentDOP(card);
+                                const minPaymentUSD = getCardMinPaymentUSD(card);
+                                const daysPay = daysUntil(card.fechaLimitePago || card.paymentDueDay || 25);
+                                const daysCut = daysUntil(card.cutoffDay || 15);
+                                const isUrgent = daysPay <= 5 && balCorte > 0;
+                                const hasCredimas = (card.credimasLimiteAprobado || 0) > 0;
+                                const isExpanded = expandedCard === card.id;
+
+                                return (
+                                    <div key={card.id} className="space-y-0">
+                                        {/* Main Card */}
+                                        <div className={`bg-gradient-to-br ${GRADIENTS[i % GRADIENTS.length]} rounded-[28px] p-6 shadow-lg relative overflow-hidden`}>
+                                            <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-white/5 rounded-full blur-xl" />
+
+                                            {/* Header */}
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div>
+                                                    <p className="text-white/70 text-xs font-bold uppercase tracking-wider">{card.name}</p>
+                                                    <p className="text-2xl font-extrabold text-white mt-1">RD$ {formatMoney(bal)}</p>
+                                                    <p className="text-white/50 text-[10px]">Balance a la fecha</p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={() => openPayment(card)} className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center active:scale-90 transition-transform">
+                                                        <span className="material-symbols-rounded text-white/70 text-lg">payments</span>
+                                                    </button>
+                                                    <button onClick={() => openEdit(card)} className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center active:scale-90 transition-transform">
+                                                        <span className="material-symbols-rounded text-white/70 text-lg">edit</span>
+                                                    </button>
+                                                    <span className="material-symbols-rounded text-3xl text-white/30">credit_card</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-3 mb-3">
+                                                {/* DOP Section */}
+                                                <div className="bg-white/10 rounded-xl px-3 py-2.5">
+                                                    <div className="flex justify-between text-white/60 text-[10px] font-semibold mb-1">
+                                                        <span>🇩🇴 DOP</span>
+                                                        <span>{usagePesos}% usado</span>
+                                                    </div>
+                                                    <div className="w-full h-2 bg-white/20 rounded-full overflow-hidden">
+                                                        <div className={`h-full rounded-full transition-all duration-700 ${usagePesos > 80 ? 'bg-red-400' : usagePesos > 50 ? 'bg-amber-400' : 'bg-white'}`} style={{ width: `${Math.min(usagePesos, 100)}%` }} />
+                                                    </div>
+                                                    <div className="flex justify-between mt-1.5">
+                                                        <span className="text-white/50 text-[10px]">Límite: RD$ {formatMoney(limPesos)}</span>
+                                                        <span className="text-white/50 text-[10px]">Disp: RD$ {formatMoney(dispDOP)}</span>
+                                                    </div>
+                                                </div>
+                                                {/* USD Section */}
+                                                <div className="bg-cyan-500/15 rounded-xl px-3 py-2.5">
+                                                    <div className="flex justify-between text-cyan-200/80 text-[10px] font-semibold mb-1">
+                                                        <span>🇺🇸 USD</span>
+                                                        <span>{usageUSD}% usado</span>
+                                                    </div>
+                                                    <div className="w-full h-2 bg-white/15 rounded-full overflow-hidden">
+                                                        <div className={`h-full rounded-full transition-all duration-700 ${usageUSD > 80 ? 'bg-red-400' : usageUSD > 50 ? 'bg-amber-400' : 'bg-cyan-300'}`} style={{ width: `${Math.min(usageUSD, 100)}%` }} />
+                                                    </div>
+                                                    <div className="flex justify-between mt-1.5">
+                                                        <span className="text-cyan-200/60 text-[10px]">Límite: US$ {formatMoney(limDolares)}</span>
+                                                        <span className="text-cyan-200/60 text-[10px]">Disp: US$ {formatMoney(dispUSD)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Dates & Alerts */}
+                                            <div className="flex gap-2 relative">
+                                                {isUrgent && card.notificacionesPago !== false && (
+                                                    <div className="absolute -top-2 -right-2 flex h-4 w-4 z-10">
+                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                                        <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-slate-900 shadow"></span>
+                                                    </div>
+                                                )}
+                                                <div className={`flex-1 rounded-xl px-3 py-2 text-center ${daysCut <= 5 ? 'bg-amber-500/30' : 'bg-white/10'}`}>
+                                                    <p className="text-white/80 text-[10px] font-bold uppercase">Corte</p>
+                                                    <p className="text-white text-sm font-extrabold">{daysCut}d</p>
+                                                    <p className="text-white/60 text-[10px]">{formatDate(card.cutoffDay || 15)}</p>
+                                                </div>
+                                                <div className={`flex-1 rounded-xl px-3 py-2 text-center ${isUrgent ? 'bg-red-500/40 ring-1 ring-red-400/50' : 'bg-white/10'}`}>
+                                                    <p className="text-white/80 text-[10px] font-bold uppercase">Pagar antes</p>
+                                                    <p className="text-white text-sm font-extrabold">{daysPay}d</p>
+                                                    <p className="text-white/60 text-[10px]">{formatDate(card.fechaLimitePago || card.paymentDueDay || 25)}</p>
+                                                </div>
+                                                <div className="flex-1 rounded-xl px-3 py-2 text-center bg-white/10">
+                                                    <p className="text-white/80 text-[10px] font-bold uppercase">Pago mín</p>
+                                                    <p className="text-white text-sm font-extrabold">RD$ {formatMoney(minPaymentDOP)}</p>
+                                                    <p className="text-white/60 text-[10px]">US$ {formatMoney(minPaymentUSD)}</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Balance al Corte Warning */}
+                                            {balCorte > 0 && (
+                                                <div className={`mt-3 rounded-xl px-3 py-2 ${isUrgent ? 'bg-red-500/30 border border-red-400/30' : 'bg-white/10'}`}>
+                                                    <p className={`text-xs font-bold leading-snug ${isUrgent ? 'text-red-200' : 'text-amber-300'}`}>
+                                                        {isUrgent ? '🚨' : '💡'} Totalero: Paga RD$ {formatMoney(balCorte)} (al corte) antes del {formatDate(card.fechaLimitePago || card.paymentDueDay || 25)}.
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {/* Expand toggle */}
+                                            {hasCredimas && (
+                                                <button onClick={() => setExpandedCard(isExpanded ? null : card.id)} className="w-full mt-3 flex items-center justify-center gap-1 text-white/50 text-xs">
+                                                    <span>{isExpanded ? 'Ocultar Credimás' : 'Ver Credimás'}</span>
+                                                    <span className={`material-symbols-rounded text-sm transition-transform ${isExpanded ? 'rotate-180' : ''}`}>expand_more</span>
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* Credimás Section (expandable) */}
+                                        {hasCredimas && isExpanded && (
+                                            <div className="bg-gradient-to-r from-cyan-600 to-blue-700 rounded-b-[28px] -mt-4 pt-7 pb-5 px-6 shadow-md">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <span className="material-symbols-rounded text-cyan-200 text-lg">add_card</span>
+                                                    <p className="text-white font-bold text-sm">Extra Crédito (Credimás)</p>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div className="bg-white/15 rounded-xl px-3 py-2">
+                                                        <p className="text-white/70 text-[10px] font-bold uppercase">Aprobado</p>
+                                                        <p className="text-white font-extrabold text-sm">RD$ {formatMoney(card.credimasLimiteAprobado)}</p>
+                                                    </div>
+                                                    <div className="bg-white/15 rounded-xl px-3 py-2">
+                                                        <p className="text-white/70 text-[10px] font-bold uppercase">Disponible</p>
+                                                        <p className="text-white font-extrabold text-sm">RD$ {formatMoney(card.credimasDisponible || 0)}</p>
+                                                    </div>
+                                                    <div className="bg-white/15 rounded-xl px-3 py-2">
+                                                        <p className="text-white/70 text-[10px] font-bold uppercase">Adeudado</p>
+                                                        <p className="text-white font-extrabold text-sm">RD$ {formatMoney(card.credimasTotalAdeudado || 0)}</p>
+                                                    </div>
+                                                    <div className="bg-amber-500/30 rounded-xl px-3 py-2">
+                                                        <p className="text-white/70 text-[10px] font-bold uppercase">Cuota/Mes</p>
+                                                        <p className="text-white font-extrabold text-sm">RD$ {formatMoney(card.credimasCuotaMensual || 0)}</p>
+                                                    </div>
+                                                </div>
+                                                <p className="text-cyan-200/70 text-[10px] mt-2 italic">⚠️ Usa Credimás solo para emergencias reales o bienes duraderos planificados.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* Empty State */}
+                    {cards.length === 0 && !showForm && (
+                        <div className="text-center py-12">
+                            <span className="material-symbols-rounded text-6xl text-gray-200">credit_card</span>
+                            <p className="text-sm text-gray-400 mt-3">Aún no tienes tarjetas registradas.</p>
+                            <button onClick={openAdd} className="mt-3 text-primary font-bold text-sm">+ Agregar tarjeta</button>
+                        </div>
+                    )}
+
+                    {/* ══════════ DEBT PAYOFF ══════════ */}
+                    {totalDebt > 0 && (
+                        <div className="bg-white rounded-[28px] p-6 shadow-sm">
+                            <h3 className="text-[17px] font-bold text-gray-900 mb-1">Plan para Salir de Deuda</h3>
+                            <p className="text-xs text-gray-400 mb-4">Pago extra mensual adicional a los mínimos</p>
+                            <div className="flex items-center gap-3 mb-5">
+                                <span className="text-sm font-bold text-gray-600">RD$</span>
+                                <input type="number" value={extraPayment} onChange={e => setExtraPayment(e.target.value)} className="flex-1 bg-gray-50 rounded-xl px-4 py-2.5 text-sm font-bold outline-none" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-4">
+                                    <p className="text-xs font-bold text-indigo-600 mb-2">⚡ Avalancha</p>
+                                    <p className="text-sm text-gray-500">Mayor tasa primero</p>
+                                    <p className="text-2xl font-extrabold text-gray-900 mt-2">{avalanche.months} <span className="text-sm font-semibold text-gray-400">meses</span></p>
+                                    <p className="text-[10px] text-gray-400 mt-1">Intereses: RD$ {formatMoney(avalanche.totalInterest)}</p>
+                                </div>
+                                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-4">
+                                    <p className="text-xs font-bold text-emerald-600 mb-2">❄️ Bola de Nieve</p>
+                                    <p className="text-sm text-gray-500">Menor saldo primero</p>
+                                    <p className="text-2xl font-extrabold text-gray-900 mt-2">{snowball.months} <span className="text-sm font-semibold text-gray-400">meses</span></p>
+                                    <p className="text-[10px] text-gray-400 mt-1">Intereses: RD$ {formatMoney(snowball.totalInterest)}</p>
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-gray-400 mt-3 text-center">
+                                {avalanche.totalInterest < snowball.totalInterest
+                                    ? '⚡ Avalancha ahorra más en intereses'
+                                    : '❄️ Bola de Nieve ofrece victorias rápidas'}
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                {/* ══════════ ADD/EDIT FORM MODAL ══════════ */}
+                {showForm && (
+                    <div className="fixed inset-0 z-50 flex items-end justify-center">
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setShowForm(false); setEditId(null); }} />
+                        <div className="relative w-full max-w-md bg-white rounded-t-[32px] max-h-[85vh] flex flex-col animate-in slide-in-from-bottom duration-300">
+                            <div className="shrink-0 pt-6 px-6">
+                                <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-5" />
+                                <h2 className="text-xl font-extrabold text-gray-900 mb-5">{editId ? 'Editar Tarjeta' : 'Nueva Tarjeta'}</h2>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto px-6">
+                                <div className="space-y-4">
+                                    {/* Name */}
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Nombre del Plástico</label>
+                                        <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ej. Visa Gold, MC Platinum" className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm font-medium outline-none" />
+                                    </div>
+
+                                    {/* Dual Limits */}
+                                    <div>
+                                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Límites</p>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-[10px] text-gray-400 mb-0.5 block">Pesos (DOP)</label>
+                                                <input type="number" value={form.limitePesos} onChange={e => setForm({ ...form, limitePesos: e.target.value })} placeholder="200,000" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] text-gray-400 mb-0.5 block">Dólares (USD)</label>
+                                                <input type="number" value={form.limiteDolares} onChange={e => setForm({ ...form, limiteDolares: e.target.value })} placeholder="3,500" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Balances DOP */}
+                                    <div>
+                                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Balances DOP</p>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-[10px] text-gray-400 mb-0.5 block">A la Fecha</label>
+                                                <input type="number" value={form.balanceALaFecha} onChange={e => setForm({ ...form, balanceALaFecha: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] text-gray-400 mb-0.5 block">Al Corte</label>
+                                                <input type="number" value={form.balanceAlCorte} onChange={e => setForm({ ...form, balanceAlCorte: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Balances USD */}
+                                    <div>
+                                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Balances USD</p>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-[10px] text-gray-400 mb-0.5 block">A la Fecha (USD)</label>
+                                                <input type="number" value={form.balanceDolaresALaFecha} onChange={e => setForm({ ...form, balanceDolaresALaFecha: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] text-gray-400 mb-0.5 block">Al Corte (USD)</label>
+                                                <input type="number" value={form.balanceDolaresAlCorte} onChange={e => setForm({ ...form, balanceDolaresAlCorte: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Minimum Payments */}
+                                    <div>
+                                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Pagos Mínimos</p>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-[10px] text-gray-400 mb-0.5 block">DOP</label>
+                                                <input type="number" value={form.pagoMinimo} onChange={e => setForm({ ...form, pagoMinimo: e.target.value })} placeholder="500" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] text-gray-400 mb-0.5 block">USD</label>
+                                                <input type="number" value={form.pagoMinimoUSD} onChange={e => setForm({ ...form, pagoMinimoUSD: e.target.value })} placeholder="25" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Rate & Cutoff */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-[10px] text-gray-400 mb-0.5 block">Tasa %/año</label>
+                                            <input type="number" value={form.interestRate} onChange={e => setForm({ ...form, interestRate: e.target.value })} placeholder="40" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-400 mb-0.5 block">Día Corte</label>
+                                            <input type="number" value={form.cutoffDay} onChange={e => setForm({ ...form, cutoffDay: e.target.value })} placeholder="15" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                        </div>
+                                    </div>
+
+                                    {/* Payment Due */}
+                                    <div>
+                                        <label className="text-[10px] text-gray-400 mb-0.5 block">Día Límite de Pago</label>
+                                        <input type="number" value={form.fechaLimitePago} onChange={e => setForm({ ...form, fechaLimitePago: e.target.value })} placeholder="25" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                    </div>
+
+                                    {/* Alerts Toggle */}
+                                    <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between mt-2">
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-700">Notificaciones de Pago</p>
+                                            <p className="text-[10px] text-gray-400">Recibir alertas de vencimiento (5 días antes)</p>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" checked={form.notificacionesPago} onChange={e => setForm({ ...form, notificacionesPago: e.target.checked })} className="sr-only peer" />
+                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-slate-900 border border-gray-100"></div>
+                                        </label>
+                                    </div>
+
+                                    {/* Credimás Section */}
+                                    <div className="border-t border-gray-100 pt-4">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <span className="material-symbols-rounded text-cyan-500 text-lg">add_card</span>
+                                            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Extra Crédito (Credimás)</p>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-[10px] text-gray-400 mb-0.5 block">Límite Aprobado</label>
+                                                <input type="number" value={form.credimasLimiteAprobado} onChange={e => setForm({ ...form, credimasLimiteAprobado: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] text-gray-400 mb-0.5 block">Disponible</label>
+                                                <input type="number" value={form.credimasDisponible} onChange={e => setForm({ ...form, credimasDisponible: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] text-gray-400 mb-0.5 block">Total Adeudado</label>
+                                                <input type="number" value={form.credimasTotalAdeudado} onChange={e => setForm({ ...form, credimasTotalAdeudado: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] text-gray-400 mb-0.5 block">Cuota Mensual</label>
+                                                <input type="number" value={form.credimasCuotaMensual} onChange={e => setForm({ ...form, credimasCuotaMensual: e.target.value })} placeholder="0" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-medium outline-none" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Sticky Actions — always visible */}
+                            <div className="shrink-0 px-6 pt-4 pb-6 space-y-3 border-t border-gray-100">
+                                <button onClick={handleSave} disabled={saving || !form.name.trim()} className="w-full bg-gradient-to-r from-slate-800 to-slate-950 text-white font-bold py-4 rounded-2xl disabled:opacity-50 active:scale-[0.98] transition-transform">
+                                    {saving ? 'Guardando...' : editId ? 'Actualizar Tarjeta' : '+ Agregar Tarjeta'}
+                                </button>
+                                {editId && (
+                                    <button onClick={() => { handleDelete(editId); setShowForm(false); setEditId(null); }} className="w-full text-red-500 font-bold py-3 rounded-2xl bg-red-50 active:scale-[0.98] transition-transform">
+                                        Eliminar Tarjeta
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ══════════ PAYMENT MODAL ══════════ */}
+                {paymentCard && (
+                    <div className="fixed inset-0 z-50 flex items-end justify-center">
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setPaymentCard(null)} />
+                        <div className="relative w-full max-w-md bg-white rounded-t-[32px] p-6 pb-8 animate-in slide-in-from-bottom duration-300">
+                            <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-5" />
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Pago a</p>
+                                    <p className="text-lg font-extrabold text-gray-900">{paymentCard.name}</p>
+                                </div>
+                                <button onClick={() => setPaymentCard(null)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                                    <span className="material-symbols-rounded text-gray-400">close</span>
+                                </button>
+                            </div>
+
+                            <div className="flex bg-gray-100 rounded-2xl p-1 mb-4">
+                                <button
+                                    onClick={() => setPaymentCurrency('DOP')}
+                                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${paymentCurrency === 'DOP' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`}
+                                >
+                                    DOP
+                                </button>
+                                <button
+                                    onClick={() => setPaymentCurrency('USD')}
+                                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${paymentCurrency === 'USD' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`}
+                                >
+                                    USD
+                                </button>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Monto a abonar</label>
+                                <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-3">
+                                    <span className="text-sm font-bold text-gray-500">{paymentCurrencyLabel}</span>
+                                    <input
+                                        type="number"
+                                        value={paymentAmount}
+                                        onChange={(e) => setPaymentAmount(e.target.value)}
+                                        placeholder="0"
+                                        className="flex-1 bg-transparent text-sm font-semibold outline-none"
+                                    />
+                                </div>
+                                <p className="text-[10px] text-gray-400">Balance actual: {paymentCurrencyLabel} {formatMoney(paymentBalance)}</p>
+                            </div>
+
+                            <button
+                                onClick={handlePayment}
+                                disabled={processingPayment || !paymentAmount}
+                                className="w-full mt-6 bg-gradient-to-r from-slate-800 to-slate-950 text-white font-bold py-4 rounded-2xl disabled:opacity-50 active:scale-[0.98] transition-transform"
+                            >
+                                {processingPayment ? 'Procesando...' : 'Registrar Pago'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                <BottomNav />
+            </div>
+        </>
     );
 }
