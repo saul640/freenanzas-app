@@ -198,13 +198,7 @@ export default function AddTransaction() {
             }
         } catch (err) {
             console.error('AI Scan Error:', err);
-            if (err.message?.includes('API key')) {
-                setError('Error de configuración de IA. Verifica tu Gemini API key.');
-            } else if (err.message?.includes('quota') || err.message?.includes('rate')) {
-                setError('Límite de uso de IA alcanzado. Intenta más tarde.');
-            } else {
-                setError('Error al analizar la imagen. Intenta de nuevo.');
-            }
+            setError('Algo salió mal. El equipo técnico ha sido notificado automáticamente.');
         } finally {
             setScanning(false);
             setScanProgress('');

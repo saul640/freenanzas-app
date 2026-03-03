@@ -1,20 +1,42 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { reportErrorToAdmin } from '../utils/errorReporting';
 
-// Initialize direct Gemini API client
-let genAI = null;
-let aiModel = null;
+const apiKey = "";
 
-function getModel() {
-    if (aiModel) return aiModel;
-
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-        throw new Error('Falta VITE_GEMINI_API_KEY. Ve a Google AI Studio, genera una API Key con tus créditos y agrégala a tu archivo .env.local');
+async function fetchWithRetry(contents, retries = 5) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+    let delay = 1000;
+    
+    for (let i = 0; i < retries; i++) {
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents })
+            });
+            
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error(`Gemini API Error (${res.status}): ${errText}`);
+            }
+            
+            const data = await res.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!text) throw new Error("Empty response from Gemini");
+            
+            return text;
+        } catch (error) {
+            if (i === retries - 1) {
+                await reportErrorToAdmin({
+                    errorType: 'AI_Gemini_Failure',
+                    errorMessage: error.message,
+                    component: 'gemini.js'
+                });
+                throw error;
+            }
+            await new Promise(resolve => setTimeout(resolve, delay));
+            delay *= 2;
+        }
     }
-
-    genAI = new GoogleGenerativeAI(apiKey);
-    aiModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    return aiModel;
 }
 
 /**
@@ -43,7 +65,7 @@ async function fileToGenerativePart(file) {
  * @returns {Promise<Object>} - Extracted receipt data
  */
 export async function scanReceiptWithAI(file) {
-    const model = getModel();
+    
     const imagePart = await fileToGenerativePart(file);
 
     const prompt = `Analiza esta imagen de factura, recibo o ticket y extrae TODOS los datos visibles.
@@ -72,8 +94,8 @@ Reglas:
 - La fecha debe estar en formato YYYY-MM-DD (convierte cualquier formato encontrado).
 - Responde SOLO con el JSON, nada más.`;
 
-    const result = await model.generateContent([prompt, imagePart]);
-    const responseText = result.response.text();
+    const contents = [{ parts: [{ text: prompt }, imagePart] }];
+    const responseText = await fetchWithRetry(contents);
 
     // Parse the JSON response — handle possible markdown wrapping
     let cleanedText = responseText.trim();
@@ -175,7 +197,7 @@ export function getBestCategory(suggestedCategories) {
  * @returns {Promise<Object>} - Insights with tips, ant expenses, savings potential
  */
 export async function analyzeSpending(data) {
-    const model = getModel();
+    
     const prompt = `Eres un asesor financiero personal dominicano. Analiza estos gastos del mes de ${data.monthName}:
 
 Ingresos: RD$ ${data.totalIncome}
@@ -209,8 +231,8 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin backticks):
   "alerta": "<alerta principal si hay algo crítico, o null>"
 }`;
 
-    const result = await model.generateContent([prompt]);
-    let text = result.response.text().trim();
+    const contents = [{ parts: [{ text: prompt }] }];
+    let text = (await fetchWithRetry(contents)).trim();
     if (text.startsWith('```')) {
         text = text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
     }
@@ -260,7 +282,7 @@ export function analyzeSpendingLocal(categories, totalExpense) {
  * @returns {Promise<Object>} - Debt strategy with steps, savings, and recommendations
  */
 export async function analyzeLoanStrategy(data) {
-    const model = getModel();
+    
 
     const loansText = data.loans.map(l =>
         `- ${l.nombrePrestamo}: Balance RD$ ${l.balancePendiente}, Cuota RD$ ${l.cuotaMensual}, Tasa ${l.tasaInteres}% anual, Día de pago: ${l.diaDePago}`
@@ -311,8 +333,8 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin backticks):
   "resumen": "<2-3 oraciones motivacionales con el plan resumido>"
 }`;
 
-    const result = await model.generateContent([prompt]);
-    let text = result.response.text().trim();
+    const contents = [{ parts: [{ text: prompt }] }];
+    let text = (await fetchWithRetry(contents)).trim();
     if (text.startsWith('```')) {
         text = text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
     }
@@ -423,7 +445,7 @@ const FALLBACK_INSIGHTS = [
  */
 export async function generateDailyInsight(history = []) {
     try {
-        const model = getModel();
+        
 
         const historyText = history.length > 0
             ? `Para evitar repetir temas, NO hables de nada relacionado con estos temas pasados:\n${history.map(h => `- ${h}`).join('\n')}`
@@ -434,8 +456,8 @@ ${historyText}
 
 Responde ÚNICAMENTE con el texto del consejo, sin comillas, sin formato markdown y directo al grano.`;
 
-        const result = await model.generateContent([prompt]);
-        let text = result.response.text().trim();
+        const contents = [{ parts: [{ text: prompt }] }];
+        let text = (await fetchWithRetry(contents)).trim();
 
         // Remove markdown or quotes if Gemini adds them anyway
         text = text.replace(/^["']|["']$/g, '').replace(/^```[\s\S]*?```$/m, '').trim();
@@ -457,7 +479,7 @@ Responde ÚNICAMENTE con el texto del consejo, sin comillas, sin formato markdow
  * @returns {Promise<Object>}
  */
 export async function consultPreventiveAI(data) {
-    const model = getModel();
+    
 
     const presupuestoRestante = Math.max((data.budgetLimit || 0) - (data.budgetSpent || 0), 0);
     const cuotasVencidas = data.cuotasVencidas || 0;
@@ -494,8 +516,8 @@ COMPRA: ${data.itemName} por RD$ ${data.itemPrice}
 Responde JSON (sin markdown):
 {"recomendacion":"comprar|posponer|evitar","emoji":"✅|⏳|🚫","nivelRiesgo":"verde|amarillo|rojo","razon":"<2-3 oraciones>","detalleFinanciero":"<1 oración con cifras y concepto de liquidez real>","alternativa":"<sugerencia o null>","impactoDeuda":"<impacto en flujo de caja o null>"}`;
 
-    const result = await model.generateContent([prompt]);
-    let text = result.response.text().trim();
+    const contents = [{ parts: [{ text: prompt }] }];
+    let text = (await fetchWithRetry(contents)).trim();
     if (text.startsWith('```')) {
         text = text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
     }
