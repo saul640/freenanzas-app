@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { FaCrown, FaTimes } from 'react-icons/fa';
-import { PayPalButtons, usePayPalScriptReducer, DISPATCH_ACTION } from "@paypal/react-paypal-js";
+import { PayPalScriptProvider, PayPalButtons, usePayPalScriptReducer, DISPATCH_ACTION } from "@paypal/react-paypal-js";
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { toast } from 'react-hot-toast';
@@ -17,14 +17,12 @@ const retryWithBackoff = async (fn, maxRetries = 3) => {
     }
 };
 
-export default function PaywallModal({ isOpen, onClose }) {
+function PaywallModalContent({ onClose }) {
     const { currentUser } = useAuth();
     const [{ isPending, isRejected }, dispatch] = usePayPalScriptReducer();
     const [loading, setLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState("");
     const [billingCycle, setBillingCycle] = useState("monthly");
-
-    if (!isOpen) return null;
 
     const planIdMonthly = import.meta.env.VITE_PAYPAL_PLAN_MONTHLY || "P-MONTHLY-TODO";
     const planIdAnnual = import.meta.env.VITE_PAYPAL_PLAN_ANNUAL || "P-ANNUAL-TODO";
@@ -250,5 +248,23 @@ export default function PaywallModal({ isOpen, onClose }) {
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function PaywallModal({ isOpen, onClose }) {
+    if (!isOpen) return null;
+
+    const initialOptions = {
+        "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID || "test",
+        currency: "USD",
+        intent: "subscription",
+        vault: true,
+        components: "buttons"
+    };
+
+    return (
+        <PayPalScriptProvider options={initialOptions}>
+            <PaywallModalContent onClose={onClose} />
+        </PayPalScriptProvider>
     );
 }

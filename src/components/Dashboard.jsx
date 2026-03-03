@@ -378,8 +378,8 @@ export default function Dashboard() {
             {/* Bottom Navigation */}
             <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} />
 
-            {/* Paywall overlay — blocks dashboard for FREE users (trial expired) */}
-            {userStatus === 'FREE' && (
+            {/* Paywall overlay — blocks dashboard for EXPIRED users (trial expired) */}
+            {userStatus === 'EXPIRED' && (
                 <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center p-6">
                     <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
                         <div className="w-16 h-16 mx-auto bg-amber-100 rounded-full flex items-center justify-center mb-4">
