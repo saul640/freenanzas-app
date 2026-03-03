@@ -1,6 +1,6 @@
 import { logErrorToAdmin, logIAScanFailure } from '../utils/errorReporting';
 
-const MODEL_NAME = 'gemini-1.5-flash';
+const MODEL_NAME = 'gemini-2.5-flash';
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim() ?? '';
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg']);
 
