@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { collection, addDoc, doc, getDoc, onSnapshot, query, where, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, getDocs, onSnapshot, query, where, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../hooks/useAuth';
 import { useLoans } from '../hooks/useLoans';
@@ -75,6 +75,8 @@ export default function AddTransaction() {
     const [showAllCats, setShowAllCats] = useState(false);
     const [scanning, setScanning] = useState(false);
     const [scanProgress, setScanProgress] = useState('');
+    const [isFromScan, setIsFromScan] = useState(false);
+    const [duplicateAlert, setDuplicateAlert] = useState({ show: false, matches: [] });
     const [merchant, setMerchant] = useState('');
     const [rnc, setRnc] = useState('');
     const [ticketNumber, setTicketNumber] = useState('');
@@ -172,6 +174,7 @@ export default function AddTransaction() {
 
 
             setScanProgress('Datos extraídos ✓');
+            setIsFromScan(true);
 
             if (scanResult.amount && scanResult.amount > 0) {
                 const bestCategory = getBestCategory(scanResult.suggestedCategories);
@@ -464,23 +467,7 @@ export default function AddTransaction() {
         await retryWithBackoff(() => updateDoc(txRef, updatedData));
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        const parsedAmount = parseFloat(amount);
-        if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
-            setError('Por favor ingresa un monto mayor a 0.');
-            return;
-        }
-        if (!category) {
-            setError('Por favor selecciona una categoría.');
-            return;
-        }
-
-        if (type === 'expense' && isCreditCardPayment && !selectedCardId) {
-            setError('Por favor selecciona una tarjeta de crédito.');
-            return;
-        }
-
+    const executeSave = async (parsedAmount) => {
         try {
             setLoading(true);
             setError('');
@@ -538,6 +525,59 @@ export default function AddTransaction() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleSubmit = async (e, forceSave = false) => {
+        if (e) e.preventDefault();
+        const parsedAmount = parseFloat(amount);
+        if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
+            setError('Por favor ingresa un monto mayor a 0.');
+            return;
+        }
+        if (!category) {
+            setError('Por favor selecciona una categoría.');
+            return;
+        }
+
+        if (type === 'expense' && isCreditCardPayment && !selectedCardId) {
+            setError('Por favor selecciona una tarjeta de crédito.');
+            return;
+        }
+
+        if (isFromScan && !forceSave && !isEditMode) {
+            setLoading(true);
+            try {
+                const snapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'registros'));
+                const matches = [];
+
+                snapshot.forEach(docSnap => {
+                    const data = docSnap.data();
+                    const amountMatch = data.monto === parsedAmount;
+                    const dateMatch = data.fecha === date;
+
+                    const isMerchantProvided = merchant && merchant.trim() !== '';
+                    let merchantMatch = true;
+                    if (isMerchantProvided && data.comercio) {
+                        merchantMatch = data.comercio.toLowerCase() === merchant.trim().toLowerCase();
+                    }
+
+                    if (amountMatch && dateMatch && merchantMatch) {
+                        matches.push({ id: docSnap.id, ...data });
+                    }
+                });
+
+                if (matches.length > 0) {
+                    setDuplicateAlert({ show: true, matches });
+                    setLoading(false);
+                    return;
+                }
+            } catch (err) {
+                console.error("Error validando duplicados locales:", err);
+            }
+            setLoading(false);
+        }
+
+        await executeSave(parsedAmount);
     };
 
     const isToday = date === new Date().toISOString().split('T')[0];
@@ -993,6 +1033,43 @@ export default function AddTransaction() {
                                 )}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+            {/* ══════════ DUPLICATE ALERT MODAL ══════════ */}
+            {duplicateAlert.show && (
+                <div className="fixed inset-0 z-50 flex items-end justify-center">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onClick={() => setDuplicateAlert({ show: false, matches: [] })} />
+                    <div className="relative w-full max-w-md bg-white rounded-t-[32px] p-6 pb-8 animate-in slide-in-from-bottom duration-300">
+                        <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-4" />
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                                <span className="material-symbols-rounded text-amber-500 text-2xl">warning</span>
+                            </div>
+                            <h2 className="text-xl font-extrabold text-gray-900">¡Gasto Duplicado!</h2>
+                        </div>
+
+                        <p className="text-sm text-gray-600 mb-6">
+                            Hemos detectado un gasto similar registrado el <span className="font-bold text-gray-900">{date}</span> por <span className="font-bold text-gray-900">RD${amount}</span>.
+                        </p>
+
+                        <div className="flex flex-col gap-3">
+                            <button
+                                onClick={() => {
+                                    setDuplicateAlert({ show: false, matches: [] });
+                                    handleSubmit(null, true);
+                                }}
+                                className="w-full bg-primary text-black font-bold py-3.5 rounded-2xl active:scale-[0.98] transition-transform text-center shadow-sm"
+                            >
+                                Guardar como quiera
+                            </button>
+                            <button
+                                onClick={() => setDuplicateAlert({ show: false, matches: [] })}
+                                className="w-full bg-gray-100 text-gray-700 font-bold py-3.5 rounded-2xl active:scale-[0.98] transition-transform text-center"
+                            >
+                                Descartar
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
