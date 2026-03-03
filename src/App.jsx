@@ -18,8 +18,8 @@ function App() {
   return (
     <AuthProvider>
       <Router>
-        <div className="min-h-screen bg-background-light dark:bg-background-dark text-text-main dark:text-gray-100 transition-colors duration-300 font-display">
-          <main className="max-w-md mx-auto bg-surface-light dark:bg-surface-dark min-h-screen shadow-soft relative overflow-hidden">
+        <div className="min-h-screen bg-background-light dark:bg-background-dark text-text-main dark:text-gray-100 transition-all duration-500 ease-in-out font-display">
+          <main className="max-w-md mx-auto bg-surface-light dark:bg-surface-dark min-h-screen shadow-soft relative overflow-hidden transition-all duration-500 ease-in-out">
             <Routes>
               <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
               <Route path="/onboarding" element={<Onboarding />} />

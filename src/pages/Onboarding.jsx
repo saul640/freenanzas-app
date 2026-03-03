@@ -43,7 +43,7 @@ const Onboarding = () => {
           ></div>
         </div>
         <div className="flex flex-col gap-3">
-          <h1 className="text-3xl font-extrabold leading-tight tracking-tight text-slate-900 dark:text-white sm:text-4xl">
+          <h1 className="text-3xl font-extrabold leading-tight tracking-tight text-slate-900 dark:text-slate-300 sm:text-4xl">
             ¡Bienvenido a tu <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-emerald-600 dark:to-emerald-400">
               libertad financiera!

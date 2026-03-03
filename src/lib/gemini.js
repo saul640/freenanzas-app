@@ -1,11 +1,11 @@
-import { reportErrorToAdmin } from '../utils/errorReporting';
+import { notifyAdminError } from '../utils/errorReporting';
 
 const apiKey = "";
 
 async function fetchWithRetry(contents, retries = 5) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
     let delay = 1000;
-    
+
     for (let i = 0; i < retries; i++) {
         try {
             const res = await fetch(url, {
@@ -13,23 +13,23 @@ async function fetchWithRetry(contents, retries = 5) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents })
             });
-            
+
             if (!res.ok) {
                 const errText = await res.text();
                 throw new Error(`Gemini API Error (${res.status}): ${errText}`);
             }
-            
+
             const data = await res.json();
             const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
             if (!text) throw new Error("Empty response from Gemini");
-            
+
             return text;
         } catch (error) {
             if (i === retries - 1) {
-                await reportErrorToAdmin({
+                await notifyAdminError({
                     errorType: 'AI_Gemini_Failure',
-                    errorMessage: error.message,
-                    component: 'gemini.js'
+                    message: error.message,
+                    context: 'gemini.js fetchWithRetry'
                 });
                 throw error;
             }
@@ -65,7 +65,7 @@ async function fileToGenerativePart(file) {
  * @returns {Promise<Object>} - Extracted receipt data
  */
 export async function scanReceiptWithAI(file) {
-    
+
     const imagePart = await fileToGenerativePart(file);
 
     const prompt = `Analiza esta imagen de factura, recibo o ticket y extrae TODOS los datos visibles.
@@ -197,7 +197,7 @@ export function getBestCategory(suggestedCategories) {
  * @returns {Promise<Object>} - Insights with tips, ant expenses, savings potential
  */
 export async function analyzeSpending(data) {
-    
+
     const prompt = `Eres un asesor financiero personal dominicano. Analiza estos gastos del mes de ${data.monthName}:
 
 Ingresos: RD$ ${data.totalIncome}
@@ -282,7 +282,7 @@ export function analyzeSpendingLocal(categories, totalExpense) {
  * @returns {Promise<Object>} - Debt strategy with steps, savings, and recommendations
  */
 export async function analyzeLoanStrategy(data) {
-    
+
 
     const loansText = data.loans.map(l =>
         `- ${l.nombrePrestamo}: Balance RD$ ${l.balancePendiente}, Cuota RD$ ${l.cuotaMensual}, Tasa ${l.tasaInteres}% anual, Día de pago: ${l.diaDePago}`
@@ -445,7 +445,7 @@ const FALLBACK_INSIGHTS = [
  */
 export async function generateDailyInsight(history = []) {
     try {
-        
+
 
         const historyText = history.length > 0
             ? `Para evitar repetir temas, NO hables de nada relacionado con estos temas pasados:\n${history.map(h => `- ${h}`).join('\n')}`
@@ -479,7 +479,7 @@ Responde ÚNICAMENTE con el texto del consejo, sin comillas, sin formato markdow
  * @returns {Promise<Object>}
  */
 export async function consultPreventiveAI(data) {
-    
+
 
     const presupuestoRestante = Math.max((data.budgetLimit || 0) - (data.budgetSpent || 0), 0);
     const cuotasVencidas = data.cuotasVencidas || 0;

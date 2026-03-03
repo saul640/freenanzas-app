@@ -176,7 +176,7 @@ function PaywallModalContent({ onClose }) {
                             <button
                                 onClick={() => setBillingCycle("monthly")}
                                 className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${billingCycle === "monthly"
-                                    ? "bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-white"
+                                    ? "bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-slate-300"
                                     : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                                     }`}
                             >
@@ -197,7 +197,7 @@ function PaywallModalContent({ onClose }) {
                         <div className="text-center py-2">
                             {billingCycle === "monthly" ? (
                                 <div>
-                                    <span className="text-4xl font-extrabold text-gray-900 dark:text-white">$4.99</span>
+                                    <span className="text-4xl font-extrabold text-gray-900 dark:text-slate-300">$4.99</span>
                                     <span className="text-gray-500 dark:text-gray-400 font-medium ml-1">USD / mes</span>
                                 </div>
                             ) : (
@@ -208,7 +208,7 @@ function PaywallModalContent({ onClose }) {
                                             ¡Ahorra un 20%!
                                         </span>
                                     </div>
-                                    <span className="text-4xl font-extrabold text-gray-900 dark:text-white">$47.90</span>
+                                    <span className="text-4xl font-extrabold text-gray-900 dark:text-slate-300">$47.90</span>
                                     <span className="text-gray-500 dark:text-gray-400 font-medium ml-1">USD / año</span>
                                 </div>
                             )}

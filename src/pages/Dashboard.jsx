@@ -45,7 +45,7 @@ const Dashboard = ({ user }) => {
       <header className="pt-12 pb-4 px-6 flex items-center justify-between bg-surface-light dark:bg-surface-dark sticky top-0 z-10 shadow-sm border-b border-gray-100 dark:border-gray-800">
         <div className="flex flex-col">
           <span className="text-text-sub dark:text-gray-400 text-sm font-medium">Bienvenido de nuevo,</span>
-          <h1 className="text-text-main dark:text-white text-2xl font-bold tracking-tight">Hola, {name} 👋</h1>
+          <h1 className="text-text-main dark:text-slate-300 text-2xl font-bold tracking-tight">Hola, {name} 👋</h1>
         </div>
         <button className="w-12 h-12 rounded-full overflow-hidden border-2 border-primary/20">
           <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
@@ -56,7 +56,7 @@ const Dashboard = ({ user }) => {
           <div className="absolute -right-12 -top-12 w-40 h-40 bg-primary/10 rounded-full blur-3xl"></div>
           <div className="relative z-10">
             <p className="text-text-sub dark:text-gray-400 font-medium text-sm">Saldo Total</p>
-            <h2 className="text-4xl font-bold text-text-main dark:text-white mt-1">
+            <h2 className="text-4xl font-bold text-text-main dark:text-slate-300 mt-1">
               RD$ {formatNumber(balance)}
               <span className="text-xl text-gray-400 font-normal">.00</span>
             </h2>
