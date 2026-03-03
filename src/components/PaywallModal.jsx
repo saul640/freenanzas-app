@@ -86,7 +86,7 @@ function PaywallModalContent({ onClose }) {
         dispatch({
             type: DISPATCH_ACTION.RESET_OPTIONS,
             value: {
-                "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID || "test",
+                "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID,
                 currency: "USD",
                 intent: "subscription",
                 vault: true,
@@ -254,8 +254,24 @@ function PaywallModalContent({ onClose }) {
 export default function PaywallModal({ isOpen, onClose }) {
     if (!isOpen) return null;
 
+    const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
+
+    if (!clientId || clientId === "test") {
+        return (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl w-full max-w-sm text-center">
+                    <p className="text-red-500 font-bold mb-4">Error de Configuración</p>
+                    <p className="text-gray-700 dark:text-gray-300 text-sm mb-6">
+                        El Client ID de PayPal no está configurado. Por favor, comunícate con soporte técnico.
+                    </p>
+                    <button onClick={onClose} className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg font-medium">Cerrar</button>
+                </div>
+            </div>
+        );
+    }
+
     const initialOptions = {
-        "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID || "test",
+        "client-id": clientId,
         currency: "USD",
         intent: "subscription",
         vault: true,
