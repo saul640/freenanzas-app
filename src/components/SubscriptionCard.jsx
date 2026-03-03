@@ -117,7 +117,7 @@ export default function SubscriptionCard({ onOpenPaywall }) {
         pro: 'bg-gradient-to-r from-yellow-400 to-amber-500 text-white',
         cancelled: 'bg-gradient-to-r from-orange-400 to-red-400 text-white',
         trial: 'bg-gradient-to-r from-blue-400 to-indigo-500 text-white',
-        free: 'bg-gray-100 text-gray-500',
+        free: 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-300',
     };
 
     const badgeIcons = {
@@ -240,14 +240,14 @@ export default function SubscriptionCard({ onOpenPaywall }) {
 
     return (
         <>
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+            <div className="bg-white dark:bg-slate-800 transition-colors duration-200 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-4">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-500 flex items-center justify-center transition-colors duration-200">
                             <span className="material-symbols-rounded text-[20px]">card_membership</span>
                         </div>
-                        <h3 className="font-semibold text-gray-800">Mi Suscripción</h3>
+                        <h3 className="font-semibold text-gray-800 dark:text-zinc-100 transition-colors duration-200">Mi Suscripción</h3>
                     </div>
                     <span className={`flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full ${badgeStyles[plan.badge]}`}>
                         <span className="material-symbols-rounded text-[12px]">{badgeIcons[plan.badge]}</span>
@@ -256,16 +256,16 @@ export default function SubscriptionCard({ onOpenPaywall }) {
                 </div>
 
                 {/* Plan Name */}
-                <div className="bg-gray-50 rounded-xl p-3 mb-3">
-                    <p className="text-xs text-gray-400 font-medium mb-0.5">Plan actual</p>
-                    <p className="text-sm font-bold text-gray-800">{plan.label}</p>
+                <div className="bg-gray-50 dark:bg-slate-700/50 rounded-xl p-3 mb-3 transition-colors duration-200">
+                    <p className="text-xs text-gray-400 dark:text-slate-500 font-medium mb-0.5 transition-colors duration-200">Plan actual</p>
+                    <p className="text-sm font-bold text-gray-800 dark:text-zinc-100 transition-colors duration-200">{plan.label}</p>
                 </div>
 
                 {/* Price Row (PRO only) */}
                 {price && (plan.badge === 'pro' || plan.badge === 'cancelled') && (
-                    <div className="bg-gray-50 rounded-xl p-3 mb-3">
-                        <p className="text-xs text-gray-400 font-medium mb-0.5">Precio</p>
-                        <p className="text-sm font-bold text-gray-800">
+                    <div className="bg-gray-50 dark:bg-slate-700/50 rounded-xl p-3 mb-3 transition-colors duration-200">
+                        <p className="text-xs text-gray-400 dark:text-slate-500 font-medium mb-0.5 transition-colors duration-200">Precio</p>
+                        <p className="text-sm font-bold text-gray-800 dark:text-zinc-100 transition-colors duration-200">
                             <span className="material-symbols-rounded text-[14px] mr-1 align-middle">payments</span>
                             {price}
                         </p>
@@ -274,9 +274,9 @@ export default function SubscriptionCard({ onOpenPaywall }) {
 
                 {/* Date Row */}
                 {plan.dateLabel && plan.date && (
-                    <div className="bg-gray-50 rounded-xl p-3 mb-3">
-                        <p className="text-xs text-gray-400 font-medium mb-0.5">{plan.dateLabel}</p>
-                        <p className={`text-sm font-bold ${cancelAtPeriodEnd ? 'text-red-500' : 'text-gray-800'}`}>
+                    <div className="bg-gray-50 dark:bg-slate-700/50 rounded-xl p-3 mb-3 transition-colors duration-200">
+                        <p className="text-xs text-gray-400 dark:text-slate-500 font-medium mb-0.5 transition-colors duration-200">{plan.dateLabel}</p>
+                        <p className={`text-sm font-bold transition-colors duration-200 ${cancelAtPeriodEnd ? 'text-red-500 dark:text-red-400' : 'text-gray-800 dark:text-zinc-100'}`}>
                             <span className="material-symbols-rounded text-[14px] mr-1 align-middle">
                                 {cancelAtPeriodEnd ? 'event_busy' : 'event'}
                             </span>
@@ -287,9 +287,9 @@ export default function SubscriptionCard({ onOpenPaywall }) {
 
                 {/* Member Since (PRO only) */}
                 {subscriptionStartDate && (plan.badge === 'pro' || plan.badge === 'cancelled') && (
-                    <div className="bg-gray-50 rounded-xl p-3 mb-3">
-                        <p className="text-xs text-gray-400 font-medium mb-0.5">Miembro desde</p>
-                        <p className="text-sm font-bold text-gray-800">
+                    <div className="bg-gray-50 dark:bg-slate-700/50 rounded-xl p-3 mb-3 transition-colors duration-200">
+                        <p className="text-xs text-gray-400 dark:text-slate-500 font-medium mb-0.5 transition-colors duration-200">Miembro desde</p>
+                        <p className="text-sm font-bold text-gray-800 dark:text-zinc-100 transition-colors duration-200">
                             <span className="material-symbols-rounded text-[14px] mr-1 align-middle">calendar_month</span>
                             {formatDate(subscriptionStartDate)}
                         </p>
@@ -298,15 +298,15 @@ export default function SubscriptionCard({ onOpenPaywall }) {
 
                 {/* Payment Method (PRO only) */}
                 {subscriptionId && (plan.badge === 'pro' || plan.badge === 'cancelled') && (
-                    <div className="bg-gray-50 rounded-xl p-3 mb-3 flex items-center justify-between">
+                    <div className="bg-gray-50 dark:bg-slate-700/50 rounded-xl p-3 mb-3 flex items-center justify-between transition-colors duration-200">
                         <div>
-                            <p className="text-xs text-gray-400 font-medium mb-0.5">Método de pago</p>
-                            <p className="text-sm font-bold text-gray-800 flex items-center gap-1.5">
-                                <span className="material-symbols-rounded text-[14px] align-middle text-blue-600">account_balance_wallet</span>
+                            <p className="text-xs text-gray-400 dark:text-slate-500 font-medium mb-0.5 transition-colors duration-200">Método de pago</p>
+                            <p className="text-sm font-bold text-gray-800 dark:text-zinc-100 flex items-center gap-1.5 transition-colors duration-200">
+                                <span className="material-symbols-rounded text-[14px] align-middle text-blue-600 dark:text-blue-400">account_balance_wallet</span>
                                 PayPal
                             </p>
                         </div>
-                        <span className="flex items-center text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                        <span className="flex items-center text-[10px] font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-0.5 rounded-full transition-colors duration-200">
                             <span className="material-symbols-rounded text-[12px] mr-0.5">check_circle</span>
                             Vinculado
                         </span>
@@ -315,7 +315,7 @@ export default function SubscriptionCard({ onOpenPaywall }) {
 
                 {/* Subscription ID (collapsed) */}
                 {subscriptionId && (
-                    <p className="text-[10px] text-gray-300 mb-3 truncate">
+                    <p className="text-[10px] text-gray-300 dark:text-slate-500 mb-3 truncate transition-colors duration-200">
                         ID: {subscriptionId}
                     </p>
                 )}
@@ -347,7 +347,7 @@ export default function SubscriptionCard({ onOpenPaywall }) {
                     {plan.showChangePlan && (
                         <button
                             onClick={onOpenPaywall}
-                            className="w-full py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-700 font-medium rounded-xl text-sm transition-colors flex items-center justify-center gap-1.5 border border-gray-200"
+                            className="w-full py-2.5 bg-gray-50 dark:bg-slate-700 hover:bg-gray-100 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-300 font-medium rounded-xl text-sm transition-colors duration-200 flex items-center justify-center gap-1.5 border border-gray-200 dark:border-slate-600"
                         >
                             <span className="material-symbols-rounded text-[16px]">swap_horiz</span>
                             Cambiar Plan
@@ -358,7 +358,7 @@ export default function SubscriptionCard({ onOpenPaywall }) {
                     {plan.showCancel && (
                         <button
                             onClick={() => setShowCancelModal(true)}
-                            className="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-500 font-medium rounded-xl text-sm transition-colors flex items-center justify-center gap-1.5"
+                            className="w-full py-2.5 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-500 dark:text-red-400 font-medium rounded-xl text-sm transition-colors duration-200 flex items-center justify-center gap-1.5"
                         >
                             <span className="material-symbols-rounded text-[16px]">cancel</span>
                             Cancelar Suscripción

@@ -218,7 +218,7 @@ export default function Profile() {
     };
 
     return (
-        <div className="flex flex-col min-h-screen bg-[#f7f9f8] max-w-md mx-auto relative shadow-2xl overflow-hidden pb-32">
+        <div className="flex flex-col min-h-screen bg-[#f7f9f8] dark:bg-slate-900 transition-colors duration-200 max-w-md mx-auto relative shadow-2xl overflow-hidden pb-32">
             <Toaster position="top-center" />
 
             <header className="bg-primary text-black px-6 pt-12 pb-6 rounded-b-[2rem] shadow-sm relative z-10">
@@ -229,12 +229,12 @@ export default function Profile() {
                 {/* Avatar Section */}
                 <div className="relative mb-4">
                     <div
-                        className={`w-28 h-28 rounded-full bg-white shadow-md border-4 border-white flex items-center justify-center overflow-hidden ${loading ? 'opacity-50' : ''}`}
+                        className={`w-28 h-28 rounded-full bg-white dark:bg-slate-800 transition-colors duration-200 shadow-md border-4 border-white dark:border-slate-800 flex items-center justify-center overflow-hidden ${loading ? 'opacity-50' : ''}`}
                     >
                         {userPhoto ? (
                             <img src={userPhoto} alt="Foto de perfil" className="w-full h-full object-cover" />
                         ) : (
-                            <span className="material-symbols-rounded text-6xl text-gray-300">person</span>
+                            <span className="material-symbols-rounded text-6xl text-gray-300 dark:text-slate-600 transition-colors duration-200">person</span>
                         )}
                     </div>
                     <button
@@ -262,7 +262,7 @@ export default function Profile() {
                                 type="text"
                                 value={newName}
                                 onChange={(e) => setNewName(e.target.value)}
-                                className="flex-1 px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-center font-bold"
+                                className="flex-1 px-3 py-2 border border-gray-200 dark:border-slate-700 dark:bg-slate-800 dark:text-zinc-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-center font-bold transition-colors duration-200"
                                 disabled={loading}
                             />
                             <button
@@ -275,24 +275,24 @@ export default function Profile() {
                             <button
                                 onClick={() => { setIsEditingName(false); setNewName(userName); }}
                                 disabled={loading}
-                                className="bg-gray-200 text-gray-700 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
+                                className="bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300 transition-colors duration-200 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
                             >
                                 <span className="material-symbols-rounded">close</span>
                             </button>
                         </div>
                     ) : (
                         <div className="flex items-center gap-2 mb-1">
-                            <h2 className="text-2xl font-bold text-gray-800">{userName}</h2>
+                            <h2 className="text-2xl font-bold text-gray-800 dark:text-zinc-100 transition-colors duration-200">{userName}</h2>
                             <button
                                 onClick={() => setIsEditingName(true)}
-                                className="text-gray-400 hover:text-primary transition-colors"
+                                className="text-gray-400 dark:text-slate-500 hover:text-primary transition-colors duration-200"
                             >
                                 <span className="material-symbols-rounded text-[18px]">edit</span>
                             </button>
                         </div>
                     )}
 
-                    <p className="text-sm text-gray-500 mb-3">{userEmail}</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400 transition-colors duration-200 mb-3">{userEmail}</p>
 
                     {isPro && !isTrialUser && (
                         <div className="flex items-center gap-1.5 bg-gradient-to-r from-yellow-400 to-amber-500 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-sm">
@@ -323,13 +323,13 @@ export default function Profile() {
                 <div className="w-full space-y-4">
 
                     {/* Account Verification Card */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                    <div className="bg-white dark:bg-slate-800 transition-colors duration-200 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-4">
                         <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center">
+                                <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-500 flex items-center justify-center transition-colors duration-200">
                                     <span className="material-symbols-rounded text-[20px]">verified_user</span>
                                 </div>
-                                <h3 className="font-semibold text-gray-800">Estado de la cuenta</h3>
+                                <h3 className="font-semibold text-gray-800 dark:text-zinc-100 transition-colors duration-200">Estado de la cuenta</h3>
                             </div>
                             {isVerified ? (
                                 <span className="flex items-center text-xs font-bold text-green-500 bg-green-50 px-2 py-1 rounded-full">
@@ -346,7 +346,7 @@ export default function Profile() {
 
                         {!isVerified && (
                             <div className="mt-3">
-                                <p className="text-xs text-gray-500 mb-3">Tu cuenta no está verificada. Verifica tu correo para asegurar tu acceso.</p>
+                                <p className="text-xs text-gray-500 dark:text-slate-400 transition-colors duration-200 mb-3">Tu cuenta no está verificada. Verifica tu correo para asegurar tu acceso.</p>
                                 <button
                                     onClick={handleVerifyEmail}
                                     disabled={loading}
@@ -362,44 +362,44 @@ export default function Profile() {
                     <SubscriptionCard onOpenPaywall={() => setShowPaywall(true)} />
 
                     {/* Security Card */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white dark:bg-slate-800 transition-colors duration-200 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
                         <button
                             onClick={() => setIsSecurityOpen(!isSecurityOpen)}
-                            className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 transition-colors"
+                            className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors duration-200"
                         >
                             <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-full bg-gray-50 text-gray-600 flex items-center justify-center">
+                                <div className="w-8 h-8 rounded-full bg-gray-50 dark:bg-slate-700 text-gray-600 dark:text-slate-300 flex items-center justify-center transition-colors duration-200">
                                     <span className="material-symbols-rounded text-[20px]">lock</span>
                                 </div>
-                                <h3 className="font-semibold text-gray-800">Seguridad</h3>
+                                <h3 className="font-semibold text-gray-800 dark:text-zinc-100 transition-colors duration-200">Seguridad</h3>
                             </div>
-                            <span className={`material-symbols-rounded text-gray-400 transition-transform ${isSecurityOpen ? 'rotate-180' : ''}`}>
+                            <span className={`material-symbols-rounded text-gray-400 dark:text-slate-500 transition-transform duration-200 ${isSecurityOpen ? 'rotate-180' : ''}`}>
                                 expand_more
                             </span>
                         </button>
 
                         {isSecurityOpen && (
-                            <div className="px-4 pb-4 pt-1 border-t border-gray-50 animate-fade-in">
-                                <p className="text-xs text-gray-500 mb-4">Actualiza tu contraseña. Por seguridad, te pediremos la contraseña actual.</p>
+                            <div className="px-4 pb-4 pt-1 border-t border-gray-50 dark:border-slate-700 animate-fade-in transition-colors duration-200">
+                                <p className="text-xs text-gray-500 dark:text-slate-400 transition-colors duration-200 mb-4">Actualiza tu contraseña. Por seguridad, te pediremos la contraseña actual.</p>
                                 <form onSubmit={handlePasswordChange} className="space-y-3">
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">Contraseña Actual</label>
+                                        <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 transition-colors duration-200 mb-1">Contraseña Actual</label>
                                         <input
                                             type="password"
                                             value={currentPassword}
                                             onChange={(e) => setCurrentPassword(e.target.value)}
-                                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                            className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 dark:text-zinc-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-colors duration-200"
                                             placeholder="••••••••"
                                             disabled={loading}
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">Nueva Contraseña</label>
+                                        <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 transition-colors duration-200 mb-1">Nueva Contraseña</label>
                                         <input
                                             type="password"
                                             value={newPassword}
                                             onChange={(e) => setNewPassword(e.target.value)}
-                                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                            className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 dark:text-zinc-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-colors duration-200"
                                             placeholder="••••••••"
                                             disabled={loading}
                                         />
@@ -417,61 +417,61 @@ export default function Profile() {
                     </div>
 
                     {/* Help & Legal Card */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white dark:bg-slate-800 transition-colors duration-200 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
                         <div className="flex items-center gap-2 p-4 pb-2">
-                            <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-500 flex items-center justify-center">
+                            <div className="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-500 flex items-center justify-center transition-colors duration-200">
                                 <span className="material-symbols-rounded text-[20px]">help</span>
                             </div>
-                            <h3 className="font-semibold text-gray-800">Ayuda y Legal</h3>
+                            <h3 className="font-semibold text-gray-800 dark:text-zinc-100 transition-colors duration-200">Ayuda y Legal</h3>
                         </div>
 
                         <a
                             href="mailto:saul640@gmail.com?subject=Soporte%20Freenanzas"
-                            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors duration-200"
                         >
-                            <div className="flex items-center gap-3 text-gray-700 text-sm font-medium">
-                                <span className="material-symbols-rounded text-[18px] text-gray-400">mail</span>
+                            <div className="flex items-center gap-3 text-gray-700 dark:text-slate-300 text-sm font-medium transition-colors duration-200">
+                                <span className="material-symbols-rounded text-[18px] text-gray-400 dark:text-slate-500 transition-colors duration-200">mail</span>
                                 Contactar Soporte
                             </div>
-                            <span className="material-symbols-rounded text-gray-300 text-[18px]">chevron_right</span>
+                            <span className="material-symbols-rounded text-gray-300 dark:text-slate-600 transition-colors duration-200 text-[18px]">chevron_right</span>
                         </a>
 
                         <a
                             href="#"
                             onClick={(e) => { e.preventDefault(); toast('Próximamente: Términos de Servicio'); }}
-                            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors border-t border-gray-50"
+                            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors duration-200 border-t border-gray-50 dark:border-slate-700"
                         >
-                            <div className="flex items-center gap-3 text-gray-700 text-sm font-medium">
-                                <span className="material-symbols-rounded text-[18px] text-gray-400">description</span>
+                            <div className="flex items-center gap-3 text-gray-700 dark:text-slate-300 text-sm font-medium transition-colors duration-200">
+                                <span className="material-symbols-rounded text-[18px] text-gray-400 dark:text-slate-500 transition-colors duration-200">description</span>
                                 Términos de Servicio
                             </div>
-                            <span className="material-symbols-rounded text-gray-300 text-[18px]">chevron_right</span>
+                            <span className="material-symbols-rounded text-gray-300 dark:text-slate-600 transition-colors duration-200 text-[18px]">chevron_right</span>
                         </a>
 
                         <a
                             href="#"
                             onClick={(e) => { e.preventDefault(); toast('Próximamente: Política de Privacidad'); }}
-                            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors border-t border-gray-50"
+                            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors duration-200 border-t border-gray-50 dark:border-slate-700"
                         >
-                            <div className="flex items-center gap-3 text-gray-700 text-sm font-medium">
-                                <span className="material-symbols-rounded text-[18px] text-gray-400">privacy_tip</span>
+                            <div className="flex items-center gap-3 text-gray-700 dark:text-slate-300 text-sm font-medium transition-colors duration-200">
+                                <span className="material-symbols-rounded text-[18px] text-gray-400 dark:text-slate-500 transition-colors duration-200">privacy_tip</span>
                                 Política de Privacidad
                             </div>
-                            <span className="material-symbols-rounded text-gray-300 text-[18px]">chevron_right</span>
+                            <span className="material-symbols-rounded text-gray-300 dark:text-slate-600 transition-colors duration-200 text-[18px]">chevron_right</span>
                         </a>
                     </div>
 
                     {/* Logout Card */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mt-4">
+                    <div className="bg-white dark:bg-slate-800 transition-colors duration-200 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden mt-4">
                         <button
                             onClick={handleLogout}
-                            className="w-full flex items-center justify-between p-4 text-left hover:bg-red-50 transition-colors cursor-pointer"
+                            className="w-full flex items-center justify-between p-4 text-left hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 cursor-pointer"
                         >
-                            <div className="flex items-center gap-3 text-red-500 font-medium">
+                            <div className="flex items-center gap-3 text-red-500 dark:text-red-400 font-medium transition-colors duration-200">
                                 <span className="material-symbols-rounded">logout</span>
                                 Cerrar Sesión
                             </div>
-                            <span className="material-symbols-rounded text-gray-300">chevron_right</span>
+                            <span className="material-symbols-rounded text-gray-300 dark:text-slate-600 transition-colors duration-200">chevron_right</span>
                         </button>
                     </div>
 
@@ -480,22 +480,22 @@ export default function Profile() {
                         {!showDeleteConfirm ? (
                             <button
                                 onClick={() => setShowDeleteConfirm(true)}
-                                className="w-full py-2.5 text-xs text-red-400 hover:text-red-600 font-medium transition-colors flex items-center justify-center gap-1"
+                                className="w-full py-2.5 text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300 font-medium transition-colors flex items-center justify-center gap-1"
                             >
                                 <span className="material-symbols-rounded text-[14px]">delete_forever</span>
                                 Eliminar mi cuenta
                             </button>
                         ) : (
-                            <div className="bg-red-50 rounded-2xl border border-red-200 p-4 animate-fade-in">
-                                <p className="text-sm text-red-700 font-semibold text-center mb-1">¿Eliminar tu cuenta?</p>
-                                <p className="text-xs text-red-500 text-center mb-4">
+                            <div className="bg-red-50 dark:bg-red-900/20 rounded-2xl border border-red-200 dark:border-red-900/50 p-4 animate-fade-in transition-colors duration-200">
+                                <p className="text-sm text-red-700 dark:text-red-400 font-semibold text-center mb-1 transition-colors duration-200">¿Eliminar tu cuenta?</p>
+                                <p className="text-xs text-red-500 dark:text-red-400/80 text-center mb-4 transition-colors duration-200">
                                     Esta acción es permanente. Se borrarán todos tus datos y no podrás recuperarlos.
                                 </p>
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => setShowDeleteConfirm(false)}
                                         disabled={isDeleting}
-                                        className="flex-1 py-2 bg-white hover:bg-gray-50 text-gray-700 font-medium rounded-xl text-sm transition-colors border border-gray-200 disabled:opacity-50"
+                                        className="flex-1 py-2 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700/50 text-gray-700 dark:text-slate-300 font-medium rounded-xl text-sm transition-colors duration-200 border border-gray-200 dark:border-slate-700 disabled:opacity-50"
                                     >
                                         Cancelar
                                     </button>
