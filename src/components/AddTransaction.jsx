@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { collection, addDoc, doc, getDoc, getDocs, onSnapshot, query, where, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, onSnapshot, query, where, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../hooks/useAuth';
 import { useLoans } from '../hooks/useLoans';
@@ -54,6 +54,21 @@ const CATEGORY_COLORS = [
 
 const normalizeCategoryName = (value) => value.trim().toLowerCase();
 const getCardBalanceDOP = (card) => card.balanceDOP ?? card.balanceALaFecha ?? card.balance ?? 0;
+const toISODate = (value) => {
+    if (!value) return null;
+    if (typeof value === 'string') return value;
+    if (value?.toDate) return value.toDate().toISOString().split('T')[0];
+    if (value instanceof Date) return value.toISOString().split('T')[0];
+    return null;
+};
+const isNearAmount = (a, b, tolerance = 1) => Math.abs((a || 0) - (b || 0)) <= tolerance;
+const isNearDate = (a, b, maxDays = 1) => {
+    if (!a || !b) return false;
+    const da = new Date(`${a}T12:00:00`);
+    const db = new Date(`${b}T12:00:00`);
+    const diffDays = Math.abs(da - db) / (1000 * 60 * 60 * 24);
+    return diffDays <= maxDays;
+};
 
 export default function AddTransaction() {
     const navigate = useNavigate();
@@ -541,23 +556,10 @@ export default function AddTransaction() {
         if (isFromScan && !forceSave && !isEditMode) {
             setLoading(true);
             try {
-                const snapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'registros'));
-                const matches = [];
-
-                snapshot.forEach(docSnap => {
-                    const data = docSnap.data();
-                    const amountMatch = data.monto === parsedAmount;
-                    const dateMatch = data.fecha === date;
-
-                    const isMerchantProvided = merchant && merchant.trim() !== '';
-                    let merchantMatch = true;
-                    if (isMerchantProvided && data.comercio) {
-                        merchantMatch = data.comercio.toLowerCase() === merchant.trim().toLowerCase();
-                    }
-
-                    if (amountMatch && dateMatch && merchantMatch) {
-                        matches.push({ id: docSnap.id, ...data });
-                    }
+                const matches = transactions.filter(tx => {
+                    if (tx.type !== 'expense') return false;
+                    const txDate = toISODate(tx.date) || toISODate(tx.timestamp);
+                    return isNearAmount(tx.amount, parsedAmount, 1) && isNearDate(txDate, date, 1);
                 });
 
                 if (matches.length > 0) {
@@ -566,7 +568,7 @@ export default function AddTransaction() {
                     return;
                 }
             } catch (err) {
-                console.error("Error validando duplicados locales:", err);
+                console.error('Error validando duplicados locales:', err);
             }
             setLoading(false);
         }
@@ -575,6 +577,9 @@ export default function AddTransaction() {
     };
 
     const isToday = date === new Date().toISOString().split('T')[0];
+    const formattedAmount = amount
+        ? Number(amount).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : amount;
 
     return (
         <div className="flex flex-col min-h-screen bg-[#f7f9f8]">
@@ -1044,7 +1049,7 @@ export default function AddTransaction() {
                         </div>
 
                         <p className="text-sm text-gray-600 mb-6">
-                            Hemos detectado un gasto similar registrado el <span className="font-bold text-gray-900">{date}</span> por <span className="font-bold text-gray-900">RD${amount}</span>.
+                            ⚠️ Factura Duplicada Detectada: Ya existe un gasto de <span className="font-bold text-gray-900">RD$ {formattedAmount}</span> el día <span className="font-bold text-gray-900">{date}</span>. ¿Deseas guardarlo de todas formas?
                         </p>
 
                         <div className="flex flex-col gap-3">

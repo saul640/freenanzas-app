@@ -1,12 +1,32 @@
-import { logErrorToAdmin } from '../utils/errorReporting';
+import { logErrorToAdmin, logIAScanFailure } from '../utils/errorReporting';
 
-const apiKey = "";
+const MODEL_NAME = 'gemini-2.5-flash-preview-09-2025';
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim() ?? '';
+const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg']);
 
-async function fetchWithRetry(contents, retries = 5) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-    let delay = 1000;
+const normalizeImageMimeType = (file) => {
+    const rawType = (file?.type || '').toLowerCase();
+    if (ALLOWED_IMAGE_TYPES.has(rawType)) return rawType;
 
-    for (let i = 0; i < retries; i++) {
+    const name = (file?.name || '').toLowerCase();
+    if (name.endsWith('.png')) return 'image/png';
+    if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
+
+    return 'image/jpeg';
+};
+
+async function fetchWithRetry(contents, { retries = 5, onFinalFailure, component = 'Gemini' } = {}) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`;
+    const delays = [1000, 2000, 4000, 8000, 16000];
+
+    if (!apiKey) {
+        const keyError = new Error('Missing Gemini API key');
+        await logErrorToAdmin({ type: 'CRITICAL_ERROR', message: keyError.message, component });
+        if (onFinalFailure) await onFinalFailure(keyError);
+        throw keyError;
+    }
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
         try {
             const res = await fetch(url, {
                 method: 'POST',
@@ -21,20 +41,21 @@ async function fetchWithRetry(contents, retries = 5) {
 
             const data = await res.json();
             const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!text) throw new Error("Empty response from Gemini");
+            if (!text) throw new Error('Empty response from Gemini');
 
             return text;
         } catch (error) {
-            if (i === retries - 1) {
+            if (attempt === retries) {
                 await logErrorToAdmin({
                     type: 'CRITICAL_ERROR',
                     message: error.message,
-                    component: 'ScannerIA'
+                    component
                 });
+                if (onFinalFailure) await onFinalFailure(error);
                 throw error;
             }
+            const delay = delays[attempt] ?? delays[delays.length - 1];
             await new Promise(resolve => setTimeout(resolve, delay));
-            delay *= 2;
         }
     }
 }
@@ -50,7 +71,7 @@ async function fileToGenerativePart(file) {
             resolve({
                 inlineData: {
                     data: base64Data,
-                    mimeType: file.type || 'image/jpeg',
+                    mimeType: normalizeImageMimeType(file),
                 },
             });
         };
@@ -95,7 +116,22 @@ Reglas:
 - Responde SOLO con el JSON, nada más.`;
 
     const contents = [{ parts: [{ text: prompt }, imagePart] }];
-    const responseText = await fetchWithRetry(contents);
+    const payloadSnippet = JSON.stringify({
+        model: MODEL_NAME,
+        mimeType: imagePart?.inlineData?.mimeType || null,
+        size: file?.size || 0,
+        name: file?.name || '',
+        prompt: prompt.slice(0, 200),
+    }).slice(0, 1000);
+
+    const responseText = await fetchWithRetry(contents, {
+        retries: 5,
+        component: 'ScannerIA',
+        onFinalFailure: (error) => logIAScanFailure({
+            errorMessage: error?.message || 'Unknown error',
+            payloadSnippet,
+        }),
+    });
 
     // Parse the JSON response — handle possible markdown wrapping
     let cleanedText = responseText.trim();
@@ -232,7 +268,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin backticks):
 }`;
 
     const contents = [{ parts: [{ text: prompt }] }];
-    let text = (await fetchWithRetry(contents)).trim();
+    let text = (await fetchWithRetry(contents, { component: 'SpendingAI' })).trim();
     if (text.startsWith('```')) {
         text = text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
     }
@@ -334,7 +370,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin backticks):
 }`;
 
     const contents = [{ parts: [{ text: prompt }] }];
-    let text = (await fetchWithRetry(contents)).trim();
+    let text = (await fetchWithRetry(contents, { component: 'LoanStrategyAI' })).trim();
     if (text.startsWith('```')) {
         text = text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
     }
@@ -457,7 +493,7 @@ ${historyText}
 Responde ÚNICAMENTE con el texto del consejo, sin comillas, sin formato markdown y directo al grano.`;
 
         const contents = [{ parts: [{ text: prompt }] }];
-        let text = (await fetchWithRetry(contents)).trim();
+        let text = (await fetchWithRetry(contents, { component: 'DailyInsightAI' })).trim();
 
         // Remove markdown or quotes if Gemini adds them anyway
         text = text.replace(/^["']|["']$/g, '').replace(/^```[\s\S]*?```$/m, '').trim();
@@ -517,7 +553,7 @@ Responde JSON (sin markdown):
 {"recomendacion":"comprar|posponer|evitar","emoji":"✅|⏳|🚫","nivelRiesgo":"verde|amarillo|rojo","razon":"<2-3 oraciones>","detalleFinanciero":"<1 oración con cifras y concepto de liquidez real>","alternativa":"<sugerencia o null>","impactoDeuda":"<impacto en flujo de caja o null>"}`;
 
     const contents = [{ parts: [{ text: prompt }] }];
-    let text = (await fetchWithRetry(contents)).trim();
+    let text = (await fetchWithRetry(contents, { component: 'PreventiveAI' })).trim();
     if (text.startsWith('```')) {
         text = text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
     }
