@@ -197,7 +197,12 @@ export default function AddTransaction() {
                 if (bestCategory && mergedCategories.some((cat) => cat.name === bestCategory)) {
                     setCategory(bestCategory);
                 }
-                if (scanResult.date) setDate(scanResult.date);
+                if (scanResult.date) {
+                    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+                    if (dateRegex.test(scanResult.date) && !isNaN(new Date(scanResult.date).getTime())) {
+                        setDate(scanResult.date);
+                    }
+                }
                 if (scanResult.merchant) setMerchant(scanResult.merchant);
                 if (scanResult.rnc) setRnc(scanResult.rnc);
                 if (scanResult.ticketNumber) setTicketNumber(scanResult.ticketNumber);

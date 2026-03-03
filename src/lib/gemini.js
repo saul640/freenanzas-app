@@ -119,7 +119,7 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin markdown, sin backticks, si
   "operador": "<nombre del operador/cajero si aparece, o null>",
   "ubicacion": "<ubicación, estación, dirección o sucursal si aparece, o null>",
   "numeroTicket": "<número de ticket, factura o comprobante si aparece, o null>",
-  "fecha": "<fecha en formato YYYY-MM-DD si aparece, o null>",
+  "fecha": "<Busca explícitamente la fecha de la factura, recibo o compra (ej. 'Fecha', 'Fecha de Emisión', 'Date'). Devuélvela en formato estricto YYYY-MM-DD. Si no hay ninguna visible, responde null>",
   "hora": "<hora en formato HH:MM:SS si aparece, o null>",
   "detalles": "<cualquier otro detalle relevante como tipo de vehículo, sentido, items comprados, etc., o null>",
   "categoriasSugeridas": ["<sugerencia1>", "<sugerencia2>"],
