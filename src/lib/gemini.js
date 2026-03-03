@@ -1,6 +1,6 @@
-import { notifyAdminError } from '../utils/errorReporting';
+import { logErrorToAdmin } from '../utils/errorReporting';
 
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
+const apiKey = "";
 
 async function fetchWithRetry(contents, retries = 5) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
@@ -26,10 +26,10 @@ async function fetchWithRetry(contents, retries = 5) {
             return text;
         } catch (error) {
             if (i === retries - 1) {
-                await notifyAdminError({
-                    errorType: 'AI_Gemini_Failure',
+                await logErrorToAdmin({
+                    type: 'CRITICAL_ERROR',
                     message: error.message,
-                    context: 'gemini.js fetchWithRetry'
+                    component: 'ScannerIA'
                 });
                 throw error;
             }
