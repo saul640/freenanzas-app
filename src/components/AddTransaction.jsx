@@ -213,11 +213,26 @@ export default function AddTransaction() {
             }
         } catch (err) {
             console.error('AI Scan Error:', err);
-            setError('Algo salió mal. El equipo técnico ha sido notificado automáticamente.');
+
+            // Detectar errores de configuración/API Key
+            if (err.message?.includes('API key') || err.message?.includes('INVALID_ARGUMENT') || err.message?.includes('400')) {
+                setError('Error de configuración: La clave de IA es inválida o ha expirado. Por favor contacta al administrador.');
+            } else {
+                setError('Algo salió mal con el escaneo. El equipo técnico ha sido notificado.');
+            }
+
+            // Reportar el error real al administrador
+            import('../utils/errorReporting').then(m => {
+                m.logIAScanFailure({
+                    errorMessage: err.message || 'Error desconocido en scanner',
+                    payloadSnippet: `File: ${file?.name}, Size: ${file?.size}`
+                });
+            });
+
         } finally {
             setScanning(false);
             setScanProgress('');
-            e.target.value = '';
+            if (e.target) e.target.value = '';
         }
     };
 

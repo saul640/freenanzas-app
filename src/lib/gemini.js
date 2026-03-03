@@ -1,6 +1,6 @@
 import { logErrorToAdmin, logIAScanFailure } from '../utils/errorReporting';
 
-const MODEL_NAME = 'gemini-2.5-flash';
+const MODEL_NAME = 'gemini-1.5-flash';
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim() ?? '';
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg']);
 
@@ -36,12 +36,30 @@ async function fetchWithRetry(contents, { retries = 5, onFinalFailure, component
 
             if (!res.ok) {
                 const errText = await res.text();
-                throw new Error(`Gemini API Error (${res.status}): ${errText}`);
+                let parsedError;
+                try {
+                    parsedError = JSON.parse(errText);
+                } catch (e) { }
+
+                const message = parsedError?.error?.message || errText;
+
+                // Si la clave es inválida, no reintentar
+                if (res.status === 400 && message.includes('API key')) {
+                    throw new Error(`API key invalid: ${message}`);
+                }
+
+                throw new Error(`Gemini API Error (${res.status}): ${message}`);
             }
 
             const data = await res.json();
             const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!text) throw new Error('Empty response from Gemini');
+            if (!text) {
+                const finishReason = data.candidates?.[0]?.finishReason;
+                if (finishReason === 'SAFETY') {
+                    throw new Error('La imagen fue bloqueada por filtros de seguridad. Intenta con otra foto.');
+                }
+                throw new Error('Respuesta vacía de Gemini (posible bloqueo de seguridad o formato ilegible)');
+            }
 
             return text;
         } catch (error) {
