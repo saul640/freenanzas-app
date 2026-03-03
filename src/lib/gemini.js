@@ -1,6 +1,6 @@
 import { notifyAdminError } from '../utils/errorReporting';
 
-const apiKey = "";
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
 
 async function fetchWithRetry(contents, retries = 5) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
