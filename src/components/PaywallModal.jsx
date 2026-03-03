@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { FaCrown, FaTimes } from 'react-icons/fa';
 import { PayPalScriptProvider, PayPalButtons, usePayPalScriptReducer, DISPATCH_ACTION } from "@paypal/react-paypal-js";
@@ -32,6 +32,17 @@ function PaywallModalContent({ onClose }) {
     const fallbackLinkAnnual = import.meta.env.VITE_PAYPAL_FALLBACK_ANNUAL || "";
     const currentFallbackLink = billingCycle === "annual" ? fallbackLinkAnnual : fallbackLinkMonthly;
 
+    // ─── Animation States ───
+    const [isVisible, setIsVisible] = useState(false);
+    useEffect(() => {
+        setIsVisible(true);
+    }, []);
+
+    const handleClose = () => {
+        setIsVisible(false);
+        setTimeout(onClose, 300);
+    };
+
     // ─── Auth + SDK readiness guard ───
     const isReady = !!currentUser && !isPending && !isRejected;
 
@@ -60,7 +71,7 @@ function PaywallModalContent({ onClose }) {
             );
 
             toast.success('¡Suscripción exitosa! Ahora eres usuario PRO 🎉', { duration: 5000 });
-            onClose();
+            handleClose();
         } catch (error) {
             setErrorMsg("Hubo un error al actualizar tu cuenta. Por favor contacta a soporte.");
         } finally {
@@ -100,7 +111,7 @@ function PaywallModalContent({ onClose }) {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+        <div className={`fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
             {/* ── Full-screen loading overlay during payment processing ── */}
             {loading && (
                 <div className="fixed inset-0 bg-black/60 z-[60] flex flex-col items-center justify-center gap-4">
@@ -110,9 +121,9 @@ function PaywallModalContent({ onClose }) {
                 </div>
             )}
 
-            <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl p-6 sm:p-8 w-full max-w-md relative animate-fade-in-up my-auto max-h-[90vh] overflow-y-auto">
+            <div className={`bg-white dark:bg-gray-800 rounded-3xl shadow-2xl p-6 sm:p-8 w-full max-w-md relative my-auto max-h-[90vh] overflow-y-auto transition-all duration-300 transform ${isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
                 <button
-                    onClick={onClose}
+                    onClick={handleClose}
                     disabled={loading}
                     className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors disabled:opacity-30"
                 >
@@ -228,7 +239,7 @@ function PaywallModalContent({ onClose }) {
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="w-full bg-[#0070ba] hover:bg-[#003087] text-white px-4 py-3 rounded-full text-sm font-bold transition-colors shadow-md flex items-center justify-center gap-2"
-                                            onClick={() => onClose()}
+                                            onClick={() => handleClose()}
                                         >
                                             Pagar con PayPal <span className="material-symbols-rounded text-[18px]">open_in_new</span>
                                         </a>

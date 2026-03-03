@@ -24,6 +24,8 @@ export default function Dashboard() {
     const [creditCards, setCreditCards] = useState([]);
     const [showPaywall, setShowPaywall] = useState(false);
 
+    const daysRemaining = trialDaysLeft !== undefined ? Math.max(0, trialDaysLeft) : 7;
+
 
 
     useEffect(() => {
@@ -115,7 +117,7 @@ export default function Dashboard() {
                 <div className="flex justify-between items-center">
                     <div>
                         <p className="text-sm text-gray-500 dark:text-slate-400 transition-colors duration-200">Bienvenido de nuevo,</p>
-                        <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-900 dark:text-zinc-100 transition-colors duration-200">
+                        <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-900 dark:text-indigo-200 transition-colors duration-200">
                             Hola, {userName} 👋
                             {isProUser && !isTrialUser && (
                                 <span className="material-symbols-rounded text-amber-500 text-xl" title="Usuario PRO">crown</span>
@@ -138,10 +140,10 @@ export default function Dashboard() {
 
             {/* Promotional trial banner — no otorga acceso, solo informa */}
             {userStatus === 'TRIAL' && (
-                <div className="mx-6 mt-1 flex items-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-2xl px-4 py-3 shadow-md">
-                    <span className="material-symbols-rounded text-xl">auto_awesome</span>
+                <div className="mx-6 mt-1 flex items-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-2xl px-4 py-3 shadow-md border border-indigo-400/30">
+                    <span className="material-symbols-rounded text-xl animate-pulse">auto_awesome</span>
                     <p className="flex-1 text-sm font-medium">
-                        Desbloquea IA y reportes avanzados
+                        🎁 Tienes {daysRemaining} días de prueba PRO restantes. ¡Mejora ahora!
                     </p>
                     <button
                         onClick={() => setShowPaywall(true)}
@@ -201,13 +203,13 @@ export default function Dashboard() {
                 </div>
 
                 {/* Ofertas para ti (Lead Gen Engine) */}
-                <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden relative transition-colors duration-200">
+                <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 shadow-sm dark:shadow-indigo-500/20 border border-gray-100 dark:border-slate-700 overflow-hidden relative transition-all duration-300 hover:shadow-md">
                     <div className="absolute top-0 right-0 p-3">
                         <span className="material-symbols-rounded text-primary/20 dark:text-primary/10 text-4xl leading-none">request_quote</span>
                     </div>
                     <h3 className="text-xs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-2 transition-colors duration-200">Ofertas para ti</h3>
-                    <p className="text-sm font-bold text-gray-800 dark:text-zinc-100 mb-1 transition-colors duration-200">{recommendation.title}</p>
-                    <p className="text-xs text-gray-500 dark:text-slate-400 mb-4 pr-10 transition-colors duration-200">{recommendation.content}</p>
+                    <p className="text-sm font-bold text-gray-800 dark:text-indigo-200 mb-1 transition-colors duration-200">{recommendation.title}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-300 mb-4 pr-10 transition-colors duration-200">{recommendation.content}</p>
 
                     {recommendation.cta && (
                         <a
@@ -224,51 +226,51 @@ export default function Dashboard() {
 
                 {/* Quick Actions */}
                 <div className="grid grid-cols-2 gap-3">
-                    <button onClick={() => { navigate('/add'); }} className="bg-white dark:bg-slate-800 rounded-2xl p-4 flex flex-col items-center gap-2 shadow-sm border border-gray-100 dark:border-slate-700 active:scale-95 transition-all duration-200">
+                    <button onClick={() => { navigate('/add'); }} className="bg-white dark:bg-slate-800 rounded-2xl p-4 flex flex-col items-center gap-2 shadow-sm dark:shadow-indigo-500/10 border border-gray-100 dark:border-slate-700 active:scale-95 hover:-translate-y-1 hover:shadow-md transition-all duration-300">
                         <div className="w-12 h-12 rounded-full bg-green-50 dark:bg-green-500/10 flex items-center justify-center transition-colors duration-200">
                             <span className="material-symbols-rounded text-primary dark:text-green-400">arrow_upward</span>
                         </div>
-                        <span className="text-sm font-semibold text-slate-900 dark:text-zinc-100 transition-colors duration-200">Ingresos</span>
+                        <span className="text-sm font-semibold text-slate-900 dark:text-indigo-200 transition-colors duration-200">Ingresos</span>
                     </button>
-                    <button onClick={() => { navigate('/add'); }} className="bg-white dark:bg-slate-800 rounded-2xl p-4 flex flex-col items-center gap-2 shadow-sm border border-gray-100 dark:border-slate-700 active:scale-95 transition-all duration-200">
+                    <button onClick={() => { navigate('/add'); }} className="bg-white dark:bg-slate-800 rounded-2xl p-4 flex flex-col items-center gap-2 shadow-sm dark:shadow-indigo-500/10 border border-gray-100 dark:border-slate-700 active:scale-95 hover:-translate-y-1 hover:shadow-md transition-all duration-300">
                         <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-500/10 flex items-center justify-center transition-colors duration-200">
                             <span className="material-symbols-rounded text-red-500 dark:text-red-400">arrow_downward</span>
                         </div>
-                        <span className="text-sm font-semibold text-slate-900 dark:text-zinc-100 transition-colors duration-200">Gastos</span>
+                        <span className="text-sm font-semibold text-slate-900 dark:text-indigo-200 transition-colors duration-200">Gastos</span>
                     </button>
                 </div>
 
                 {/* Financial Tools Grid */}
                 <div>
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-zinc-100 mb-3 transition-colors duration-200">Herramientas Financieras</h3>
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-indigo-200 mb-3 transition-colors duration-200">Herramientas Financieras</h3>
                     <div className="grid grid-cols-2 gap-3">
-                        <button onClick={() => navigate('/recurring')} className="bg-white dark:bg-slate-800 rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 dark:border-slate-700 active:scale-95 transition-all duration-200 text-left">
+                        <button onClick={() => navigate('/recurring')} className="bg-white dark:bg-slate-800 rounded-2xl p-4 flex items-center gap-3 shadow-sm dark:shadow-indigo-500/10 border border-gray-100 dark:border-slate-700 active:scale-95 hover:-translate-y-1 hover:shadow-md transition-all duration-300 text-left">
                             <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center transition-colors duration-200"><span className="material-symbols-rounded text-indigo-500 dark:text-indigo-400">event_repeat</span></div>
-                            <div><p className="text-sm font-bold text-gray-800 dark:text-zinc-100 transition-colors duration-200">Recurrentes</p><p className="text-[10px] text-gray-400 dark:text-slate-400 transition-colors duration-200">Calendario</p></div>
+                            <div><p className="text-sm font-bold text-gray-800 dark:text-slate-300 transition-colors duration-200">Recurrentes</p><p className="text-[10px] text-gray-400 dark:text-slate-400 transition-colors duration-200">Calendario</p></div>
                         </button>
-                        <button onClick={() => navigate('/budget')} className="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 active:scale-95 transition-transform text-left">
-                            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center"><span className="material-symbols-rounded text-emerald-500">account_balance</span></div>
-                            <div><p className="text-sm font-bold text-gray-800">Presupuesto</p><p className="text-[10px] text-gray-400">Mensual</p></div>
+                        <button onClick={() => navigate('/budget')} className="bg-white dark:bg-slate-800 rounded-2xl p-4 flex items-center gap-3 shadow-sm dark:shadow-indigo-500/10 border border-gray-100 dark:border-slate-700 active:scale-95 hover:-translate-y-1 hover:shadow-md transition-all duration-300 text-left">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center transition-colors duration-200"><span className="material-symbols-rounded text-emerald-500 dark:text-emerald-400">account_balance</span></div>
+                            <div><p className="text-sm font-bold text-gray-800 dark:text-slate-300 transition-colors duration-200">Presupuesto</p><p className="text-[10px] text-gray-400 dark:text-slate-400 transition-colors duration-200">Mensual</p></div>
                         </button>
-                        <button onClick={() => canAccessPremium ? navigate('/cards') : setShowPaywall(true)} className={`bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 active:scale-95 transition-transform text-left relative ${!canAccessPremium ? 'opacity-70' : ''}`}>
-                            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center"><span className="material-symbols-rounded text-purple-500">credit_card</span></div>
-                            <div><p className="text-sm font-bold text-gray-800">Tarjetas</p><p className="text-[10px] text-gray-400">Crédito</p></div>
-                            {!canAccessPremium && <span className="absolute top-2 right-2 material-symbols-rounded text-amber-500 text-sm">lock</span>}
+                        <button onClick={() => canAccessPremium ? navigate('/cards') : setShowPaywall(true)} className={`bg-white dark:bg-slate-800 rounded-2xl p-4 flex items-center gap-3 shadow-sm dark:shadow-indigo-500/10 border border-gray-100 dark:border-slate-700 active:scale-95 hover:-translate-y-1 hover:shadow-md transition-all duration-300 text-left relative ${!canAccessPremium ? 'opacity-70' : ''}`}>
+                            <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-500/20 flex items-center justify-center transition-colors duration-200"><span className="material-symbols-rounded text-purple-500 dark:text-purple-400">credit_card</span></div>
+                            <div><p className="text-sm font-bold text-gray-800 dark:text-slate-300 transition-colors duration-200">Tarjetas</p><p className="text-[10px] text-gray-400 dark:text-slate-400 transition-colors duration-200">Crédito</p></div>
+                            {!canAccessPremium && <span className="absolute top-2 right-2 material-symbols-rounded text-amber-500 text-sm drop-shadow-md">lock</span>}
                         </button>
-                        <button onClick={() => canAccessPremium ? navigate('/advisor') : setShowPaywall(true)} className={`bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 active:scale-95 transition-transform text-left relative ${!canAccessPremium ? 'opacity-70' : ''}`}>
-                            <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center"><span className="material-symbols-rounded text-violet-500">auto_awesome</span></div>
-                            <div><p className="text-sm font-bold text-gray-800">Asesor IA</p><p className="text-[10px] text-gray-400">Consejos</p></div>
-                            {!canAccessPremium && <span className="absolute top-2 right-2 material-symbols-rounded text-amber-500 text-sm">lock</span>}
+                        <button onClick={() => canAccessPremium ? navigate('/advisor') : setShowPaywall(true)} className={`bg-white dark:bg-slate-800 rounded-2xl p-4 flex items-center gap-3 shadow-sm dark:shadow-indigo-500/10 border border-gray-100 dark:border-slate-700 active:scale-95 hover:-translate-y-1 hover:shadow-md transition-all duration-300 text-left relative ${!canAccessPremium ? 'opacity-70' : ''}`}>
+                            <div className="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-500/20 flex items-center justify-center transition-colors duration-200"><span className="material-symbols-rounded text-violet-500 dark:text-violet-400">auto_awesome</span></div>
+                            <div><p className="text-sm font-bold text-gray-800 dark:text-slate-300 transition-colors duration-200">Asesor IA</p><p className="text-[10px] text-gray-400 dark:text-slate-400 transition-colors duration-200">Consejos</p></div>
+                            {!canAccessPremium && <span className="absolute top-2 right-2 material-symbols-rounded text-amber-500 text-sm drop-shadow-md">lock</span>}
                         </button>
-                        <button onClick={() => canAccessPremium ? navigate('/loans') : setShowPaywall(true)} className={`bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-gray-100 active:scale-95 transition-transform text-left relative ${!canAccessPremium ? 'opacity-70' : ''}`}>
-                            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center"><span className="material-symbols-rounded text-amber-500">account_balance</span></div>
-                            <div><p className="text-sm font-bold text-gray-800">Préstamos</p><p className="text-[10px] text-gray-400">Deudas</p></div>
-                            {!canAccessPremium && <span className="absolute top-2 right-2 material-symbols-rounded text-amber-500 text-sm">lock</span>}
+                        <button onClick={() => canAccessPremium ? navigate('/loans') : setShowPaywall(true)} className={`bg-white dark:bg-slate-800 rounded-2xl p-4 flex items-center gap-3 shadow-sm dark:shadow-indigo-500/10 border border-gray-100 dark:border-slate-700 active:scale-95 hover:-translate-y-1 hover:shadow-md transition-all duration-300 text-left relative ${!canAccessPremium ? 'opacity-70' : ''}`}>
+                            <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center transition-colors duration-200"><span className="material-symbols-rounded text-amber-500 dark:text-amber-400">account_balance</span></div>
+                            <div><p className="text-sm font-bold text-gray-800 dark:text-slate-300 transition-colors duration-200">Préstamos</p><p className="text-[10px] text-gray-400 dark:text-slate-400 transition-colors duration-200">Deudas</p></div>
+                            {!canAccessPremium && <span className="absolute top-2 right-2 material-symbols-rounded text-amber-500 text-sm drop-shadow-md">lock</span>}
                         </button>
-                        <button onClick={() => canAccessPremium ? navigate('/add') : setShowPaywall(true)} className={`bg-white rounded-2xl p-4 flex items-center gap-3 shadow-sm border border-cyan-100 active:scale-95 transition-transform text-left relative ${!canAccessPremium ? 'opacity-70' : ''}`}>
-                            <div className="w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center"><span className="material-symbols-rounded text-cyan-500">smart_toy</span></div>
-                            <div><p className="text-sm font-bold text-gray-800">Filtro IA</p><p className="text-[10px] text-gray-400">Preventivo</p></div>
-                            {!canAccessPremium && <span className="absolute top-2 right-2 material-symbols-rounded text-amber-500 text-sm">lock</span>}
+                        <button onClick={() => canAccessPremium ? navigate('/add') : setShowPaywall(true)} className={`bg-white dark:bg-slate-800 rounded-2xl p-4 flex items-center gap-3 shadow-sm dark:shadow-indigo-500/10 border border-cyan-100 dark:border-slate-700 active:scale-95 hover:-translate-y-1 hover:shadow-md transition-all duration-300 text-left relative ${!canAccessPremium ? 'opacity-70' : ''}`}>
+                            <div className="w-10 h-10 rounded-xl bg-cyan-100 dark:bg-cyan-500/20 flex items-center justify-center transition-colors duration-200"><span className="material-symbols-rounded text-cyan-500 dark:text-cyan-400">smart_toy</span></div>
+                            <div><p className="text-sm font-bold text-gray-800 dark:text-slate-300 transition-colors duration-200">Filtro IA</p><p className="text-[10px] text-gray-400 dark:text-slate-400 transition-colors duration-200">Preventivo</p></div>
+                            {!canAccessPremium && <span className="absolute top-2 right-2 material-symbols-rounded text-amber-500 text-sm drop-shadow-md">lock</span>}
                         </button>
                     </div>
                 </div>
@@ -277,7 +279,7 @@ export default function Dashboard() {
                 {!isProUser && (
                     <button
                         onClick={() => setShowPaywall(true)}
-                        className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 rounded-2xl p-4 flex items-center gap-4 shadow-lg active:scale-[0.98] transition-transform text-left"
+                        className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 rounded-2xl p-4 flex items-center gap-4 shadow-md hover:shadow-lg hover:-translate-y-1 active:scale-[0.98] transition-all duration-300 text-left"
                     >
                         <div className="w-12 h-12 rounded-full bg-white/30 flex items-center justify-center">
                             <span className="material-symbols-rounded text-white text-2xl">crown</span>
@@ -339,29 +341,30 @@ export default function Dashboard() {
                     </div>
 
                     {transactions.length === 0 ? (
-                        <div className="text-center py-10 bg-white rounded-2xl border border-dashed border-gray-200">
-                            <span className="material-symbols-rounded text-4xl text-gray-300 mb-2">receipt_long</span>
-                            <p className="text-gray-400 text-sm mt-2">No tienes transacciones aún.</p>
-                            <button onClick={() => navigate('/add')} className="mt-4 text-primary font-medium text-sm">+ Agregar primera</button>
+                        <div className="text-center py-10 bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700 transition-colors duration-200">
+                            <span className="material-symbols-rounded text-4xl text-gray-300 dark:text-slate-600 mb-2">receipt_long</span>
+                            <p className="text-gray-400 dark:text-slate-400 text-sm mt-2 transition-colors duration-200">No tienes transacciones aún.</p>
+                            <button onClick={() => navigate('/add')} className="mt-4 text-primary dark:text-primary-dark font-medium text-sm hover:-translate-y-0.5 transition-transform inline-block">+ Agregar primera</button>
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {transactions.slice(0, 5).map(tx => (
+                            {transactions.slice(0, 5).map((tx, index) => (
                                 <button
                                     key={tx.id}
                                     onClick={() => setSelectedTx(tx)}
-                                    className="w-full flex items-center justify-between bg-white rounded-2xl p-4 shadow-md border border-gray-50 transition-transform duration-200 hover:-translate-y-1 hover:shadow-lg text-left active:scale-[0.98]"
+                                    className="w-full flex items-center justify-between bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm dark:shadow-indigo-500/10 border border-gray-50 dark:border-slate-700 transition-all duration-300 hover:-translate-y-1 hover:shadow-md text-left active:scale-[0.98] animate-fade-in-up"
+                                    style={{ animationDelay: `${index * 80}ms`, animationFillMode: 'both' }}
                                 >
                                     <div className="flex items-center gap-3">
                                         <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${getCategoryColor(tx.category)}`}>
                                             <span className="material-symbols-rounded text-xl">{getCategoryIcon(tx.category)}</span>
                                         </div>
                                         <div>
-                                            <p className="font-semibold text-sm">{tx.note || tx.category}</p>
-                                            <p className="text-xs text-gray-400 mt-0.5">{formatDate(tx.timestamp)}</p>
+                                            <p className="font-semibold text-sm dark:text-slate-300">{tx.note || tx.category}</p>
+                                            <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(tx.timestamp)}</p>
                                         </div>
                                     </div>
-                                    <span className={`font-bold text-sm ${tx.type === 'expense' ? 'text-gray-800' : 'text-primary'}`}>
+                                    <span className={`font-bold text-sm ${tx.type === 'expense' ? 'text-gray-800 dark:text-zinc-100' : 'text-primary dark:text-green-400'}`}>
                                         {tx.type === 'expense' ? '- ' : '+ '}RD$ {formatMoney(tx.amount)}
                                     </span>
                                 </button>
