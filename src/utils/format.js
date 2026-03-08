@@ -32,6 +32,7 @@ export const getCategoryIcon = (category) => {
     'Ocio y Entretenimiento': 'sports_esports',
     'Salud': 'health_and_safety',
     'Educación': 'school',
+    'Ahorro': 'savings',
     'Ahorro e Inversión': 'savings',
     'Salario Quincenal': 'payments',
     'Freelance': 'work',
@@ -52,6 +53,7 @@ export const getCategoryColor = (category) => {
     'Ocio': 'bg-pink-50 text-pink-500',
     'Ocio y Entretenimiento': 'bg-red-50 text-red-500',
     'Salud': 'bg-green-50 text-green-600',
+    'Ahorro': 'bg-emerald-50 text-emerald-600',
     'Ahorro e Inversión': 'bg-emerald-50 text-emerald-600',
   };
   return map[category] || 'bg-gray-50 text-gray-500';

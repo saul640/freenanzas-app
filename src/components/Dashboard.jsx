@@ -18,8 +18,9 @@ export default function Dashboard() {
     const canAccessPremium = isProUser || isTrialUser;
 
     const [transactions, setTransactions] = useState([]);
-    const [balance, setBalance] = useState({ total: 0, income: 0, expense: 0 });
+    const [balance, setBalance] = useState({ total: 0, income: 0, expense: 0, savings: 0, spendingExpense: 0, available: 0 });
     const [showBalance, setShowBalance] = useState(true);
+    const [balanceTab, setBalanceTab] = useState('spending');
     const [selectedTx, setSelectedTx] = useState(null);
     const [creditCards, setCreditCards] = useState([]);
     const [showPaywall, setShowPaywall] = useState(false);
@@ -37,18 +38,32 @@ export default function Dashboard() {
             orderBy('timestamp', 'desc')
         );
 
+        const SAVINGS_CATEGORIES = ['ahorro', 'ahorro e inversión'];
+        const isSavingsCategory = (cat) => SAVINGS_CATEGORIES.includes((cat || '').toLowerCase());
+
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const txs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setTransactions(txs);
 
             let income = 0;
             let expense = 0;
+            let savings = 0;
+            let spendingExpense = 0;
             txs.forEach(t => {
-                if (t.type === 'income') income += t.amount;
-                else expense += t.amount;
+                if (t.type === 'income') {
+                    income += t.amount;
+                } else {
+                    expense += t.amount;
+                    if (isSavingsCategory(t.category)) {
+                        savings += t.amount;
+                    } else {
+                        spendingExpense += t.amount;
+                    }
+                }
             });
 
-            setBalance({ total: income - expense, income, expense });
+            const available = income - spendingExpense - savings;
+            setBalance({ total: income - expense, income, expense, savings, spendingExpense, available });
         });
 
         return unsubscribe;
@@ -157,30 +172,113 @@ export default function Dashboard() {
             {/* Content */}
             <div className="flex-1 overflow-y-auto px-6 space-y-5 pb-40">
 
-                {/* Balance Card */}
-                <div className="relative overflow-hidden rounded-3xl p-6 shadow-xl border border-white/10 bg-gradient-to-br from-[#0df259] to-emerald-800">
-                    <div className="absolute -top-16 -right-10 w-40 h-40 bg-white/20 rounded-full blur-3xl" aria-hidden="true"></div>
-                    <div className="absolute -bottom-20 -left-16 w-52 h-52 bg-emerald-900/30 rounded-full blur-3xl" aria-hidden="true"></div>
-                    <div className="absolute inset-0 bg-white/10 backdrop-blur-[2px]" aria-hidden="true"></div>
-                    <div className="relative z-10 flex justify-between items-center mb-1">
-                        <p className="text-xs text-white/80 font-semibold tracking-wider uppercase">Saldo Total</p>
-                        <button onClick={() => setShowBalance(!showBalance)} className="text-white/90 hover:text-white transition-colors">
-                            <span className="material-symbols-rounded text-xl">{showBalance ? 'visibility' : 'visibility_off'}</span>
-                        </button>
+                {/* Balance Tabs */}
+                <div className="flex p-1 bg-gray-100 dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-200/50 dark:border-slate-700">
+                    <button
+                        onClick={() => setBalanceTab('spending')}
+                        className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-1.5 ${balanceTab === 'spending'
+                                ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-400 shadow-sm'
+                                : 'text-gray-400 dark:text-slate-500 hover:text-gray-600'
+                            }`}
+                    >
+                        <span className="material-symbols-rounded text-lg">account_balance_wallet</span>
+                        Para Gastar
+                    </button>
+                    <button
+                        onClick={() => setBalanceTab('savings')}
+                        className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-1.5 ${balanceTab === 'savings'
+                                ? 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-400 shadow-sm'
+                                : 'text-gray-400 dark:text-slate-500 hover:text-gray-600'
+                            }`}
+                    >
+                        <span className="material-symbols-rounded text-lg">savings</span>
+                        Mis Ahorros
+                    </button>
+                </div>
+
+                {/* Balance Cards */}
+                <div className="relative">
+                    {/* Card: Para Gastar */}
+                    <div
+                        className={`relative overflow-hidden rounded-3xl p-6 shadow-xl border border-white/10 transition-all duration-500 ease-in-out ${balanceTab === 'spending'
+                                ? 'opacity-100 translate-y-0 pointer-events-auto'
+                                : 'opacity-0 translate-y-4 pointer-events-none absolute inset-0'
+                            } bg-gradient-to-br from-[#0df259] to-emerald-800`}
+                    >
+                        <div className="absolute -top-16 -right-10 w-40 h-40 bg-white/20 rounded-full blur-3xl" aria-hidden="true"></div>
+                        <div className="absolute -bottom-20 -left-16 w-52 h-52 bg-emerald-900/30 rounded-full blur-3xl" aria-hidden="true"></div>
+                        <div className="absolute inset-0 bg-white/10 backdrop-blur-[2px]" aria-hidden="true"></div>
+                        <div className="relative z-10 flex justify-between items-center mb-1">
+                            <div className="flex items-center gap-2">
+                                <span className="material-symbols-rounded text-white/80 text-lg">account_balance_wallet</span>
+                                <p className="text-xs text-white/80 font-semibold tracking-wider uppercase">Disponible para Gastar</p>
+                            </div>
+                            <button onClick={() => setShowBalance(!showBalance)} className="text-white/90 hover:text-white transition-colors">
+                                <span className="material-symbols-rounded text-xl">{showBalance ? 'visibility' : 'visibility_off'}</span>
+                            </button>
+                        </div>
+                        <h2 className="relative z-10 text-4xl font-bold text-white mt-2">
+                            {showBalance ? (
+                                <>RD$ {formatMoney(balance.available)}<span className="text-xl text-white/70">.00</span></>
+                            ) : (
+                                'RD$ ••••••'
+                            )}
+                        </h2>
+                        <div className="relative z-10 flex items-center gap-3 mt-3">
+                            {balance.income > 0 && (
+                                <p className="text-sm text-white/90 inline-flex items-center gap-1 bg-white/15 px-2.5 py-1 rounded-full">
+                                    <span className="material-symbols-rounded text-sm">trending_up</span>
+                                    Activo
+                                </p>
+                            )}
+                            {balance.savings > 0 && (
+                                <p className="text-[11px] text-white/70 inline-flex items-center gap-1 bg-white/10 px-2 py-1 rounded-full">
+                                    <span className="material-symbols-rounded text-xs">lock</span>
+                                    RD$ {formatMoney(balance.savings)} en ahorro
+                                </p>
+                            )}
+                        </div>
                     </div>
-                    <h2 className="relative z-10 text-4xl font-bold text-white">
-                        {showBalance ? (
-                            <>RD$ {formatMoney(balance.total)}<span className="text-xl text-white/70">.00</span></>
-                        ) : (
-                            'RD$ ••••••'
-                        )}
-                    </h2>
-                    {balance.income > 0 && (
-                        <p className="relative z-10 text-sm text-white/90 mt-2 inline-flex items-center gap-1 bg-white/15 px-2.5 py-1 rounded-full">
-                            <span className="material-symbols-rounded text-sm">trending_up</span>
-                            Activo
-                        </p>
-                    )}
+
+                    {/* Card: Mis Ahorros */}
+                    <div
+                        className={`relative overflow-hidden rounded-3xl p-6 shadow-xl border border-white/10 transition-all duration-500 ease-in-out ${balanceTab === 'savings'
+                                ? 'opacity-100 translate-y-0 pointer-events-auto'
+                                : 'opacity-0 translate-y-4 pointer-events-none absolute inset-0'
+                            } bg-gradient-to-br from-indigo-500 to-violet-800`}
+                    >
+                        <div className="absolute -top-16 -right-10 w-40 h-40 bg-white/15 rounded-full blur-3xl" aria-hidden="true"></div>
+                        <div className="absolute -bottom-20 -left-16 w-52 h-52 bg-violet-900/40 rounded-full blur-3xl" aria-hidden="true"></div>
+                        <div className="absolute inset-0 bg-white/5 backdrop-blur-[2px]" aria-hidden="true"></div>
+                        <div className="relative z-10 flex justify-between items-center mb-1">
+                            <div className="flex items-center gap-2">
+                                <span className="material-symbols-rounded text-white/80 text-lg">savings</span>
+                                <p className="text-xs text-white/80 font-semibold tracking-wider uppercase">Fondo de Ahorro</p>
+                            </div>
+                            <button onClick={() => setShowBalance(!showBalance)} className="text-white/90 hover:text-white transition-colors">
+                                <span className="material-symbols-rounded text-xl">{showBalance ? 'visibility' : 'visibility_off'}</span>
+                            </button>
+                        </div>
+                        <h2 className="relative z-10 text-4xl font-bold text-white mt-2">
+                            {showBalance ? (
+                                <>RD$ {formatMoney(balance.savings)}<span className="text-xl text-white/70">.00</span></>
+                            ) : (
+                                'RD$ ••••••'
+                            )}
+                        </h2>
+                        <div className="relative z-10 flex items-center gap-3 mt-3">
+                            <p className="text-sm text-white/90 inline-flex items-center gap-1 bg-white/15 px-2.5 py-1 rounded-full">
+                                <span className="material-symbols-rounded text-sm">lock</span>
+                                Protegido
+                            </p>
+                            {balance.available > 0 && (
+                                <p className="text-[11px] text-white/70 inline-flex items-center gap-1 bg-white/10 px-2 py-1 rounded-full">
+                                    <span className="material-symbols-rounded text-xs">account_balance_wallet</span>
+                                    RD$ {formatMoney(balance.available)} disponible
+                                </p>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Insight del día */}
