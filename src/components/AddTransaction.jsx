@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useLoans } from '../hooks/useLoans';
 import { scanReceiptWithAI, getBestCategory, consultPreventiveAI, consultPreventiveAILocal, calcAhorroRecomendado } from '../lib/gemini';
 import PaywallModal from './PaywallModal';
+import { getSmartCategoryIcon } from '../utils/smartCategoryIcon';
 
 // ─── Exponential Backoff Utility ───
 const retryWithBackoff = async (fn, maxRetries = 3) => {
@@ -444,11 +445,12 @@ export default function AddTransaction() {
         try {
             setCreatingCategory(true);
             setError('');
+            const smartIcon = getSmartCategoryIcon(trimmedName);
             await addDoc(collection(db, 'users', currentUser.uid, 'categories'), {
                 userId: currentUser.uid,
                 name: trimmedName,
                 type,
-                icon: 'label',
+                icon: smartIcon,
                 color: newCategoryColor,
                 createdAt: serverTimestamp(),
             });

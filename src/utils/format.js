@@ -1,3 +1,5 @@
+import { getSmartCategoryIcon, getSmartCategoryColor } from './smartCategoryIcon';
+
 export const formatMoney = (amount) => {
   if (amount == null || isNaN(amount)) return '0';
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
@@ -38,7 +40,7 @@ export const getCategoryIcon = (category) => {
     'Freelance': 'work',
     'Rendimientos': 'trending_up',
   };
-  return map[category] || 'receipt_long';
+  return map[category] || getSmartCategoryIcon(category);
 };
 
 export const getCategoryColor = (category) => {
@@ -56,5 +58,6 @@ export const getCategoryColor = (category) => {
     'Ahorro': 'bg-emerald-50 text-emerald-600',
     'Ahorro e Inversión': 'bg-emerald-50 text-emerald-600',
   };
-  return map[category] || 'bg-gray-50 text-gray-500';
+  return map[category] || getSmartCategoryColor(category);
 };
+

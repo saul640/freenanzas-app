@@ -5,6 +5,7 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import BottomNav from './BottomNav';
 import CategoryDetailModal from './CategoryDetailModal';
+import { getSmartCategoryIcon } from '../utils/smartCategoryIcon';
 
 // ─── Color mapping: Firestore color id → hex + tailwind ───
 const COLOR_MAP = {
@@ -92,7 +93,7 @@ export default function Analytics() {
 
     // ─── Resolve full icon data for a category name ───
     const getIconData = useCallback((catName) => {
-        const entry = categoryLookup[catName] || { icon: 'label', colorId: 'teal' };
+        const entry = categoryLookup[catName] || { icon: getSmartCategoryIcon(catName), colorId: 'teal' };
         const colors = COLOR_MAP[entry.colorId] || COLOR_MAP.teal;
         return { icon: entry.icon, color: colors.text, bg: colors.bg, bar: colors.bar, hex: colors.hex };
     }, [categoryLookup]);
