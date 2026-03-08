@@ -71,7 +71,11 @@ export default function MonthlyBudget() {
         return unsub;
     }, [currentUser]);
 
-    const totalSpent = useMemo(() => transactions.reduce((s, t) => s + (t.amount || 0), 0), [transactions]);
+    const SAVINGS_CATS = ['ahorro', 'ahorro e inversión'];
+    const isSavingsTx = (tx) => SAVINGS_CATS.includes((tx.category || '').toLowerCase());
+    const spendingTransactions = useMemo(() => transactions.filter(tx => !isSavingsTx(tx)), [transactions]);
+    const totalSpent = useMemo(() => spendingTransactions.reduce((s, t) => s + (t.amount || 0), 0), [spendingTransactions]);
+    const totalSavings = useMemo(() => transactions.filter(tx => isSavingsTx(tx)).reduce((s, t) => s + (t.amount || 0), 0), [transactions]);
 
     // ─── Income tracking (for savings calc) ───
     const [allTx, setAllTx] = useState([]);
@@ -129,12 +133,12 @@ export default function MonthlyBudget() {
 
     const spendingByCategory = useMemo(() => {
         const map = {};
-        transactions.forEach(tx => {
+        spendingTransactions.forEach(tx => {
             const cat = tx.category || 'Otros';
             map[cat] = (map[cat] || 0) + (tx.amount || 0);
         });
         return map;
-    }, [transactions]);
+    }, [spendingTransactions]);
 
     const allCategories = useMemo(() => {
         const set = new Set([...DEFAULT_CATEGORIES, ...Object.keys(categoryLimits), ...Object.keys(spendingByCategory)]);

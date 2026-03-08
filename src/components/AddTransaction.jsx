@@ -313,6 +313,7 @@ export default function AddTransaction() {
         });
     }, [currentUser]);
 
+    const SAVINGS_CATS_AT = ['ahorro', 'ahorro e inversión'];
     const { budgetSpent, monthlyIncome, categorySpending } = useMemo(() => {
         const now = new Date();
         let spent = 0, income = 0;
@@ -322,6 +323,8 @@ export default function AddTransaction() {
             if (!d || d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear()) return;
             if (tx.type === 'income') income += tx.amount;
             else {
+                const catLower = (tx.category || '').toLowerCase();
+                if (SAVINGS_CATS_AT.includes(catLower)) return; // excluir ahorros del gasto
                 spent += tx.amount;
                 const c = tx.category || 'Otros';
                 if (!catMap[c]) catMap[c] = { name: c, amount: 0 };
