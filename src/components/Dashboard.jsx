@@ -82,7 +82,7 @@ export default function Dashboard() {
     }, [currentUser]);
 
     const userName = currentUser?.displayName?.split(' ')[0] || 'Usuario';
-    const budgetUsed = balance.income > 0 ? Math.min(Math.round((balance.expense / balance.income) * 100), 100) : 0;
+    const budgetUsed = balance.income > 0 ? Math.min(Math.round((balance.spendingExpense / balance.income) * 100), 100) : 0;
 
     // Lógica de Recomendaciones (Affiliate Engine)
     const recommendation = useMemo(() => {
@@ -177,8 +177,8 @@ export default function Dashboard() {
                     <button
                         onClick={() => setBalanceTab('spending')}
                         className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-1.5 ${balanceTab === 'spending'
-                                ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-400 shadow-sm'
-                                : 'text-gray-400 dark:text-slate-500 hover:text-gray-600'
+                            ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-400 shadow-sm'
+                            : 'text-gray-400 dark:text-slate-500 hover:text-gray-600'
                             }`}
                     >
                         <span className="material-symbols-rounded text-lg">account_balance_wallet</span>
@@ -187,8 +187,8 @@ export default function Dashboard() {
                     <button
                         onClick={() => setBalanceTab('savings')}
                         className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-1.5 ${balanceTab === 'savings'
-                                ? 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-400 shadow-sm'
-                                : 'text-gray-400 dark:text-slate-500 hover:text-gray-600'
+                            ? 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-400 shadow-sm'
+                            : 'text-gray-400 dark:text-slate-500 hover:text-gray-600'
                             }`}
                     >
                         <span className="material-symbols-rounded text-lg">savings</span>
@@ -201,8 +201,8 @@ export default function Dashboard() {
                     {/* Card: Para Gastar */}
                     <div
                         className={`relative overflow-hidden rounded-3xl p-6 shadow-xl border border-white/10 transition-all duration-500 ease-in-out ${balanceTab === 'spending'
-                                ? 'opacity-100 translate-y-0 pointer-events-auto'
-                                : 'opacity-0 translate-y-4 pointer-events-none absolute inset-0'
+                            ? 'opacity-100 translate-y-0 pointer-events-auto'
+                            : 'opacity-0 translate-y-4 pointer-events-none absolute inset-0'
                             } bg-gradient-to-br from-[#0df259] to-emerald-800`}
                     >
                         <div className="absolute -top-16 -right-10 w-40 h-40 bg-white/20 rounded-full blur-3xl" aria-hidden="true"></div>
@@ -243,8 +243,8 @@ export default function Dashboard() {
                     {/* Card: Mis Ahorros */}
                     <div
                         className={`relative overflow-hidden rounded-3xl p-6 shadow-xl border border-white/10 transition-all duration-500 ease-in-out ${balanceTab === 'savings'
-                                ? 'opacity-100 translate-y-0 pointer-events-auto'
-                                : 'opacity-0 translate-y-4 pointer-events-none absolute inset-0'
+                            ? 'opacity-100 translate-y-0 pointer-events-auto'
+                            : 'opacity-0 translate-y-4 pointer-events-none absolute inset-0'
                             } bg-gradient-to-br from-indigo-500 to-violet-800`}
                     >
                         <div className="absolute -top-16 -right-10 w-40 h-40 bg-white/15 rounded-full blur-3xl" aria-hidden="true"></div>
@@ -400,24 +400,41 @@ export default function Dashboard() {
                         <div className="w-px h-12 bg-gray-100 mx-4"></div>
                         <div className="flex-1 text-right">
                             <p className="text-xs text-gray-500 mb-1 flex items-center justify-end gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm shadow-red-500/30"></span> Gastos</p>
-                            <p className="font-bold text-xl text-gray-800">RD$ {formatMoney(balance.expense)}</p>
+                            <p className="font-bold text-xl text-gray-800">RD$ {formatMoney(balance.spendingExpense)}</p>
                         </div>
                     </div>
 
+                    {/* Savings indicator row */}
+                    {balance.savings > 0 && (
+                        <div className="flex items-center justify-between mb-5 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl px-4 py-3">
+                            <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-sm shadow-indigo-500/30"></span>
+                                <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">Ahorrado este mes</p>
+                            </div>
+                            <p className="font-bold text-indigo-700 dark:text-indigo-300">RD$ {formatMoney(balance.savings)}</p>
+                        </div>
+                    )}
+
                     {/* Barra combinada */}
                     <div className="w-full h-3 border border-gray-100/50 bg-gray-50 rounded-full overflow-hidden flex relative shadow-inner">
-                        {balance.income === 0 && balance.expense === 0 ? (
+                        {balance.income === 0 && balance.spendingExpense === 0 && balance.savings === 0 ? (
                             <div className="w-full h-full bg-gray-100" />
                         ) : (
                             <>
                                 <div
                                     className="h-full bg-primary transition-all duration-1000 ease-out"
-                                    style={{ width: `${(balance.income / (balance.income + balance.expense)) * 100}%` }}
+                                    style={{ width: `${(balance.income / (balance.income + balance.spendingExpense + balance.savings)) * 100}%` }}
                                 />
                                 <div
                                     className="h-full bg-red-500 transition-all duration-1000 ease-out"
-                                    style={{ width: `${(balance.expense / (balance.income + balance.expense)) * 100}%` }}
+                                    style={{ width: `${(balance.spendingExpense / (balance.income + balance.spendingExpense + balance.savings)) * 100}%` }}
                                 />
+                                {balance.savings > 0 && (
+                                    <div
+                                        className="h-full bg-indigo-500 transition-all duration-1000 ease-out"
+                                        style={{ width: `${(balance.savings / (balance.income + balance.spendingExpense + balance.savings)) * 100}%` }}
+                                    />
+                                )}
                             </>
                         )}
                     </div>
