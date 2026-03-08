@@ -61,6 +61,16 @@ export function AuthProvider({ children }) {
         // Establecer displayName en Firebase Auth
         await updateProfile(user, { displayName: name });
 
+        // Enviar correo de verificación automáticamente
+        const actionCodeSettings = {
+            url: window.location.origin + '/auth/action',
+            handleCodeInApp: false
+        };
+        // No esperamos (await) a que termine para no bloquear el registro si falla el correo
+        sendEmailVerification(user, actionCodeSettings).catch(err => {
+            console.error("Error enviando correo de verificación automático:", err);
+        });
+
         // Crear documento del usuario solo si no existe
         await ensureUserProfile(user, { name });
 

@@ -130,7 +130,11 @@ export default function Profile() {
         setLoading(true);
         try {
             if (sendEmailVerification) {
-                await sendEmailVerification(currentUser);
+                const actionCodeSettings = {
+                    url: window.location.origin + '/auth/action',
+                    handleCodeInApp: false
+                };
+                await sendEmailVerification(currentUser, actionCodeSettings);
                 toast.success("Correo enviado. Revisa tu bandeja de entrada o spam.", { id: toastId, duration: 5000 });
             } else {
                 toast.error("Error de dependencia al verificar.", { id: toastId });

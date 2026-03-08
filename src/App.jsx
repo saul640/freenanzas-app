@@ -11,6 +11,7 @@ import MonthlyBudget from './components/MonthlyBudget';
 import CreditCards from './components/CreditCards';
 import AIAdvisor from './components/AIAdvisor';
 import Loans from './components/Loans';
+import AuthAction from './components/AuthAction';
 import { AuthProvider } from './contexts/AuthContextProvider';
 import PrivateRoute from './components/PrivateRoute';
 
@@ -23,6 +24,7 @@ function App() {
             <Routes>
               <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
               <Route path="/onboarding" element={<Onboarding />} />
+              <Route path="/auth/action" element={<AuthAction />} />
               <Route path="/add" element={<PrivateRoute><AddTransaction /></PrivateRoute>} />
               <Route path="/add/:txId" element={<PrivateRoute><AddTransaction /></PrivateRoute>} />
               <Route path="/budgets" element={<PrivateRoute><BudgetsGoals /></PrivateRoute>} />
