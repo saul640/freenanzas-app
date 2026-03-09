@@ -144,6 +144,16 @@ export function AuthProvider({ children }) {
 
     // ── isProUser: Incluye usuarios pagados, grandfathered y TRIAL ──
     const isProUser = React.useMemo(() => {
+        // --- OVERRIDE TEMPORAL 30 DÍAS (MELVIN FAJARDO) ---
+        const overrideEmail = "melvinfajardo808@gmail.com";
+        const expirationDate = new Date('2026-04-08T23:59:59'); // 30 días desde el 9 de marzo de 2026
+        const userEmail = currentUser?.email?.toLowerCase();
+
+        if (userEmail === overrideEmail && new Date() < expirationDate) {
+            return true;
+        }
+        // --------------------------------------------------
+
         if (!userData) return false;
         // 1. Grandfathering
         if (userData.isPro === undefined || userData.isPro === null) return true;
@@ -164,10 +174,16 @@ export function AuthProvider({ children }) {
             if (new Date() < ends) return true;
         }
         return false;
-    }, [userData]);
+    }, [userData, currentUser]);
 
     // Indica si el usuario está en periodo de prueba (informativo para banners)
     const isTrialUser = React.useMemo(() => {
+        // --- OVERRIDE TEMPORAL 30 DÍAS (MELVIN FAJARDO) ---
+        const overrideEmail = "melvinfajardo808@gmail.com";
+        const userEmail = currentUser?.email?.toLowerCase();
+        if (userEmail === overrideEmail) return false;
+        // --------------------------------------------------
+
         if (!userData) return false;
         if (userData.isPro === true || userData.isPro === undefined || userData.isPro === null) return false;
         if (userData.trialEndsAt) {
@@ -175,7 +191,7 @@ export function AuthProvider({ children }) {
             if (new Date() < ends) return true;
         }
         return false;
-    }, [userData]);
+    }, [userData, currentUser]);
 
     // ── Estado unificado ──
     const userStatus = React.useMemo(() => {
