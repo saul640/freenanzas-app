@@ -100,10 +100,11 @@ function getPaymentStatus(item) {
     }
 
     // Due this month but not paid — check if overdue
-    const rawDueDay = item.dueDay !== undefined && item.dueDay !== null ? Number(item.dueDay) : null;
-    const dueDay = (rawDueDay && rawDueDay >= 1 && rawDueDay <= 31) ? rawDueDay : 15;
-    const todayDay = now.getDate();
-    if (todayDay > dueDay) return 'overdue';
+    const startDateObj = new Date(startStr + 'T12:00:00');
+    const dueDay = startDateObj.getDate();
+    const paymentDate = new Date(now.getFullYear(), now.getMonth(), dueDay, 23, 59, 59);
+
+    if (now > paymentDate) return 'overdue';
 
     return 'pending';
 }
@@ -117,7 +118,7 @@ function getMonthDays(year, month) {
 // ─── Status styling helpers ───
 const STATUS_CONFIG = {
     paid: { label: 'Pagado', bg: 'bg-green-100', text: 'text-green-700', icon: 'check_circle', dot: 'bg-green-500' },
-    pending: { label: 'Pendiente', bg: 'bg-amber-100', text: 'text-amber-700', icon: 'schedule', dot: 'bg-amber-500' },
+    pending: { label: 'Próximo cobro', bg: 'bg-amber-100', text: 'text-amber-700', icon: 'schedule', dot: 'bg-amber-500' },
     overdue: { label: 'Vencido', bg: 'bg-red-100', text: 'text-red-700', icon: 'error', dot: 'bg-red-500' },
     inactive: { label: 'Pausado', bg: 'bg-gray-100', text: 'text-gray-400', icon: 'pause_circle', dot: 'bg-gray-400' },
     'not-due': { label: 'No aplica', bg: 'bg-gray-50', text: 'text-gray-400', icon: 'remove_circle', dot: 'bg-gray-300' },
@@ -130,7 +131,7 @@ export default function RecurringExpenses() {
     const [recurring, setRecurring] = useState([]);
     const [showForm, setShowForm] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
-    const [formData, setFormData] = useState({ name: '', amount: '', category: 'Servicios', frequency: 'monthly', startDate: new Date().toISOString().split('T')[0], dueDay: '15' });
+    const [formData, setFormData] = useState({ name: '', amount: '', category: 'Servicios', frequency: 'monthly', startDate: new Date().toISOString().split('T')[0] });
     const [saving, setSaving] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(null);
 
@@ -181,7 +182,6 @@ export default function RecurringExpenses() {
                     category: 'Tarjetas',
                     frequency: 'monthly',
                     startDate: `${year}-${month}-${String(dueDay).padStart(2, '0')}`,
-                    dueDay: dueDay,
                     active: true,
                     paidMonths: [],
                     lastAutoMonth: curMonth,
@@ -240,7 +240,7 @@ export default function RecurringExpenses() {
     const formatMoney = useCallback(n => new Intl.NumberFormat('es-DO').format(n), []);
 
     const resetForm = () => {
-        setFormData({ name: '', amount: '', category: 'Servicios', frequency: 'monthly', startDate: new Date().toISOString().split('T')[0], dueDay: '15' });
+        setFormData({ name: '', amount: '', category: 'Servicios', frequency: 'monthly', startDate: new Date().toISOString().split('T')[0] });
         setEditingItem(null);
         setShowForm(false);
     };
@@ -254,7 +254,6 @@ export default function RecurringExpenses() {
             category: item.category || 'Servicios',
             frequency: item.frequency || 'monthly',
             startDate: item.startDate || new Date().toISOString().split('T')[0],
-            dueDay: String(item.dueDay || '15'),
         });
         setShowForm(true);
     };
@@ -270,7 +269,6 @@ export default function RecurringExpenses() {
                 category: formData.category,
                 frequency: formData.frequency,
                 startDate: formData.startDate,
-                dueDay: parseInt(formData.dueDay) || 15,
                 timezone: getUserTimezone(),
             };
 
@@ -453,15 +451,9 @@ export default function RecurringExpenses() {
                                 <button key={f.id} type="button" onClick={() => setFormData({ ...formData, frequency: f.id })} className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${formData.frequency === f.id ? 'bg-primary text-black' : 'bg-gray-100 text-gray-500'}`}>{f.label}</button>
                             ))}
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block px-1">Fecha inicio</label>
-                                <input type="date" value={formData.startDate} onChange={e => setFormData({ ...formData, startDate: e.target.value })} className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-primary/30 outline-none border-none" />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block px-1">Día límite pago</label>
-                                <input type="number" min="1" max="31" value={formData.dueDay} onChange={e => setFormData({ ...formData, dueDay: e.target.value })} placeholder="15" className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-primary/30 outline-none border-none" />
-                            </div>
+                        <div className="flex flex-col">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block px-1">Fecha inicio / Pago</label>
+                            <input type="date" value={formData.startDate} onChange={e => setFormData({ ...formData, startDate: e.target.value })} className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-primary/30 outline-none border-none" />
                         </div>
                         <button onClick={handleSave} disabled={saving || !formData.name.trim() || !formData.amount} className="w-full bg-primary text-black font-bold py-3.5 rounded-2xl disabled:opacity-50 active:scale-[0.98] transition-transform">{saving ? 'Guardando...' : editingItem ? 'Actualizar' : 'Guardar Recurrente'}</button>
                         {editingItem && <button onClick={resetForm} className="w-full text-gray-400 font-bold py-2 text-sm">Cancelar</button>}
@@ -491,7 +483,7 @@ export default function RecurringExpenses() {
 
                                         <div className="flex-1 min-w-0">
                                             <h4 className="font-bold text-gray-900 truncate">{r.name}</h4>
-                                            <p className="text-xs text-gray-400">{FREQUENCIES.find(f => f.id === r.frequency)?.label || r.frequency} · {r.category} · Vence día {r.dueDay || '15'}</p>
+                                            <p className="text-xs text-gray-400">{FREQUENCIES.find(f => f.id === r.frequency)?.label || r.frequency} · {r.category} · {isOverdue ? 'Vencido el día' : 'Próximo cobro el día'} {r.startDate ? new Date(r.startDate + 'T12:00:00').getDate() : '?'}</p>
                                             <span className={`inline-flex items-center gap-1 mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>
                                                 <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
                                                 {cfg.label}

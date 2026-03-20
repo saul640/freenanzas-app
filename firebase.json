@@ -21,12 +21,7 @@
   },
   "auth": {
     "providers": {
-      "anonymous": false,
-      "emailPassword": true,
-      "googleSignIn": {
-        "oAuthBrandDisplayName": "Freenanzas",
-        "supportEmail": "saul640@gmail.com"
-      }
+      "emailPassword": true
     }
   }
 }

@@ -348,7 +348,8 @@ export default function AddTransaction() {
         // Recurring expenses
         recurringItems.forEach(r => {
             const paidSet = new Set(r.paidMonths || []);
-            const dueDay = r.dueDay || 15;
+            const startDateObj = new Date((r.startDate || now.toISOString().split('T')[0]) + 'T12:00:00');
+            const dueDay = startDateObj.getDate();
             if (!paidSet.has(curMK)) {
                 if (todayDay > dueDay) vencidas += (r.amount || 0);
                 else if (dueDay - todayDay <= 15) proximas += (r.amount || 0);

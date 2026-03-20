@@ -71,10 +71,11 @@ function getPaymentStatus(item) {
         }
     }
 
-    const rawDueDay = item.dueDay !== undefined && item.dueDay !== null ? Number(item.dueDay) : null;
-    const dueDay = (rawDueDay && rawDueDay >= 1 && rawDueDay <= 31) ? rawDueDay : 15;
-    const todayDay = now.getDate();
-    if (todayDay > dueDay) return 'overdue';
+    const startDateObj = new Date(startStr + 'T12:00:00');
+    const dueDay = startDateObj.getDate();
+    const paymentDate = new Date(now.getFullYear(), now.getMonth(), dueDay, 23, 59, 59);
+
+    if (now > paymentDate) return 'overdue';
 
     return 'pending';
 }
@@ -127,7 +128,8 @@ export default function PendingPayments() {
                 totalDue -= abonado;
 
                 if (totalDue > 0) {
-                    let dToSet = parseInt(item.dueDay) || 15;
+                    const startDateObj = new Date((item.startDate || now.toISOString().split('T')[0]) + 'T12:00:00');
+                    let dToSet = startDateObj.getDate();
                     const isOverdue = status === 'overdue';
                     const daysLeft = daysUntil(dToSet);
                     items.push({
@@ -267,9 +269,9 @@ export default function PendingPayments() {
                                 <p className="text-[15px] font-bold text-gray-900">{pItem.name}</p>
                                 <div className="flex items-center gap-3 mt-1.5">
                                     <span className={`text-[11px] font-extrabold px-3 py-0.5 rounded-full ${pItem.isOverdue ? 'bg-red-100 text-red-600' : pItem.isNearDue ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700'}`}>
-                                        {pItem.isOverdue ? 'Vencido' : pItem.isNearDue ? 'Próximo a vencer' : 'Pendiente'}
+                                        {pItem.isOverdue ? 'Vencido' : pItem.isNearDue ? 'Próximo a vencer' : 'Próximo cobro'}
                                     </span>
-                                    <span className="text-[12px] text-gray-500 font-medium">Día {pItem.originalDueDay}</span>
+                                    <span className="text-[12px] text-gray-500 font-medium">{pItem.isOverdue ? 'Venció día' : 'Día'} {pItem.originalDueDay}</span>
                                 </div>
                             </div>
                         </div>
