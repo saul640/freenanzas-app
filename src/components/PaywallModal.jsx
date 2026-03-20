@@ -111,10 +111,10 @@ function PaywallModalContent({ onClose }) {
     };
 
     return (
-        <div className={`fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+        <div className={`fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[70] overflow-y-auto transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
             {/* ── Full-screen loading overlay during payment processing ── */}
             {loading && (
-                <div className="fixed inset-0 bg-black/60 z-[60] flex flex-col items-center justify-center gap-4">
+                <div className="fixed inset-0 bg-black/60 z-[80] flex flex-col items-center justify-center gap-4">
                     <span className="material-symbols-rounded text-5xl text-white animate-spin">progress_activity</span>
                     <p className="text-white text-lg font-semibold animate-pulse">Procesando tu suscripción…</p>
                     <p className="text-white/60 text-sm">No cierres esta ventana</p>
