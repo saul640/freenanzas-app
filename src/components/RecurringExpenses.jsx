@@ -203,7 +203,7 @@ export default function RecurringExpenses() {
 
     // ─── Calculate enriched items with status and carry-over (memoized) ───
     const enrichedItems = useMemo(() => {
-        return recurring.map(item => {
+        return recurring.filter(r => !r.isDeleted).map(item => {
             const status = getPaymentStatus(item);
             const carryOver = calcCarryOver(item);
             const totalDue = (item.amount || 0) + carryOver.amount;
@@ -291,7 +291,12 @@ export default function RecurringExpenses() {
     // ─── Delete recurring ───
     const handleDelete = async (itemId) => {
         if (!currentUser || !db) return;
-        await deleteDoc(doc(db, 'users', currentUser.uid, 'recurring', itemId));
+        const item = recurring.find(r => r.id === itemId);
+        if (item?.type === 'credit_card') {
+            await updateDoc(doc(db, 'users', currentUser.uid, 'recurring', itemId), { isDeleted: true });
+        } else {
+            await deleteDoc(doc(db, 'users', currentUser.uid, 'recurring', itemId));
+        }
         setConfirmDelete(null);
     };
 
@@ -513,15 +518,13 @@ export default function RecurringExpenses() {
                                                                 <span className="material-symbols-rounded text-lg text-indigo-500">edit</span>
                                                                 Editar
                                                             </button>
-                                                            {r.type !== 'credit_card' && (
-                                                                <button
-                                                                    onClick={() => { setOpenMenu(null); setConfirmDelete(r.id); }}
-                                                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
-                                                                >
-                                                                    <span className="material-symbols-rounded text-lg">delete</span>
-                                                                    Eliminar
-                                                                </button>
-                                                            )}
+                                                            <button
+                                                                onClick={() => { setOpenMenu(null); setConfirmDelete(r.id); }}
+                                                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+                                                            >
+                                                                <span className="material-symbols-rounded text-lg">delete</span>
+                                                                Eliminar
+                                                            </button>
                                                         </div>
                                                     </>
                                                 )}
@@ -544,7 +547,7 @@ export default function RecurringExpenses() {
                                             </div>
                                         </div>
                                     )}
-                                    {confirmDelete === r.id && r.type !== 'credit_card' && (
+                                    {confirmDelete === r.id && (
                                         <div className="mt-3 bg-gradient-to-b from-red-50 to-white rounded-2xl px-5 py-4 border border-red-200 shadow-sm">
                                             <div className="flex items-center gap-2 mb-2">
                                                 <span className="material-symbols-rounded text-red-500 text-xl">warning</span>
