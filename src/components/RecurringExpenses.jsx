@@ -134,6 +134,7 @@ export default function RecurringExpenses() {
     const [formData, setFormData] = useState({ name: '', amount: '', category: 'Servicios', frequency: 'monthly', startDate: new Date().toISOString().split('T')[0] });
     const [saving, setSaving] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(null);
+    const [openMenu, setOpenMenu] = useState(null);
 
     const today = new Date();
     const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -283,7 +284,7 @@ export default function RecurringExpenses() {
                 });
             }
             resetForm();
-        } catch (_e) { /* intentionally empty */ }
+        } catch { /* intentionally empty */ }
         setSaving(false);
     };
 
@@ -471,6 +472,7 @@ export default function RecurringExpenses() {
                             const isPaidThisMonth = r.status === 'paid';
                             const isOverdue = r.status === 'overdue';
                             const hasCarryOver = r.carryOver.count > 0;
+                            const menuOpen = openMenu === r.id;
 
                             return (
                                 <div key={r.id} className={`bg-white rounded-[24px] p-5 shadow-sm transition-all ${isOverdue ? 'ring-2 ring-red-300 bg-red-50/40' : isPaidThisMonth ? 'ring-1 ring-green-200 bg-green-50/30' : ''} ${!r.active ? 'opacity-50' : ''}`}>
@@ -490,14 +492,38 @@ export default function RecurringExpenses() {
                                             </span>
                                         </div>
 
-                                        <div className="text-right shrink-0">
+                                        <div className="text-right shrink-0 flex flex-col items-end gap-1">
                                             <p className={`font-extrabold ${isOverdue ? 'text-red-600' : 'text-gray-900'}`}>RD$ {formatMoney(r.amount)}</p>
-                                            <div className="flex gap-1 mt-1 justify-end">
-                                                <button onClick={() => startEdit(r)} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 active:scale-95">Editar</button>
-                                                {r.type !== 'credit_card' && (
-                                                    <button onClick={() => setConfirmDelete(r.id)} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500 active:scale-95">
-                                                        <span className="material-symbols-rounded text-[14px] leading-none">delete</span>
-                                                    </button>
+                                            <div className="relative">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setOpenMenu(menuOpen ? null : r.id); }}
+                                                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-90 transition-all"
+                                                    aria-label="Opciones"
+                                                >
+                                                    <span className="material-symbols-rounded text-xl text-gray-400">more_vert</span>
+                                                </button>
+                                                {menuOpen && (
+                                                    <>
+                                                        <div className="fixed inset-0 z-30" onClick={() => setOpenMenu(null)} />
+                                                        <div className="absolute right-0 top-9 z-40 w-44 bg-white rounded-2xl shadow-[0_8px_30px_-4px_rgba(0,0,0,0.15)] border border-gray-100 py-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                            <button
+                                                                onClick={() => { setOpenMenu(null); startEdit(r); }}
+                                                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-indigo-50 transition-colors"
+                                                            >
+                                                                <span className="material-symbols-rounded text-lg text-indigo-500">edit</span>
+                                                                Editar
+                                                            </button>
+                                                            {r.type !== 'credit_card' && (
+                                                                <button
+                                                                    onClick={() => { setOpenMenu(null); setConfirmDelete(r.id); }}
+                                                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+                                                                >
+                                                                    <span className="material-symbols-rounded text-lg">delete</span>
+                                                                    Eliminar
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </>
                                                 )}
                                             </div>
                                         </div>
@@ -519,11 +545,15 @@ export default function RecurringExpenses() {
                                         </div>
                                     )}
                                     {confirmDelete === r.id && r.type !== 'credit_card' && (
-                                        <div className="mt-3 bg-red-50 rounded-xl px-4 py-3 border border-red-200 flex items-center justify-between">
-                                            <p className="text-xs text-red-700 font-bold">¿Eliminar este pago?</p>
+                                        <div className="mt-3 bg-gradient-to-b from-red-50 to-white rounded-2xl px-5 py-4 border border-red-200 shadow-sm">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <span className="material-symbols-rounded text-red-500 text-xl">warning</span>
+                                                <p className="text-sm text-red-800 font-bold">¿Eliminar "{r.name}"?</p>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mb-3">Esta acción no se puede deshacer. Se eliminará este pago recurrente permanentemente.</p>
                                             <div className="flex gap-2">
-                                                <button onClick={() => setConfirmDelete(null)} className="text-xs font-bold px-3 py-1 rounded-lg bg-gray-200 text-gray-600">No</button>
-                                                <button onClick={() => handleDelete(r.id)} className="text-xs font-bold px-3 py-1 rounded-lg bg-red-600 text-white active:scale-95">Sí, eliminar</button>
+                                                <button onClick={() => setConfirmDelete(null)} className="flex-1 text-sm font-bold py-2.5 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-[0.98] transition-all">Cancelar</button>
+                                                <button onClick={() => handleDelete(r.id)} className="flex-1 text-sm font-bold py-2.5 rounded-xl bg-red-600 text-white hover:bg-red-700 active:scale-[0.98] transition-all">Sí, eliminar</button>
                                             </div>
                                         </div>
                                     )}
