@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { collection, doc, updateDoc, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, updateDoc, onSnapshot, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../hooks/useAuth';
 
@@ -103,7 +103,9 @@ export default function PendingPayments() {
         const unsubRecurring = onSnapshot(collection(db, 'users', currentUser.uid, 'recurring'), snap => {
             setRecurring(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
-        const unsubTx = onSnapshot(collection(db, 'users', currentUser.uid, 'transactions'), snap => {
+        const unsubTx = onSnapshot(
+            query(collection(db, 'transactions'), where('userId', '==', currentUser.uid)),
+            snap => {
             setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(tx => tx.estado === 'pendiente' || tx.status === 'pendiente'));
         });
 
@@ -230,7 +232,7 @@ export default function PendingPayments() {
                     await updateDoc(itemRef, { paidMonths: newPaid, pagos_abonados: 0 });
                 }
             } else if (selectedPayment.type === 'transaction') {
-                const itemRef = doc(db, 'users', currentUser.uid, 'transactions', selectedPayment.id);
+                const itemRef = doc(db, 'transactions', selectedPayment.id);
                 if (isPartial) {
                     const currentAbonado = Number(selectedPayment.sourceItem.pagos_abonados || 0);
                     await updateDoc(itemRef, { pagos_abonados: currentAbonado + amountToPay });

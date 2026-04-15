@@ -646,7 +646,6 @@ export default function AddTransaction() {
                             <input
                                 type="file"
                                 accept="image/*"
-                                capture="environment"
                                 id="cameraInput"
                                 className="hidden"
                                 onClick={(e) => {
