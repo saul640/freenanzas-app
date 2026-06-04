@@ -14,9 +14,10 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore'
-import { db } from './firebase'
+import { db } from '../firebase'
 import { DEFAULT_BUDGETS, getCategoryById } from '../data/categories'
 import { getMonthKey } from '../utils/date'
+import { getTrialEndsAt } from '../utils/trial'
 
 export const ensureUserProfile = async (user) => {
   if (!user?.uid) return
@@ -24,13 +25,18 @@ export const ensureUserProfile = async (user) => {
   const snapshot = await getDoc(userRef)
 
   if (!snapshot.exists()) {
+    const now = new Date()
+    const trialEndsAt = getTrialEndsAt(now)
+
     await setDoc(userRef, {
-      userId: user.uid,
-      displayName: user.displayName ?? 'Invitado',
+      uid: user.uid,
       email: user.email ?? '',
-      emergencyGoal: 100000,
-      currency: 'DOP',
-      createdAt: serverTimestamp(),
+      name: user.displayName ?? 'Invitado',
+      photoURL: user.photoURL ?? null,
+      createdAt: now,
+      emergencyFundGoal: 10000,
+      isPro: false,
+      trialEndsAt: trialEndsAt,
     })
   }
 }

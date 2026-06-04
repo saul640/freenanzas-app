@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
 import { getStorage } from 'firebase/storage';
 
 // Your web app's Firebase configuration
@@ -15,13 +16,21 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase only if config is present
-let app, auth, db, storage;
+let app, auth, db, functions, storage;
 
 try {
     if (firebaseConfig.apiKey) {
         app = initializeApp(firebaseConfig);
         auth = getAuth(app);
-        db = getFirestore(app);
+        
+        // Habilitar persistencia local IndexedDB con soporte multi-pestaña para PWA
+        db = initializeFirestore(app, {
+            localCache: persistentLocalCache({
+                tabManager: persistentMultipleTabManager()
+            })
+        });
+        
+        functions = getFunctions(app);
         storage = getStorage(app);
     } else {
         console.warn("Firebase config is missing. Please add your credentials to .env.local");
@@ -30,5 +39,5 @@ try {
     console.error("Firebase initialization error", error);
 }
 
-export { auth, db, storage };
+export { auth, db, functions, storage };
 export default app;

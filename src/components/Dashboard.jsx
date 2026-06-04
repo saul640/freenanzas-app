@@ -12,7 +12,7 @@ import TransactionDetailModal from './TransactionDetailModal';
 
 export default function Dashboard() {
     const navigate = useNavigate();
-    const { currentUser, logout, isProUser, isTrialUser, userData, userStatus, trialDaysLeft } = useAuth();
+    const { currentUser, logout, isProUser, isTrialUser, userData, userStatus, trialDaysLeft, trialDays } = useAuth();
     const { loans } = useLoans(currentUser?.uid);
     const { insight: dailyInsightText, loading: insightLoading } = useDailyInsight(userData, currentUser);
     const canAccessPremium = isProUser || isTrialUser;
@@ -25,7 +25,7 @@ export default function Dashboard() {
     const [creditCards, setCreditCards] = useState([]);
     const [showPaywall, setShowPaywall] = useState(false);
 
-    const daysRemaining = trialDaysLeft !== undefined ? Math.max(0, trialDaysLeft) : 7;
+    const daysRemaining = trialDaysLeft !== undefined ? Math.max(0, trialDaysLeft) : trialDays;
 
 
 

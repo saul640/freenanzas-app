@@ -30,3 +30,11 @@ dist-ssr
 .env.production
 .env.staging
 .env*.local
+
+# Firebase
+.firebase/
+freenanzas-app/
+
+# Exported data - NEVER commit
+users.json
+users.csv

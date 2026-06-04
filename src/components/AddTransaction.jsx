@@ -390,8 +390,14 @@ export default function AddTransaction() {
             cuotasVencidas, cuotasProximasAVencer, ahorroRecomendado,
         };
         try {
-            const result = await consultPreventiveAI(payload);
-            setAiResult(result);
+            if (!isPro) {
+                // Modo Freemium: simula un pequeño retraso para una experiencia suave
+                await new Promise(resolve => setTimeout(resolve, 600));
+                setAiResult(consultPreventiveAILocal(payload));
+            } else {
+                const result = await consultPreventiveAI(payload);
+                setAiResult(result);
+            }
         } catch (e) {
             console.warn('Gemini preventive AI failed, using local:', e.message);
             setAiResult(consultPreventiveAILocal(payload));
@@ -959,11 +965,10 @@ export default function AddTransaction() {
                         <button
                             type="button"
                             onClick={() => {
-                                if (!isPro) {
-                                    setShowPaywall(true);
-                                    return;
-                                }
-                                setAiItemName(note || ''); setAiItemPrice(amount || ''); setAiResult(null); setShowAIConsult(true);
+                                setAiItemName(note || '');
+                                setAiItemPrice(amount || '');
+                                setAiResult(null);
+                                setShowAIConsult(true);
                             }}
                             className="w-full mb-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-3 rounded-2xl active:scale-[0.98] transition-transform flex items-center justify-center gap-2 text-sm shadow-md"
                         >
@@ -1018,6 +1023,25 @@ export default function AddTransaction() {
                         {/* AI Result */}
                         {aiResult && (
                             <div className="space-y-3 animate-in fade-in duration-300">
+                                {/* Banner Upsell PRO para usuarios gratuitos */}
+                                {!isPro && (
+                                    <div className="bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-600 rounded-[22px] p-5 text-white shadow-md flex flex-col gap-3 relative overflow-hidden">
+                                        <div className="absolute -top-10 -right-10 w-20 h-20 bg-white/10 rounded-full blur-xl" />
+                                        <div className="flex gap-2.5 items-start">
+                                            <span className="material-symbols-rounded text-2xl text-amber-300 animate-pulse shrink-0">workspace_premium</span>
+                                            <div className="flex-1">
+                                                <h4 className="font-extrabold text-xs">Filtro Preventivo Local Activo</h4>
+                                                <p className="text-[10px] text-white/90 mt-1 leading-relaxed">
+                                                    Estás usando el motor local de economía conductual. Desbloquea <strong>Gemini Pro</strong> para recibir análisis ultra-personalizados de tus patrones financieros reales.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button type="button" onClick={() => { setShowAIConsult(false); setShowPaywall(true); }} className="w-full bg-white hover:bg-gray-100 text-indigo-700 font-bold py-2 rounded-xl text-[10px] transition-colors shadow-sm flex items-center justify-center gap-1">
+                                            Activar Inteligencia Artificial Pro 🚀
+                                        </button>
+                                    </div>
+                                )}
+
                                 {/* Traffic Light Semaphore */}
                                 <div className="flex items-center justify-center gap-3 py-2">
                                     <div className={`w-5 h-5 rounded-full transition-all duration-500 ${aiResult.nivelRiesgo === 'rojo' ? 'bg-red-500 shadow-lg shadow-red-500/50 scale-125' : 'bg-red-200'}`} />

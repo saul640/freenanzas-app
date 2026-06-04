@@ -68,17 +68,19 @@ export default function AIAdvisor() {
     const formatMoney = useCallback(n => new Intl.NumberFormat('es-DO').format(n), []);
 
     const handleAnalyze = async () => {
-        if (!isPro) {
-            setShowPaywall(true);
-            return;
-        }
         setLoading(true);
         setError(null);
         const monthName = MONTH_NAMES[new Date().getMonth()];
         try {
-            const result = await analyzeSpending({ totalIncome, totalExpense, categories, monthName });
-            setInsights(result);
-            sessionStorage.setItem('aiInsights', JSON.stringify(result));
+            if (!isPro) {
+                // Modo Freemium: usa cálculo local sin consumir cuota de API
+                const local = analyzeSpendingLocal(categories, totalExpense);
+                setInsights(local);
+            } else {
+                const result = await analyzeSpending({ totalIncome, totalExpense, categories, monthName });
+                setInsights(result);
+                sessionStorage.setItem('aiInsights', JSON.stringify(result));
+            }
         } catch (e) {
             console.warn('Gemini failed, using local analysis:', e.message);
             const local = analyzeSpendingLocal(categories, totalExpense);
@@ -88,19 +90,21 @@ export default function AIAdvisor() {
     };
 
     const handleAnalyzeDebt = async () => {
-        if (!isPro) {
-            setShowPaywall(true);
-            return;
-        }
         if (loans.length === 0) return;
         setLoadingDebt(true);
         const monthName = MONTH_NAMES[new Date().getMonth()];
         try {
-            const result = await analyzeLoanStrategy({
-                loans, totalIncome, totalExpense, categories, monthName, budgetLimit
-            });
-            setDebtPlan(result);
-            sessionStorage.setItem('aiDebtPlan', JSON.stringify(result));
+            if (!isPro) {
+                // Modo Freemium: usa cálculo local sin consumir cuota de API
+                const local = analyzeLoanStrategyLocal(loans, categories, totalIncome, totalExpense);
+                setDebtPlan(local);
+            } else {
+                const result = await analyzeLoanStrategy({
+                    loans, totalIncome, totalExpense, categories, monthName, budgetLimit
+                });
+                setDebtPlan(result);
+                sessionStorage.setItem('aiDebtPlan', JSON.stringify(result));
+            }
         } catch (e) {
             console.warn('Gemini loan analysis failed, using local:', e.message);
             const local = analyzeLoanStrategyLocal(loans, categories, totalIncome, totalExpense);
@@ -146,8 +150,23 @@ export default function AIAdvisor() {
                     </button>
                 )}
 
-                {categories.length === 0 && (
-                    <p className="text-center text-sm text-gray-400 py-4">Registra gastos este mes para obtener tu análisis personalizado.</p>
+                {/* Banner Upsell PRO */}
+                {!isPro && (insights || debtPlan) && (
+                    <div className="bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-600 rounded-[28px] p-6 text-white shadow-xl flex flex-col gap-4 animate-in fade-in duration-500 relative overflow-hidden">
+                        <div className="absolute -top-10 -right-10 w-28 h-28 bg-white/10 rounded-full blur-xl" />
+                        <div className="flex gap-3">
+                            <span className="material-symbols-rounded text-3xl text-amber-300 animate-pulse">workspace_premium</span>
+                            <div className="flex-1">
+                                <h4 className="font-extrabold text-base">Estás usando Análisis Local Básico</h4>
+                                <p className="text-xs text-white/90 mt-1 leading-relaxed">
+                                    Obtén el poder de la Inteligencia Artificial avanzada con <strong>Gemini Pro</strong>. Análisis ultra-personalizado de tus hábitos, predicciones a futuro y planes dinámicos de ahorro y deudas.
+                                </p>
+                            </div>
+                        </div>
+                        <button onClick={() => setShowPaywall(true)} className="w-full bg-white hover:bg-gray-100 text-indigo-700 font-bold py-3 px-4 rounded-xl text-xs transition-colors shadow-sm flex items-center justify-center gap-2">
+                            Desbloquear Inteligencia Artificial Pro 🚀
+                        </button>
+                    </div>
                 )}
 
                 {/* ══════════ DEBT PLAN SECTION ══════════ */}

@@ -82,7 +82,7 @@ export default function Onboarding() {
             navigate('/');
         } catch (err) {
             const code = err.code || '';
-            if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') setError('Correo o contraseña incorrectos.');
+            if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') setError('Correo o contraseña incorrectos. Si te registraste con Google, usa el botón "Continuar con Google".');
             else if (code === 'auth/email-already-in-use') setError('Este correo ya está registrado. Intenta iniciar sesión.');
             else if (code === 'auth/weak-password') setError('La contraseña debe tener al menos 6 caracteres.');
             else if (code === 'auth/invalid-email') setError('El correo electrónico no es válido.');

@@ -2,20 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { FaCrown, FaTimes } from 'react-icons/fa';
 import { PayPalScriptProvider, PayPalButtons, usePayPalScriptReducer, DISPATCH_ACTION } from "@paypal/react-paypal-js";
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../firebase';
 import { toast } from 'react-hot-toast';
-
-// ─── Exponential Backoff Utility ───
-const retryWithBackoff = async (fn, maxRetries = 3) => {
-    for (let i = 0; i < maxRetries; i++) {
-        try { return await fn(); }
-        catch (err) {
-            if (i === maxRetries - 1) throw err;
-            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
-        }
-    }
-};
 
 function PaywallModalContent({ onClose }) {
     const { currentUser } = useAuth();
@@ -47,33 +34,21 @@ function PaywallModalContent({ onClose }) {
     const isReady = !!currentUser && !isPending && !isRejected;
 
     const handleApprove = async (data, _actions) => {
-        if (!currentUser || !db) {
+        if (!currentUser) {
             setErrorMsg("Tu sesión ha expirado. Por favor, recarga la página e inténtalo de nuevo.");
             return;
         }
         setLoading(true);
         setErrorMsg("");
         try {
-            const now = new Date();
-            const periodDays = billingCycle === "annual" ? 365 : 30;
-            const currentPeriodEnd = new Date(now.getTime() + periodDays * 24 * 60 * 60 * 1000);
+            if (!data?.subscriptionID) {
+                throw new Error('PayPal no devolvió el ID de suscripción.');
+            }
 
-            const userRef = doc(db, 'users', currentUser.uid);
-            await retryWithBackoff(() =>
-                setDoc(userRef, {
-                    isPro: true,
-                    paypalSubscriptionId: data.subscriptionID,
-                    planType: billingCycle,
-                    currentPeriodEnd: currentPeriodEnd,
-                    cancelAtPeriodEnd: false,
-                    subscriptionStartDate: now,
-                }, { merge: true })
-            );
-
-            toast.success('¡Suscripción exitosa! Ahora eres usuario PRO 🎉', { duration: 5000 });
+            toast.success('Pago aprobado. Estamos validando tu suscripción con PayPal.', { duration: 6000 });
             handleClose();
         } catch (error) {
-            setErrorMsg("Hubo un error al actualizar tu cuenta. Por favor contacta a soporte.");
+            setErrorMsg("PayPal aprobó el flujo, pero no pudimos iniciar la validación. Por favor contacta a soporte.");
         } finally {
             setLoading(false);
         }
@@ -269,7 +244,8 @@ function PaywallModalContent({ onClose }) {
                                     createSubscription={(data, actions) => {
                                         setErrorMsg("");
                                         return actions.subscription.create({
-                                            plan_id: currentPlanId
+                                            plan_id: currentPlanId,
+                                            custom_id: `${currentUser.uid}|${billingCycle}`,
                                         });
                                     }}
                                     onApprove={handleApprove}

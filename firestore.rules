@@ -2,12 +2,52 @@ rules_version='2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSignedInOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function protectedSubscriptionFields() {
+      return [
+        'isPro',
+        'paypalSubscriptionId',
+        'paypalStatus',
+        'planType',
+        'currentPeriodEnd',
+        'cancelAtPeriodEnd',
+        'adminProOverride',
+        'subscriptionStartDate',
+        'subscriptionUpdatedAt',
+        'lastPaypalWebhookEventId',
+        'paypalPaymentFailedAt'
+      ];
+    }
+
+    function hasOnlyClientAllowedSubscriptionDefaults() {
+      return !request.resource.data.keys().hasAny([
+        'paypalSubscriptionId',
+        'paypalStatus',
+        'planType',
+        'currentPeriodEnd',
+        'adminProOverride',
+        'subscriptionStartDate',
+        'subscriptionUpdatedAt',
+        'lastPaypalWebhookEventId',
+        'paypalPaymentFailedAt'
+      ])
+      && (!('isPro' in request.resource.data) || request.resource.data.isPro == false)
+      && (!('cancelAtPeriodEnd' in request.resource.data) || request.resource.data.cancelAtPeriodEnd == false);
+    }
+
     // Regla estricta: Cada usuario puede leer/escribir SÓLO en su propia ruta de datos
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isSignedInOwner(userId);
+      allow create: if isSignedInOwner(userId) && hasOnlyClientAllowedSubscriptionDefaults();
+      allow update: if isSignedInOwner(userId)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(protectedSubscriptionFields());
+      allow delete: if isSignedInOwner(userId);
       
       match /{document=**} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isSignedInOwner(userId);
       }
     }
     
@@ -17,6 +57,11 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.resource.data.userId == request.auth.uid;
       // Para poder leer, necesitamos que el documento ya existente tenga ese userId
       allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // Las claves de IA viven en Firebase Functions Secrets, nunca en Firestore.
+    match /config/gemini {
+      allow read, write: if false;
     }
   }
 }

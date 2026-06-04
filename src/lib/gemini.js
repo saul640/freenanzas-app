@@ -1,8 +1,13 @@
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../firebase';
 import { logErrorToAdmin, logIAScanFailure } from '../utils/errorReporting';
 
 const MODEL_NAME = 'gemini-2.5-flash';
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim() ?? '';
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg']);
+
+const generateGeminiContent = functions
+    ? httpsCallable(functions, 'generateGeminiContent')
+    : null;
 
 const normalizeImageMimeType = (file) => {
     const rawType = (file?.type || '').toLowerCase();
@@ -16,11 +21,10 @@ const normalizeImageMimeType = (file) => {
 };
 
 async function fetchWithRetry(contents, { retries = 5, onFinalFailure, component = 'Gemini' } = {}) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`;
     const delays = [1000, 2000, 4000, 8000, 16000];
 
-    if (!apiKey) {
-        const keyError = new Error('Missing Gemini API key');
+    if (!generateGeminiContent) {
+        const keyError = new Error('Gemini backend is not initialized');
         await logErrorToAdmin({ type: 'CRITICAL_ERROR', message: keyError.message, component });
         if (onFinalFailure) await onFinalFailure(keyError);
         throw keyError;
@@ -28,40 +32,9 @@ async function fetchWithRetry(contents, { retries = 5, onFinalFailure, component
 
     for (let attempt = 0; attempt <= retries; attempt++) {
         try {
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents })
-            });
-
-            if (!res.ok) {
-                const errText = await res.text();
-                let parsedError;
-                try {
-                    parsedError = JSON.parse(errText);
-                } catch (e) { }
-
-                const message = parsedError?.error?.message || errText;
-
-                // Si la clave es inválida, no reintentar
-                if (res.status === 400 && message.includes('API key')) {
-                    throw new Error(`API key invalid: ${message}`);
-                }
-
-                throw new Error(`Gemini API Error (${res.status}): ${message}`);
-            }
-
-            const data = await res.json();
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!text) {
-                const finishReason = data.candidates?.[0]?.finishReason;
-                if (finishReason === 'SAFETY') {
-                    throw new Error('La imagen fue bloqueada por filtros de seguridad. Intenta con otra foto.');
-                }
-                throw new Error('Respuesta vacía de Gemini (posible bloqueo de seguridad o formato ilegible)');
-            }
-
-            return text;
+            const result = await generateGeminiContent({ contents, component });
+            if (!result.data?.text) throw new Error('Respuesta vacía del backend de Gemini');
+            return result.data.text;
         } catch (error) {
             if (attempt === retries) {
                 await logErrorToAdmin({

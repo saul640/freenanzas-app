@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../firebase';
 import { toast } from 'react-hot-toast';
 import CancelSubscriptionModal from './CancelSubscriptionModal';
+import { TRIAL_DAYS } from '../utils/trial';
 
 /**
  * SubscriptionCard — displays current plan, renewal/expiration dates,
@@ -85,7 +86,7 @@ export default function SubscriptionCard({ onOpenPaywall }) {
         // Trial active
         if (isTrialUser && trialEndsAt) {
             return {
-                label: 'Prueba Gratuita (7 días)',
+                label: `Prueba Gratuita (${TRIAL_DAYS} días)`,
                 badge: 'trial',
                 dateLabel: 'Tu prueba gratis termina el',
                 date: trialEndsAt,
@@ -133,45 +134,8 @@ export default function SubscriptionCard({ onOpenPaywall }) {
 
         setIsCancelling(true);
         try {
-            const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
-            const paypalSecret = import.meta.env.VITE_PAYPAL_SECRET;
-
-            if (paypalSecret && paypalClientId) {
-                const tokenRes = await fetch('https://api-m.paypal.com/v1/oauth2/token', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Authorization': 'Basic ' + btoa(`${paypalClientId}:${paypalSecret}`),
-                    },
-                    body: 'grant_type=client_credentials',
-                });
-
-                if (tokenRes.ok) {
-                    const tokenData = await tokenRes.json();
-                    const accessToken = tokenData.access_token;
-
-                    const suspendRes = await fetch(
-                        `https://api-m.paypal.com/v1/billing/subscriptions/${subscriptionId}/suspend`,
-                        {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${accessToken}`,
-                            },
-                            body: JSON.stringify({ reason: 'Cancelado por el usuario desde la app' }),
-                        }
-                    );
-
-                    if (!suspendRes.ok && suspendRes.status !== 204) {
-                        throw new Error(`PayPal suspend failed: ${suspendRes.status}`);
-                    }
-                }
-            }
-
-            const userRef = doc(db, 'users', currentUser.uid);
-            await updateDoc(userRef, {
-                cancelAtPeriodEnd: true,
-            });
+            const cancelSubscription = httpsCallable(functions, 'cancelPayPalSubscription');
+            await cancelSubscription({ subscriptionId });
 
             toast.success('Suscripción cancelada. Mantendrás tu acceso PRO hasta el final de tu ciclo actual.');
             setShowCancelModal(false);
@@ -188,47 +152,8 @@ export default function SubscriptionCard({ onOpenPaywall }) {
 
         setIsReactivating(true);
         try {
-            // Reactivate on PayPal if we have a subscription ID
-            const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
-            const paypalSecret = import.meta.env.VITE_PAYPAL_SECRET;
-
-            if (subscriptionId && paypalSecret && paypalClientId) {
-                const tokenRes = await fetch('https://api-m.paypal.com/v1/oauth2/token', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Authorization': 'Basic ' + btoa(`${paypalClientId}:${paypalSecret}`),
-                    },
-                    body: 'grant_type=client_credentials',
-                });
-
-                if (tokenRes.ok) {
-                    const tokenData = await tokenRes.json();
-                    const accessToken = tokenData.access_token;
-
-                    const activateRes = await fetch(
-                        `https://api-m.paypal.com/v1/billing/subscriptions/${subscriptionId}/activate`,
-                        {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${accessToken}`,
-                            },
-                            body: JSON.stringify({ reason: 'Reactivado por el usuario desde la app' }),
-                        }
-                    );
-
-                    if (!activateRes.ok && activateRes.status !== 204) {
-                        throw new Error(`PayPal activate failed: ${activateRes.status}`);
-                    }
-                }
-            }
-
-            // Update Firestore — only change existing field, no new fields
-            const userRef = doc(db, 'users', currentUser.uid);
-            await updateDoc(userRef, {
-                cancelAtPeriodEnd: false,
-            });
+            const reactivateSubscription = httpsCallable(functions, 'reactivatePayPalSubscription');
+            await reactivateSubscription({ subscriptionId });
 
             toast.success('¡Suscripción reactivada! Tu plan PRO continúa activo.');
         } catch (error) {

@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Guía de Usuario - Freenanzas APP</title>
+  <!-- Modern Fonts from Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    /* CSS Variables matching brand identity */
+    :root {
+      --primary-mint: #8FD8C3;
+      --primary-teal: #5DB7A2;
+      --primary-teal-dark: #2F7F6D;
+      --soft-white: #FFFFFF;
+      --brand-pink: #F4B6B2;
+      --brand-gold: #D8B24C;
+      --charcoal: #1F2933;
+      --gray-medium: #6B7280;
+      --gray-light: #F3F4F6;
+      --gray-bg: #F9FAFB;
+      
+      --success-bg: #DCFCE7;
+      --success-text: #166534;
+      --warning-bg: #FEF3C7;
+      --warning-text: #92400E;
+      --error-bg: #FEE2E2;
+      --error-text: #991B1B;
+      --info-bg: #F3F4F6;
+      --info-text: #1F2933;
+      
+      --card-shadow: 0 6px 18px rgba(31, 41, 51, 0.06);
+      --card-radius: 16px;
+      --font-primary: 'Inter', sans-serif;
+      --font-secondary: 'Poppins', sans-serif;
+    }
+
+    /* Print and Page-setup */
+    @page {
+      size: letter;
+      margin: 1.6cm 1.6cm 2cm 1.6cm;
+    }
+    
+    @media print {
+      body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        background-color: var(--soft-white);
+        color: var(--charcoal);
+      }
+      .page-break {
+        page-break-after: always;
+        break-after: page;
+      }
+      .no-break {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      header, footer {
+        display: none;
+      }
+    }
+
+    /* Global reset and baseline styling */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-primary);
+      font-size: 16px;
+      line-height: 1.6;
+      color: var(--charcoal);
+      background-color: var(--gray-bg);
+      padding: 20px;
+    }
+
+    /* Main Container (A4 / Letter feel) */
+    .document-container {
+      max-width: 860px;
+      margin: 0 auto;
+      background: var(--soft-white);
+      padding: 50px;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.03);
+      border-radius: 8px;
+    }
+
+    /* Headings */
+    h1, h2, h3, h4 {
+      font-family: var(--font-secondary);
+      color: var(--charcoal);
+      font-weight: 700;
+    }
+
+    h1 {
+      font-size: 32px;
+      line-height: 1.25;
+      margin-bottom: 12px;
+    }
+
+    h2 {
+      font-size: 24px;
+      line-height: 1.35;
+      margin-top: 36px;
+      margin-bottom: 16px;
+      border-bottom: 2px solid var(--primary-mint);
+      padding-bottom: 8px;
+    }
+
+    h3 {
+      font-size: 19px;
+      line-height: 1.4;
+      margin-top: 24px;
+      margin-bottom: 12px;
+      color: var(--primary-teal-dark);
+    }
+
+    p {
+      margin-bottom: 16px;
+      font-size: 15.5px;
+      color: var(--charcoal);
+    }
+
+    /* Strong accent colors */
+    .highlight-teal {
+      color: var(--primary-teal);
+      font-weight: 600;
+    }
+
+    /* Cover Page Custom Styles */
+    .cover-page {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 900px;
+      text-align: center;
+      background: linear-gradient(180deg, #EAF7F3 0%, #FFFFFF 100%);
+      padding: 40px;
+      border-radius: var(--card-radius);
+      margin-bottom: 50px;
+    }
+
+    .cover-logo-container {
+      margin-bottom: 40px;
+      animation: float 4s ease-in-out infinite;
+    }
+
+    .cover-logo-img {
+      max-width: 280px;
+      border-radius: 28px;
+      box-shadow: 0 12px 32px rgba(31, 41, 51, 0.12);
+      border: 4px solid var(--soft-white);
+    }
+
+    .cover-title {
+      font-size: 38px;
+      font-weight: 800;
+      margin-top: 20px;
+      color: var(--charcoal);
+      font-family: var(--font-secondary);
+    }
+
+    .cover-title span {
+      background: linear-gradient(135deg, var(--primary-teal-dark) 0%, var(--primary-teal) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .cover-subtitle {
+      font-size: 18px;
+      color: var(--gray-medium);
+      margin-top: 8px;
+      margin-bottom: 40px;
+      max-width: 450px;
+    }
+
+    .cover-meta {
+      font-size: 13px;
+      color: var(--gray-medium);
+      line-height: 1.8;
+      border-top: 1px solid rgba(0,0,0,0.06);
+      padding-top: 20px;
+      width: 100%;
+      max-width: 300px;
+    }
+
+    /* Grid layout for features with images */
+    .feature-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 30px;
+      margin-bottom: 40px;
+      align-items: center;
+    }
+
+    .feature-text {
+      flex: 1 1 350px;
+    }
+
+    .feature-image-container {
+      flex: 0 0 260px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Smartphone device wrapper */
+    .phone-mockup {
+      width: 250px;
+      border: 6px solid var(--charcoal);
+      border-radius: 36px;
+      box-shadow: 0 10px 25px rgba(31, 41, 51, 0.15);
+      background-color: var(--soft-white);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .phone-mockup img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* Lists styling */
+    ol, ul {
+      margin-left: 20px;
+      margin-bottom: 16px;
+    }
+
+    li {
+      margin-bottom: 8px;
+      font-size: 15px;
+    }
+
+    /* Table styling */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      margin-bottom: 24px;
+      border-radius: var(--card-radius);
+      overflow: hidden;
+      box-shadow: var(--card-shadow);
+      border: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    th {
+      background-color: var(--primary-mint);
+      color: var(--charcoal);
+      font-weight: 700;
+      text-align: left;
+      padding: 12px 16px;
+      font-size: 14px;
+      font-family: var(--font-secondary);
+    }
+
+    td {
+      padding: 12px 16px;
+      font-size: 14px;
+      border-bottom: 1px solid var(--gray-light);
+      background-color: var(--soft-white);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:nth-child(even) td {
+      background-color: var(--gray-bg);
+    }
+
+    /* Callout Card Styles */
+    .callout {
+      border-left: 4px solid;
+      padding: 16px;
+      border-radius: 0 12px 12px 0;
+      margin-top: 20px;
+      margin-bottom: 20px;
+      font-size: 14.5px;
+    }
+
+    .callout-title {
+      font-weight: 700;
+      margin-bottom: 6px;
+      font-family: var(--font-secondary);
+    }
+
+    .callout-note {
+      background-color: var(--info-bg);
+      border-left-color: var(--gray-medium);
+      color: var(--info-text);
+    }
+
+    .callout-success {
+      background-color: var(--success-bg);
+      border-left-color: var(--primary-teal);
+      color: var(--success-text);
+    }
+
+    .callout-warning {
+      background-color: var(--warning-bg);
+      border-left-color: var(--brand-gold);
+      color: var(--warning-text);
+    }
+
+    .callout-error {
+      background-color: var(--error-bg);
+      border-left-color: var(--error-red);
+      color: var(--error-text);
+    }
+
+    /* Floating illustration animations (only in web view) */
+    @keyframes float {
+      0% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+      100% { transform: translateY(0px); }
+    }
+
+    /* Header & Footer decorations */
+    .doc-header-brand {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--gray-light);
+      padding-bottom: 12px;
+      margin-bottom: 30px;
+    }
+    
+    .doc-header-brand .logo-text {
+      font-family: var(--font-secondary);
+      font-weight: 800;
+      color: var(--primary-teal-dark);
+      font-size: 18px;
+    }
+
+    .doc-header-brand .tagline {
+      font-size: 12px;
+      color: var(--gray-medium);
+    }
+
+    /* Footer styling */
+    .doc-footer {
+      border-top: 1px solid var(--gray-light);
+      padding-top: 16px;
+      margin-top: 40px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--gray-medium);
+    }
+
+    /* Page-specific layouts */
+    .welcome-section {
+      background: linear-gradient(135deg, rgba(234,247,243,0.5) 0%, rgba(255,255,255,1) 100%);
+      padding: 24px;
+      border-radius: var(--card-radius);
+      margin-bottom: 30px;
+      border: 1px solid rgba(143, 216, 195, 0.2);
+    }
+
+    .accent-block {
+      border-left: 3px solid var(--brand-pink);
+      padding-left: 14px;
+      margin: 18px 0;
+      font-style: italic;
+    }
+
+    /* Category Tag Styles */
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 6px;
+      margin-right: 4px;
+    }
+
+    .badge-teal { background-color: var(--success-bg); color: var(--success-text); }
+    .badge-pink { background-color: #FDE8E8; color: #E02424; }
+    .badge-gold { background-color: #FEF3C7; color: #B45309; }
+
+  </style>
+</head>
+<body>
+
+<div class="document-container">
+
+  <!-- 1. PORTADA -->
+  <div class="cover-page page-break">
+    <div class="cover-logo-container">
+      <img src="./public/docs/images/01-bienvenida.png" class="cover-logo-img" alt="Logo Onboarding Freenanzas" />
+    </div>
+    <h1 class="cover-title"><span>Freenanzas</span> APP</h1>
+    <p class="cover-subtitle">Guía de usuario paso a paso e instructivo de libertad financiera personal</p>
+    
+    <div class="cover-meta">
+      <strong>Versión:</strong> 1.0 (Oficial)<br />
+      <strong>Fecha:</strong> Junio de 2026<br />
+      <strong>Localización:</strong> República Dominicana (RD$)<br />
+      <strong>Branding:</strong> Línea Gráfica 3D Suave (Menta/Teal/Rosado)
+    </div>
+  </div>
+
+  <!-- HEADER DE PÁGINA (Para PDF) -->
+  <div class="doc-header-brand">
+    <span class="logo-text">🐷 Freenanzas APP</span>
+    <span class="tagline">Guía del Usuario</span>
+  </div>
+
+  <!-- 2. BIENVENIDA -->
+  <div class="no-break">
+    <h2>2. Bienvenida</h2>
+    <div class="welcome-section">
+      <p>¡Hola! Te damos la más cálida bienvenida a <strong>Freenanzas APP</strong>, tu nuevo planificador financiero personal. Sabemos que gestionar el dinero puede parecer complicado. Por eso hemos diseñado una aplicación <strong>amigable, simple y optimista</strong> para ayudarte a tomar el control de tus finanzas personales sin estrés.</p>
+      
+      <p>Bajo la regla del <strong>ahorro conductual</strong> y con el apoyo de nuestra <strong>Inteligencia Artificial (IA)</strong>, Freenanzas te ayuda a entender exactamente a dónde va tu dinero y te enseña a crear hábitos de ahorro sólidos en tu moneda local (RD$).</p>
+      
+      <div class="accent-block">
+        "Un presupuesto no limita tu libertad; te da la libertad de gastar de forma inteligente y segura."
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. INSTALACIÓN Y ACCESO -->
+  <div class="page-break no-break">
+    <h2>3. Instalación y Acceso</h2>
+    <div class="feature-row">
+      <div class="feature-text">
+        <p>Configurar tu cuenta en Freenanzas es sumamente rápido. Una vez abras la aplicación:</p>
+        <ol>
+          <li><strong>Onboarding Inicial:</strong> Verás las pantallas de introducción explicando los presupuestos inteligentes, la regla 50/30/20 y tus metas de ahorro.</li>
+          <li><strong>Elige tu método de acceso:</strong>
+            <ul>
+              <li><span class="highlight-teal">Google Sign-In:</span> Entra en un clic con tu cuenta de Google.</li>
+              <li><span class="highlight-teal">Registro por Correo:</span> Selecciona "Registrarse", escribe tu nombre, correo y contraseña.</li>
+            </ul>
+          </li>
+          <li><strong>Inicio de sesión:</strong> Para volver a ingresar, digita tu correo y contraseña en la pestaña de inicio de sesión.</li>
+          <li><strong>Permisos:</strong> Permite que la app acceda a tu cámara para poder escanear recibos físicos con la IA.</li>
+        </ol>
+        
+        <div class="callout callout-note">
+          <div class="callout-title">💡 ¿Olvidaste tu acceso?</div>
+          Si olvidas tu clave, selecciona <strong>"¿Olvidaste tu contraseña?"</strong> en la pestaña de entrada y recibirás un link de recuperación en tu bandeja de entrada.
+        </div>
+      </div>
+      <div class="feature-image-container">
+        <div class="phone-mockup">
+          <img src="./public/docs/images/02-acceso.png" alt="Acceso Freenanzas" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. PANTALLA PRINCIPAL (DASHBOARD) -->
+  <div class="page-break no-break">
+    <h2>4. Pantalla Principal (Dashboard)</h2>
+    <div class="feature-row">
+      <div class="feature-image-container">
+        <div class="phone-mockup">
+          <img src="./public/docs/images/03-inicio-dashboard.png" alt="Dashboard Freenanzas" />
+        </div>
+      </div>
+      <div class="feature-text">
+        <p>El Dashboard es tu centro de control diario. Está organizado de forma visual para evitar el estrés y darte claridad:</p>
+        <ul>
+          <li><strong>Disponible "Para Gastar":</strong> Te muestra tu dinero libre después de descontar gastos fijos y ahorros.</li>
+          <li><strong>Fondo "Mis Ahorros":</strong> Muestra lo que has separado de forma segura.</li>
+          <li><strong>Ocultar Monto (👁️):</strong> Pulsa el ojo junto al saldo para esconder la cantidad en público.</li>
+          <li><strong>Insight del Día:</strong> Consejos de IA amigables que analizan tus finanzas semanales en tiempo real.</li>
+          <li><strong>Acciones Rápidas (+ y -):</strong> Botones inferiores en color verde y rojo para agregar ingresos o gastos en segundos.</li>
+        </ul>
+        
+        <div class="callout callout-success">
+          <div class="callout-title">👑 ¿Qué es la Corona Dorada?</div>
+          Los usuarios premium **PRO** tienen una corona dorada junto a su nombre. Esto activa la IA de consulta ilimitada y el escaneo por cámara de recibos.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. MENÚ DE NAVEGACIÓN -->
+  <div class="page-break no-break">
+    <h2>5. Menú de Navegación</h2>
+    <div class="feature-row">
+      <div class="feature-text">
+        <p>Para moverte por la app, utiliza el dock inferior redondeado y accesible:</p>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Tab / Icono</th>
+              <th>Nombre</th>
+              <th>Función Principal</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>home</strong></td>
+              <td>INICIO</td>
+              <td>Te lleva al dashboard de tus saldos principales e insights.</td>
+            </tr>
+            <tr>
+              <td><strong>pie_chart</strong></td>
+              <td>ANÁLISIS</td>
+              <td>Reportes mensuales, flujo de caja y progreso de tus metas de ahorro.</td>
+            </tr>
+            <tr>
+              <td><strong>qr_code_scanner</strong></td>
+              <td>FAB CENTRAL 📷</td>
+              <td>Botón flotante verde de la cámara para escanear recibos al instante.</td>
+            </tr>
+            <tr>
+              <td><strong>account_balance</strong></td>
+              <td>CARTERA</td>
+              <td>Historial detallado de todas tus transacciones.</td>
+            </tr>
+            <tr>
+              <td><strong>person</strong></td>
+              <td>PERFIL</td>
+              <td>Ajustes de cuenta, deudas, tarjetas de crédito y soporte.</td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <div class="callout callout-note">
+          <div class="callout-title">💡 Diseño Ergonómico</div>
+          El FAB central de escaneo está estratégicamente elevado y ampliado para que puedas presionarlo con un solo pulgar mientras sostienes tu celular.
+        </div>
+      </div>
+      <div class="feature-image-container">
+        <div class="phone-mockup">
+          <img src="./public/docs/images/04-menu-navegacion.png" alt="Menú Navegación" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. FUNCIONES PRINCIPALES - DETALLES -->
+  <div class="page-break">
+    <h2>6. Funciones Principales (Paso a Paso)</h2>
+    
+    <div class="no-break">
+      <h3>6.1. Registro de Gastos e Ingresos</h3>
+      <div class="feature-row">
+        <div class="feature-image-container">
+          <div class="phone-mockup">
+            <img src="./public/docs/images/05-modulo-1.png" alt="Registrar Transacción" />
+          </div>
+        </div>
+        <div class="feature-text">
+          <p>Mantener tus cuentas al día es vital. Freenanzas te lo pone muy fácil:</p>
+          <p><strong>Método Escáner IA (Exclusivo PRO):</strong></p>
+          <ol>
+            <li>Pulsa el botón de la <strong>Cámara/Escáner</strong>.</li>
+            <li>Captura una foto nítida de tu factura física.</li>
+            <li>La IA analizará el papel y rellenará por ti: el monto total, el comercio (y su RNC), la fecha y te sugerirá la categoría adecuada.</li>
+            <li>Revisa y pulsa <strong>Guardar</strong>.</li>
+          </ol>
+          <p><strong>Método Manual:</strong></p>
+          <ol>
+            <li>Elige <strong>Gasto</strong> o <strong>Ingreso</strong>.</li>
+            <li>Escribe la cifra en RD$.</li>
+            <li>Selecciona una categoría (Comida, Servicios, Renta, etc.) y pulsa Guardar.</li>
+          </ol>
+          
+          <div class="callout callout-warning">
+            <div class="callout-title">⚠️ Prevención de Duplicados</div>
+            Si la app detecta un gasto repetido por el mismo valor y en el mismo día, te advertirá con un aviso emergente para confirmar que no sea un registro doble accidental.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-break no-break">
+      <h3>6.2. Filtro IA Preventivo (Anticaprichos)</h3>
+      <div class="feature-row">
+        <div class="feature-text">
+          <p>El Filtro IA es una herramienta innovadora de <strong>economía conductual</strong>. Úsalo antes de comprar algo de lo que no estés seguro:</p>
+          <ol>
+            <li>Introduce el nombre del producto y su costo (ej. <em>Tenis deportivos, RD$ 5,800</em>).</li>
+            <li>Selecciona del 1 al 10 qué tanto deseas el producto en ese momento.</li>
+            <li>La IA evalúa al instante tu balance mensual real, tus próximas deudas, cuotas de préstamos y tu meta de ahorro activa.</li>
+            <li>Te entregará una recomendación semáforo con un tono amigable pero honesto:
+              <ul>
+                <li><span class="badge badge-teal">Adelante 🟢</span> Está dentro de tus posibilidades y no afecta tus metas.</li>
+                <li><span class="badge badge-gold">Piénsalo 🟡</span> Un gasto extra que retrasará un poco tu fondo.</li>
+                <li><span class="badge badge-pink">Alerta 🔴</span> Te arriesga a comprometer tus gastos fijos indispensables.</li>
+              </ul>
+            </li>
+          </ol>
+        </div>
+        <div class="feature-image-container">
+          <div class="phone-mockup">
+            <img src="./public/docs/images/06-modulo-2-detalle.png" alt="Filtro IA" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-break no-break">
+      <h3>6.3. Análisis de Presupuestos y Metas de Ahorro</h3>
+      <div class="feature-row">
+        <div class="feature-image-container">
+          <div class="phone-mockup">
+            <img src="./public/docs/images/07-progreso-resumen.png" alt="Presupuestos Freenanzas" />
+          </div>
+        </div>
+        <div class="feature-text">
+          <p>Lleva el control de tus objetivos financieros organizando tu dinero:</p>
+          <ul>
+            <li><strong>Regla 50/30/20:</strong> Clasifica tus gastos en necesidades, caprichos y tu ahorro indispensable.</li>
+            <li><strong>Flujo de Caja:</strong> Observa la barra tricolor dinámica para identificar rápidamente el balance de tus gastos (rojo) frente a tus ahorros (indigo).</li>
+            <li><strong>Metas de Ahorro (ej. Fondo de Emergencia):</strong> Crea tus objetivos escribiendo cuánto necesitas. Freenanzas te dirá el monto ideal mensual. Al registrar transferencias bajo "Ahorro", verás el progreso porcentual completarse paso a paso.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-break no-break">
+      <h3>6.4. Perfil y Ajustes Financieros</h3>
+      <div class="feature-row">
+        <div class="feature-text">
+          <p>Configura todas las utilidades adicionales en tu perfil:</p>
+          <ul>
+            <li><strong>Administrar Tarjetas de Crédito:</strong> Introduce tu fecha de corte y límites. La app te dirá cuándo pagar y evitará el pago de altos intereses financieros.</li>
+            <li><strong>Administrar Deudas:</strong> Haz un mapa de tus préstamos con amortizaciones mensuales calculadas.</li>
+            <li><strong>Ajustes de alertas:</strong> Configura avisos diarios para no olvidar registrar tus movimientos.</li>
+          </ul>
+          
+          <div class="callout callout-success">
+            <div class="callout-title">💰 Seguridad y Privacidad</div>
+            Freenanzas no te solicita tokens de acceso ni se conecta a tu banco. Tu información financiera es privada y está resguardada con altos niveles de encriptación de datos.
+          </div>
+        </div>
+        <div class="feature-image-container">
+          <div class="phone-mockup">
+            <img src="./public/docs/images/08-configuracion.png" alt="Perfil Freenanzas" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. CONSEJOS Y BUENAS PRÁCTICAS -->
+  <div class="page-break no-break">
+    <h2>7. Consejos y Buenas Prácticas Financieras</h2>
+    <p>Para sacarle el máximo partido a tu Freenanzas APP y lograr tu libertad financiera rápido, adopta estos sencillos hábitos:</p>
+    <ul>
+      <li><strong>Registra los gastos hormiga:</strong> La menta, el café o el parqueo... registrar lo pequeño es la clave para tapar fugas de dinero importantes.</li>
+      <li><strong>Consulta al Filtro IA primero:</strong> Deja pasar al menos 10 minutos entre tu deseo de compra impulsiva y la consulta al Filtro IA. Esta pausa ayuda a tu cerebro a razonar el gasto de forma lógica.</li>
+      <li><strong>Separa tu ahorro el primer día:</strong> Tan pronto recibas tu sueldo o ingresos, regístralo y separa el 10% o 20% para tu fondo. Si dejas el ahorro para lo que te "sobre" al final del mes, nunca te sobrará nada.</li>
+    </ul>
+  </div>
+
+  <!-- 8. PREGUNTAS FRECUENTES (FAQ) -->
+  <div class="page-break no-break">
+    <h2>8. Preguntas Frecuentes (FAQ)</h2>
+    
+    <table>
+      <thead>
+        <tr>
+          <th>Pregunta / Inconveniente</th>
+          <th>Causa Frecuente</th>
+          <th>Solución</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>No me carga la pestaña de escaneo con cámara</strong></td>
+          <td>No has concedido permisos de cámara en tu celular.</td>
+          <td>Ve a los ajustes de tu teléfono, busca Freenanzas y activa los permisos de cámara.</td>
+        </tr>
+        <tr>
+          <td><strong>¿Cómo se calcula el Insight diario?</strong></td>
+          <td>La IA analiza tus tendencias de consumo en base a las categorías que más utilizas.</td>
+          <td>A mayor cantidad de transacciones registradas de forma correcta, más preciso será el consejo financiero diario.</td>
+        </tr>
+        <tr>
+          <td><strong>El escáner no extrae los datos correctamente</strong></td>
+          <td>Factura arrugada, luz tenue o foto de lado.</td>
+          <td>Estira la factura sobre una superficie plana, toma la foto vertical y con luz natural o flash.</td>
+        </tr>
+        <tr>
+          <td><strong>¿La versión PRO es obligatoria?</strong></td>
+          <td>El plan free cuenta con las funciones básicas del dashboard.</td>
+          <td>La suscripción PRO activa el análisis ilimitado por IA, alertas inteligentes avanzadas y escaneo de facturas.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 9. SOPORTE Y CONTACTO -->
+  <div class="no-break">
+    <h2>9. Soporte y Contacto</h2>
+    <p>¿Tienes dudas o deseas dar feedback? Nuestro equipo técnico de República Dominicana está disponible para asistirte:</p>
+    <ul>
+      <li><strong>Correo Oficial:</strong> <a href="mailto:soporte@freenanzas.com" style="color:var(--primary-teal-dark); font-weight:600; text-decoration:none;">soporte@freenanzas.com</a></li>
+      <li><strong>Horario:</strong> Lunes a Viernes de 8:00 AM a 6:00 PM (GMT-4, Hora RD)</li>
+      <li><strong>Al reportar, indícanos:</strong> Tu correo electrónico registrado, modelo de celular y una breve explicación del caso (puedes enviar fotos adjuntas).</li>
+    </ul>
+  </div>
+
+  <!-- DOC FOOTER -->
+  <div class="doc-footer">
+    Guía de Usuario Freenanzas APP © 2026. Todos los derechos reservados.<br />
+    <em>¡Empieza a construir tu libertad financiera paso a paso con Freenanzas!</em> 🐷🌱✨
+  </div>
+
+</div>
+
+</body>
+</html>

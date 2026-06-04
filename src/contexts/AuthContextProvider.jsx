@@ -16,8 +16,40 @@ import { auth, db } from '../firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { AuthContext } from './AuthContext.js';
 import { onSnapshot } from 'firebase/firestore';
+import { getTrialEndsAt, TRIAL_DAYS } from '../utils/trial';
 
 const googleProvider = new GoogleAuthProvider();
+
+const toDate = (value) => {
+    if (!value) return null;
+    if (value.toDate) return value.toDate();
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const hasActiveAdminProOverride = (userData) => {
+    const override = userData?.adminProOverride;
+    if (!override?.active) return false;
+
+    const expiresAt = toDate(override.expiresAt);
+    return !expiresAt || new Date() < expiresAt;
+};
+
+const shouldExtendTrialToThirtyDays = (userData, now = new Date()) => {
+    if (!userData) return false;
+    if (hasActiveAdminProOverride(userData)) return false;
+    if (userData.isPro === true || userData.isPro === undefined || userData.isPro === null) return false;
+    if (userData.paypalSubscriptionId) return false;
+
+    const createdAt = toDate(userData.createdAt);
+    if (!createdAt) return false;
+
+    const thirtyDayTrialEndsAt = getTrialEndsAt(createdAt);
+    if (thirtyDayTrialEndsAt <= now) return false;
+
+    const currentTrialEndsAt = toDate(userData.trialEndsAt);
+    return !currentTrialEndsAt || currentTrialEndsAt < thirtyDayTrialEndsAt;
+};
 
 export function AuthProvider({ children }) {
     const [currentUser, setCurrentUser] = useState(null);
@@ -34,8 +66,7 @@ export function AuthProvider({ children }) {
         const snap = await getDoc(userRef);
         if (!snap.exists()) {
             const now = new Date();
-            const trialDays = 7;
-            const trialEndsAt = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
+            const trialEndsAt = getTrialEndsAt(now);
 
             await setDoc(userRef, {
                 uid: user.uid,
@@ -48,6 +79,15 @@ export function AuthProvider({ children }) {
                 trialEndsAt: trialEndsAt,
                 ...extraData,
             });
+            return;
+        }
+
+        const userData = snap.data();
+        if (shouldExtendTrialToThirtyDays(userData)) {
+            const createdAt = toDate(userData.createdAt);
+            await setDoc(userRef, {
+                trialEndsAt: getTrialEndsAt(createdAt),
+            }, { merge: true });
         }
     }
 
@@ -142,56 +182,40 @@ export function AuthProvider({ children }) {
         return () => unsub();
     }, [currentUser]);
 
-    // ── isProUser: Incluye usuarios pagados, grandfathered y TRIAL ──
+    // ── isProUser: Incluye override admin, usuarios pagados, grandfathered y TRIAL ──
     const isProUser = React.useMemo(() => {
-        // --- OVERRIDE TEMPORAL 30 DÍAS (MELVIN FAJARDO) ---
-        const overrideEmail = "melvinfajardo808@gmail.com";
-        const expirationDate = new Date('2026-04-08T23:59:59'); // 30 días desde el 9 de marzo de 2026
-        const userEmail = currentUser?.email?.toLowerCase();
-
-        if (userEmail === overrideEmail && new Date() < expirationDate) {
-            return true;
-        }
-        // --------------------------------------------------
-
         if (!userData) return false;
+        if (hasActiveAdminProOverride(userData)) return true;
         // 1. Grandfathering
         if (userData.isPro === undefined || userData.isPro === null) return true;
         // 2. Explícitamente Pro (pagó)
         if (userData.isPro === true) {
             // 2a. Si canceló, verificar grace period
             if (userData.cancelAtPeriodEnd === true && userData.currentPeriodEnd) {
-                const periodEnd = userData.currentPeriodEnd.toDate
-                    ? userData.currentPeriodEnd.toDate()
-                    : new Date(userData.currentPeriodEnd);
+                const periodEnd = toDate(userData.currentPeriodEnd);
                 if (new Date() >= periodEnd) return false;
             }
             return true;
         }
-        // 3. Trial (7 días) otorga acceso PRO
+        // 3. Trial (30 días) otorga acceso PRO
         if (userData.trialEndsAt) {
-            const ends = userData.trialEndsAt.toDate ? userData.trialEndsAt.toDate() : new Date(userData.trialEndsAt);
+            const ends = toDate(userData.trialEndsAt);
             if (new Date() < ends) return true;
         }
         return false;
-    }, [userData, currentUser]);
+    }, [userData]);
 
     // Indica si el usuario está en periodo de prueba (informativo para banners)
     const isTrialUser = React.useMemo(() => {
-        // --- OVERRIDE TEMPORAL 30 DÍAS (MELVIN FAJARDO) ---
-        const overrideEmail = "melvinfajardo808@gmail.com";
-        const userEmail = currentUser?.email?.toLowerCase();
-        if (userEmail === overrideEmail) return false;
-        // --------------------------------------------------
-
         if (!userData) return false;
+        if (hasActiveAdminProOverride(userData)) return false;
         if (userData.isPro === true || userData.isPro === undefined || userData.isPro === null) return false;
         if (userData.trialEndsAt) {
-            const ends = userData.trialEndsAt.toDate ? userData.trialEndsAt.toDate() : new Date(userData.trialEndsAt);
+            const ends = toDate(userData.trialEndsAt);
             if (new Date() < ends) return true;
         }
         return false;
-    }, [userData, currentUser]);
+    }, [userData]);
 
     // ── Estado unificado ──
     const userStatus = React.useMemo(() => {
@@ -203,9 +227,8 @@ export function AuthProvider({ children }) {
     // ── Días restantes de trial (informativo) ──
     const trialDaysLeft = React.useMemo(() => {
         if (!isTrialUser || !userData?.trialEndsAt) return 0;
-        const ends = userData.trialEndsAt.toDate
-            ? userData.trialEndsAt.toDate()
-            : new Date(userData.trialEndsAt);
+        const ends = toDate(userData.trialEndsAt);
+        if (!ends) return 0;
         const ms = ends.getTime() - Date.now();
         return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
     }, [isTrialUser, userData]);
@@ -217,6 +240,7 @@ export function AuthProvider({ children }) {
         isTrialUser,
         userStatus,
         trialDaysLeft,
+        trialDays: TRIAL_DAYS,
         signup,
         login,
         loginWithGoogle,

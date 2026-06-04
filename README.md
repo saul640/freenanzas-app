@@ -1,16 +1,44 @@
-# React + Vite
+# Freenanzas – App de Finanzas Personales
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**URL de Producción:** [https://freenanzas-app.web.app](https://freenanzas-app.web.app)
 
-Currently, two official plugins are available:
+App de finanzas personales construida con React + Vite, Firebase (Auth, Firestore, Hosting, Functions) y Gemini AI.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Stack Tecnológico
 
-## React Compiler
+- **Frontend:** React 19 + Vite + Tailwind CSS
+- **Backend:** Firebase (Firestore, Auth, Hosting, Cloud Functions)
+- **IA:** Google Gemini vía Firebase Cloud Functions
+- **PWA:** Vite PWA Plugin
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Desarrollo Local
 
-## Expanding the ESLint configuration
+```bash
+npm install
+npm --prefix functions install
+npm run dev
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Configura Gemini únicamente como secreto del backend:
+
+```bash
+npx firebase-tools functions:secrets:set GEMINI_API_KEY
+```
+
+## Despliegue
+
+```bash
+npm run build
+npx firebase-tools deploy --only hosting,functions,firestore:rules
+```
+
+## Arquitectura de Datos (Firestore)
+
+| Ruta | Descripción |
+|------|-------------|
+| `/transactions/{id}` | Transacciones globales (filtradas por `userId`) |
+| `/users/{uid}/` | Perfil del usuario |
+| `/users/{uid}/creditCards/` | Tarjetas de crédito |
+| `/users/{uid}/recurring/` | Gastos recurrentes |
+| `/users/{uid}/categories/` | Categorías personalizadas |
+| `/users/{uid}/budgets/` | Presupuestos mensuales |
