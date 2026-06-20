@@ -21,6 +21,7 @@ export default function Profile() {
         updateProfile,
         sendEmailVerification,
         updatePassword,
+        linkWithCredential,
         EmailAuthProvider,
         reauthenticateWithCredential
     } = useAuth();
@@ -32,6 +33,7 @@ export default function Profile() {
     // Security states
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [isSecurityOpen, setIsSecurityOpen] = useState(false);
 
     const fileInputRef = useRef(null);
@@ -43,6 +45,7 @@ export default function Profile() {
     const userEmail = currentUser?.email || '';
     const userPhoto = currentUser?.photoURL || null;
     const isVerified = currentUser?.emailVerified || false;
+    const hasPasswordProvider = currentUser?.providerData?.some(({ providerId }) => providerId === 'password') ?? false;
 
     const handleLogout = async () => {
         try {
@@ -154,8 +157,8 @@ export default function Profile() {
     const handlePasswordChange = async (e) => {
         e.preventDefault();
 
-        if (!currentPassword || !newPassword) {
-            toast.error("Completa ambos campos de contraseña.");
+        if (!newPassword || (hasPasswordProvider ? !currentPassword : !confirmPassword)) {
+            toast.error("Completa todos los campos de contraseña.");
             return;
         }
 
@@ -164,32 +167,44 @@ export default function Profile() {
             return;
         }
 
-        const toastId = toast.loading("Cambiando contraseña...");
+        if (!hasPasswordProvider && newPassword !== confirmPassword) {
+            toast.error("Las contraseñas no coinciden.");
+            return;
+        }
+
+        const toastId = toast.loading(hasPasswordProvider ? "Cambiando contraseña..." : "Creando contraseña...");
         setLoading(true);
 
         try {
-            if (!reauthenticateWithCredential || !updatePassword || !EmailAuthProvider) {
+            if (!reauthenticateWithCredential || !updatePassword || !linkWithCredential || !EmailAuthProvider) {
                 toast.error("Error de configuración externa.", { id: toastId });
                 return;
             }
 
-            // 1. Reauthenticate
-            const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
-            await reauthenticateWithCredential(currentUser, credential);
+            if (hasPasswordProvider) {
+                const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
+                await reauthenticateWithCredential(currentUser, credential);
+                await updatePassword(currentUser, newPassword);
+            } else {
+                const credential = EmailAuthProvider.credential(currentUser.email, newPassword);
+                await linkWithCredential(currentUser, credential);
+            }
 
-            // 2. Update password
-            await updatePassword(currentUser, newPassword);
-
-            toast.success("Contraseña actualizada exitosamente.", { id: toastId });
+            toast.success(hasPasswordProvider ? "Contraseña actualizada exitosamente." : "Contraseña creada. Ya puedes entrar con Google o con tu contraseña.", { id: toastId });
             setCurrentPassword('');
             setNewPassword('');
+            setConfirmPassword('');
             setIsSecurityOpen(false);
         } catch (error) {
             console.error("Password update error:", error);
             if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
                 toast.error("La contraseña actual es incorrecta.", { id: toastId });
+            } else if (error.code === 'auth/provider-already-linked') {
+                toast.error("Esta cuenta ya tiene una contraseña vinculada. Recarga la página e intenta cambiarla.", { id: toastId });
+            } else if (error.code === 'auth/requires-recent-login') {
+                toast.error("Por seguridad, cierra sesión y vuelve a entrar antes de continuar.", { id: toastId });
             } else {
-                toast.error("Error al cambiar la contraseña.", { id: toastId });
+                toast.error(hasPasswordProvider ? "Error al cambiar la contraseña." : "Error al crear la contraseña.", { id: toastId });
             }
         } finally {
             setLoading(false);
@@ -384,19 +399,25 @@ export default function Profile() {
 
                         {isSecurityOpen && (
                             <div className="px-4 pb-4 pt-1 border-t border-gray-50 dark:border-slate-700 animate-fade-in transition-colors duration-200">
-                                <p className="text-xs text-gray-500 dark:text-slate-400 transition-colors duration-200 mb-4">Actualiza tu contraseña. Por seguridad, te pediremos la contraseña actual.</p>
+                                <p className="text-xs text-gray-500 dark:text-slate-400 transition-colors duration-200 mb-4">
+                                    {hasPasswordProvider
+                                        ? 'Actualiza tu contraseña. Por seguridad, te pediremos la contraseña actual.'
+                                        : 'Tu cuenta usa Google. Crea una contraseña para poder entrar también con correo electrónico.'}
+                                </p>
                                 <form onSubmit={handlePasswordChange} className="space-y-3">
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 transition-colors duration-200 mb-1">Contraseña Actual</label>
-                                        <input
-                                            type="password"
-                                            value={currentPassword}
-                                            onChange={(e) => setCurrentPassword(e.target.value)}
-                                            className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 dark:text-zinc-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-colors duration-200"
-                                            placeholder="••••••••"
-                                            disabled={loading}
-                                        />
-                                    </div>
+                                    {hasPasswordProvider && (
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 transition-colors duration-200 mb-1">Contraseña Actual</label>
+                                            <input
+                                                type="password"
+                                                value={currentPassword}
+                                                onChange={(e) => setCurrentPassword(e.target.value)}
+                                                className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 dark:text-zinc-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-colors duration-200"
+                                                placeholder="••••••••"
+                                                disabled={loading}
+                                            />
+                                        </div>
+                                    )}
                                     <div>
                                         <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 transition-colors duration-200 mb-1">Nueva Contraseña</label>
                                         <input
@@ -408,12 +429,25 @@ export default function Profile() {
                                             disabled={loading}
                                         />
                                     </div>
+                                    {!hasPasswordProvider && (
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 transition-colors duration-200 mb-1">Confirmar Contraseña</label>
+                                            <input
+                                                type="password"
+                                                value={confirmPassword}
+                                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                                className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 dark:text-zinc-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-colors duration-200"
+                                                placeholder="••••••••"
+                                                disabled={loading}
+                                            />
+                                        </div>
+                                    )}
                                     <button
                                         type="submit"
-                                        disabled={loading || !currentPassword || !newPassword}
+                                        disabled={loading || !newPassword || (hasPasswordProvider ? !currentPassword : !confirmPassword)}
                                         className="w-full py-2 bg-gray-900 text-white font-medium rounded-xl text-sm hover:bg-black transition-colors disabled:opacity-50 mt-2"
                                     >
-                                        Cambiar Contraseña
+                                        {hasPasswordProvider ? 'Cambiar Contraseña' : 'Crear Contraseña'}
                                     </button>
                                 </form>
                             </div>

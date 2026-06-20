@@ -9,6 +9,8 @@ import {
     updateProfile,
     sendEmailVerification,
     updatePassword,
+    sendPasswordResetEmail,
+    linkWithCredential,
     EmailAuthProvider,
     reauthenticateWithCredential
 } from 'firebase/auth';
@@ -27,12 +29,12 @@ const toDate = (value) => {
     return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const hasActiveAdminProOverride = (userData) => {
+const hasActiveAdminProOverride = (userData, now = new Date()) => {
     const override = userData?.adminProOverride;
     if (!override?.active) return false;
 
     const expiresAt = toDate(override.expiresAt);
-    return !expiresAt || new Date() < expiresAt;
+    return !expiresAt || now < expiresAt;
 };
 
 const shouldExtendTrialToThirtyDays = (userData, now = new Date()) => {
@@ -54,7 +56,14 @@ const shouldExtendTrialToThirtyDays = (userData, now = new Date()) => {
 export function AuthProvider({ children }) {
     const [currentUser, setCurrentUser] = useState(null);
     const [userData, setUserData] = useState(null);
+    const [userDataLoading, setUserDataLoading] = useState(true);
     const [loading, setLoading] = useState(true);
+    const [statusCheckedAt, setStatusCheckedAt] = useState(() => new Date());
+
+    useEffect(() => {
+        const intervalId = window.setInterval(() => setStatusCheckedAt(new Date()), 60 * 1000);
+        return () => window.clearInterval(intervalId);
+    }, []);
 
     /**
      * Crea el documento de perfil en Firestore SOLO si no existe ya.
@@ -123,6 +132,14 @@ export function AuthProvider({ children }) {
         return signInWithEmailAndPassword(auth, email, password);
     }
 
+    function resetPassword(email) {
+        if (!auth) return Promise.reject(new Error("Firebase no está configurado (falta .env.local)."));
+        return sendPasswordResetEmail(auth, email, {
+            url: window.location.origin + '/onboarding',
+            handleCodeInApp: false,
+        });
+    }
+
     // Inicio de sesión / registro con Google
     async function loginWithGoogle() {
         if (!auth || !db) throw new Error("Firebase no está configurado (falta .env.local).");
@@ -151,6 +168,7 @@ export function AuthProvider({ children }) {
         }
 
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            setUserDataLoading(Boolean(user));
             setCurrentUser(user);
             if (user) {
                 try {
@@ -158,6 +176,8 @@ export function AuthProvider({ children }) {
                 } catch (e) {
                     console.error('Error asegurando perfil de usuario:', e);
                 }
+            } else {
+                setUserData(null);
             }
             setLoading(false);
         });
@@ -166,18 +186,21 @@ export function AuthProvider({ children }) {
     }, []);
 
     useEffect(() => {
-        if (!currentUser || !db) {
-            setUserData(null);
-            return;
-        }
+        if (!currentUser || !db) return;
 
-        const unsub = onSnapshot(doc(db, 'users', currentUser.uid), (docSnap) => {
-            if (docSnap.exists()) {
-                setUserData(docSnap.data());
-            } else {
+        const unsub = onSnapshot(
+            doc(db, 'users', currentUser.uid),
+            (docSnap) => {
+                setUserData(docSnap.exists() ? docSnap.data() : null);
+                setStatusCheckedAt(new Date());
+                setUserDataLoading(false);
+            },
+            (error) => {
+                console.error('Error cargando perfil de usuario:', error);
                 setUserData(null);
-            }
-        });
+                setUserDataLoading(false);
+            },
+        );
 
         return () => unsub();
     }, [currentUser]);
@@ -185,7 +208,7 @@ export function AuthProvider({ children }) {
     // ── isProUser: Incluye override admin, usuarios pagados, grandfathered y TRIAL ──
     const isProUser = React.useMemo(() => {
         if (!userData) return false;
-        if (hasActiveAdminProOverride(userData)) return true;
+        if (hasActiveAdminProOverride(userData, statusCheckedAt)) return true;
         // 1. Grandfathering
         if (userData.isPro === undefined || userData.isPro === null) return true;
         // 2. Explícitamente Pro (pagó)
@@ -193,49 +216,51 @@ export function AuthProvider({ children }) {
             // 2a. Si canceló, verificar grace period
             if (userData.cancelAtPeriodEnd === true && userData.currentPeriodEnd) {
                 const periodEnd = toDate(userData.currentPeriodEnd);
-                if (new Date() >= periodEnd) return false;
+                if (statusCheckedAt >= periodEnd) return false;
             }
             return true;
         }
         // 3. Trial (30 días) otorga acceso PRO
         if (userData.trialEndsAt) {
             const ends = toDate(userData.trialEndsAt);
-            if (new Date() < ends) return true;
+            if (statusCheckedAt < ends) return true;
         }
         return false;
-    }, [userData]);
+    }, [userData, statusCheckedAt]);
 
     // Indica si el usuario está en periodo de prueba (informativo para banners)
     const isTrialUser = React.useMemo(() => {
         if (!userData) return false;
-        if (hasActiveAdminProOverride(userData)) return false;
+        if (hasActiveAdminProOverride(userData, statusCheckedAt)) return false;
         if (userData.isPro === true || userData.isPro === undefined || userData.isPro === null) return false;
         if (userData.trialEndsAt) {
             const ends = toDate(userData.trialEndsAt);
-            if (new Date() < ends) return true;
+            if (statusCheckedAt < ends) return true;
         }
         return false;
-    }, [userData]);
+    }, [userData, statusCheckedAt]);
 
     // ── Estado unificado ──
     const userStatus = React.useMemo(() => {
+        if (userDataLoading) return 'LOADING';
         if (isTrialUser) return 'TRIAL';
         if (isProUser) return 'PRO';
         return 'EXPIRED'; // EXPIRED cuando se acaba el trial y no ha pagado
-    }, [isProUser, isTrialUser]);
+    }, [isProUser, isTrialUser, userDataLoading]);
 
     // ── Días restantes de trial (informativo) ──
     const trialDaysLeft = React.useMemo(() => {
         if (!isTrialUser || !userData?.trialEndsAt) return 0;
         const ends = toDate(userData.trialEndsAt);
         if (!ends) return 0;
-        const ms = ends.getTime() - Date.now();
+        const ms = ends.getTime() - statusCheckedAt.getTime();
         return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
-    }, [isTrialUser, userData]);
+    }, [isTrialUser, userData, statusCheckedAt]);
 
     const value = {
         currentUser,
         userData,
+        userDataLoading,
         isProUser,
         isTrialUser,
         userStatus,
@@ -243,11 +268,13 @@ export function AuthProvider({ children }) {
         trialDays: TRIAL_DAYS,
         signup,
         login,
+        resetPassword,
         loginWithGoogle,
         logout,
         updateProfile,
         sendEmailVerification,
         updatePassword,
+        linkWithCredential,
         EmailAuthProvider,
         reauthenticateWithCredential
     };

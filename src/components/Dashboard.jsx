@@ -12,7 +12,7 @@ import TransactionDetailModal from './TransactionDetailModal';
 
 export default function Dashboard() {
     const navigate = useNavigate();
-    const { currentUser, logout, isProUser, isTrialUser, userData, userStatus, trialDaysLeft, trialDays } = useAuth();
+    const { currentUser, isProUser, isTrialUser, userData, userStatus, trialDaysLeft, trialDays } = useAuth();
     const { loans } = useLoans(currentUser?.uid);
     const { insight: dailyInsightText, loading: insightLoading } = useDailyInsight(userData, currentUser);
     const canAccessPremium = isProUser || isTrialUser;
@@ -117,13 +117,6 @@ export default function Dashboard() {
             link: null
         };
     }, [creditCards, loans]);
-
-    const handleLogout = async () => {
-        try {
-            await logout();
-            navigate('/onboarding');
-        } catch (e) { console.error(e); }
-    };
 
     return (
         <div className="flex flex-col min-h-screen bg-[#f7f9f8] dark:bg-slate-900 transition-colors duration-200">
@@ -501,7 +494,7 @@ export default function Dashboard() {
             {/* Bottom Navigation */}
             <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} />
 
-            {/* Paywall overlay — blocks dashboard for EXPIRED users (trial expired) */}
+            {/* Solo bloquea cuando el perfil cargado confirma que terminó la prueba. */}
             {userStatus === 'EXPIRED' && !showPaywall && (
                 <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center p-6">
                     <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">

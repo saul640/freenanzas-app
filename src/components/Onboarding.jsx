@@ -25,10 +25,12 @@ const slides = [
 
 export default function Onboarding() {
     const navigate = useNavigate();
-    const { login, signup, loginWithGoogle, currentUser } = useAuth();
+    const { login, signup, resetPassword, loginWithGoogle, currentUser } = useAuth();
     const [currentSlide, setCurrentSlide] = useState(0);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [showGoogleRecovery, setShowGoogleRecovery] = useState(false);
+    const [resetMessage, setResetMessage] = useState('');
     const [showOnboarding, setShowOnboarding] = useState(true);
 
     // Auth form state
@@ -73,6 +75,8 @@ export default function Onboarding() {
 
         try {
             setError('');
+            setShowGoogleRecovery(false);
+            setResetMessage('');
             setLoading(true);
             if (authMode === 'register') {
                 await signup(email.trim(), password, name.trim());
@@ -82,7 +86,10 @@ export default function Onboarding() {
             navigate('/');
         } catch (err) {
             const code = err.code || '';
-            if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') setError('Correo o contraseña incorrectos. Si te registraste con Google, usa el botón "Continuar con Google".');
+            if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
+                setError('No pudimos iniciar sesión con esa contraseña. Si creaste tu cuenta con Google, continúa con Google para conservar tus datos.');
+                setShowGoogleRecovery(true);
+            }
             else if (code === 'auth/email-already-in-use') setError('Este correo ya está registrado. Intenta iniciar sesión.');
             else if (code === 'auth/weak-password') setError('La contraseña debe tener al menos 6 caracteres.');
             else if (code === 'auth/invalid-email') setError('El correo electrónico no es válido.');
@@ -90,6 +97,30 @@ export default function Onboarding() {
             else if (code === 'auth/network-request-failed') setError('Sin conexión a internet. Verifica tu red.');
             else if (code === 'auth/operation-not-allowed') setError('Este método de autenticación no está habilitado. Contacta al administrador.');
             else setError(err.message || 'Error de autenticación. Intenta de nuevo.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handlePasswordReset = async () => {
+        const normalizedEmail = email.trim();
+        if (!normalizedEmail) {
+            setError('Escribe tu correo para enviarte el enlace de recuperación.');
+            return;
+        }
+
+        try {
+            setError('');
+            setResetMessage('');
+            setLoading(true);
+            await resetPassword(normalizedEmail);
+            setResetMessage('Si esa cuenta usa contraseña, recibirás un enlace para restablecerla. Revisa también correo no deseado.');
+        } catch (err) {
+            const code = err.code || '';
+            if (code === 'auth/invalid-email') setError('El correo electrónico no es válido.');
+            else if (code === 'auth/too-many-requests') setError('Demasiados intentos. Espera unos minutos e intenta de nuevo.');
+            else if (code === 'auth/network-request-failed') setError('Sin conexión a internet. Verifica tu red.');
+            else setError('No pudimos enviar el enlace de recuperación. Intenta de nuevo.');
         } finally {
             setLoading(false);
         }
@@ -141,13 +172,13 @@ export default function Onboarding() {
                     {/* Tabs */}
                     <div className="flex bg-gray-100 rounded-2xl p-1">
                         <button
-                            onClick={() => { setAuthMode('login'); setError(''); }}
+                            onClick={() => { setAuthMode('login'); setError(''); setShowGoogleRecovery(false); setResetMessage(''); }}
                             className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${authMode === 'login' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`}
                         >
                             Iniciar Sesión
                         </button>
                         <button
-                            onClick={() => { setAuthMode('register'); setError(''); }}
+                            onClick={() => { setAuthMode('register'); setError(''); setShowGoogleRecovery(false); setResetMessage(''); }}
                             className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${authMode === 'register' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`}
                         >
                             Registrarse
@@ -156,9 +187,28 @@ export default function Onboarding() {
 
                     {/* Error */}
                     {error && (
-                        <div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl border border-red-100 flex items-center gap-2 text-sm font-medium">
-                            <span className="material-symbols-rounded text-lg">error</span>
-                            {error}
+                        <div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl border border-red-100 text-sm font-medium">
+                            <div className="flex items-start gap-2">
+                                <span className="material-symbols-rounded text-lg">error</span>
+                                <span>{error}</span>
+                            </div>
+                            {showGoogleRecovery && (
+                                <button
+                                    type="button"
+                                    onClick={handleGoogleLogin}
+                                    disabled={loading}
+                                    className="mt-3 w-full rounded-lg bg-white border border-red-200 py-2 text-red-700 font-bold hover:bg-red-100 disabled:opacity-50"
+                                >
+                                    Entrar con Google
+                                </button>
+                            )}
+                        </div>
+                    )}
+
+                    {resetMessage && (
+                        <div className="bg-emerald-50 text-emerald-700 px-4 py-3 rounded-xl border border-emerald-100 flex items-start gap-2 text-sm font-medium" role="status">
+                            <span className="material-symbols-rounded text-lg">mark_email_read</span>
+                            <span>{resetMessage}</span>
                         </div>
                     )}
 
@@ -193,6 +243,16 @@ export default function Onboarding() {
                                 <span className="material-symbols-rounded text-xl">{showPassword ? 'visibility_off' : 'visibility'}</span>
                             </button>
                         </div>
+                        {authMode === 'login' && (
+                            <button
+                                type="button"
+                                onClick={handlePasswordReset}
+                                disabled={loading}
+                                className="block ml-auto text-xs font-semibold text-gray-500 hover:text-gray-700 disabled:opacity-50"
+                            >
+                                ¿Olvidaste tu contraseña?
+                            </button>
+                        )}
                         <button
                             type="submit" disabled={loading}
                             className="w-full bg-gradient-to-r from-primary to-emerald-500 text-black font-bold py-4 rounded-2xl transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 text-base shadow-lg shadow-primary/20"
