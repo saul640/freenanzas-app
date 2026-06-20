@@ -188,21 +188,49 @@ export function AuthProvider({ children }) {
     useEffect(() => {
         if (!currentUser || !db) return;
 
+        let isActive = true;
+        let receivedServerSnapshot = false;
+        let cachedUserData = null;
+
+        // IndexedDB can contain an expired entitlement from an older app version.
+        // Give Firestore a chance to confirm the server state before blocking access.
+        const cacheFallbackTimer = window.setTimeout(() => {
+            if (!isActive || receivedServerSnapshot) return;
+            console.warn('Usando perfil local porque Firestore no respondió a tiempo.');
+            setUserData(cachedUserData);
+            setUserDataLoading(false);
+        }, 8000);
+
         const unsub = onSnapshot(
             doc(db, 'users', currentUser.uid),
+            { includeMetadataChanges: true },
             (docSnap) => {
-                setUserData(docSnap.exists() ? docSnap.data() : null);
+                const nextUserData = docSnap.exists() ? docSnap.data() : null;
+
+                if (docSnap.metadata.fromCache && !receivedServerSnapshot) {
+                    cachedUserData = nextUserData;
+                    return;
+                }
+
+                receivedServerSnapshot = true;
+                window.clearTimeout(cacheFallbackTimer);
+                setUserData(nextUserData);
                 setStatusCheckedAt(new Date());
                 setUserDataLoading(false);
             },
             (error) => {
+                window.clearTimeout(cacheFallbackTimer);
                 console.error('Error cargando perfil de usuario:', error);
-                setUserData(null);
+                setUserData(cachedUserData);
                 setUserDataLoading(false);
             },
         );
 
-        return () => unsub();
+        return () => {
+            isActive = false;
+            window.clearTimeout(cacheFallbackTimer);
+            unsub();
+        };
     }, [currentUser]);
 
     // ── isProUser: Incluye override admin, usuarios pagados, grandfathered y TRIAL ──
