@@ -36,7 +36,7 @@ export default function SubscriptionCard({ onOpenPaywall }) {
                 const snapshot = await getDocs(receiptsQuery);
                 if (!isMounted) return;
                 setBillingReceipts(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-            } catch (error) {
+            } catch {
                 if (isMounted) setBillingReceipts([]);
             }
         };
@@ -70,6 +70,35 @@ export default function SubscriptionCard({ onOpenPaywall }) {
             month: 'long',
             year: 'numeric',
         }).format(date);
+    };
+
+    const formatReceiptAmount = (receipt) => {
+        if (!receipt?.amount) return 'Cobro confirmado';
+        const numericAmount = Number(receipt.amount);
+        if (Number.isNaN(numericAmount)) {
+            return `${receipt.amount} ${receipt.currency || ''}`.trim();
+        }
+        return new Intl.NumberFormat('es', {
+            style: 'currency',
+            currency: receipt.currency || 'USD',
+        }).format(numericAmount);
+    };
+
+    const copyReceiptReference = async (receipt) => {
+        const reference = [
+            receipt.providerPaymentId && `Pago: ${receipt.providerPaymentId}`,
+            receipt.eventId && `Evento: ${receipt.eventId}`,
+            receipt.paypalSubscriptionId && `Suscripción: ${receipt.paypalSubscriptionId}`,
+        ].filter(Boolean).join(' | ');
+
+        if (!reference) return;
+
+        try {
+            await navigator.clipboard.writeText(reference);
+            toast.success('Referencia de comprobante copiada.');
+        } catch {
+            toast.error('No se pudo copiar la referencia.');
+        }
     };
 
     // ── Plan pricing ──
@@ -135,7 +164,6 @@ export default function SubscriptionCard({ onOpenPaywall }) {
             date: null,
             showCancel: false,
             showUpgrade: true,
-            showChangePlan: false,
             showReactivate: false,
         };
     };
@@ -169,7 +197,7 @@ export default function SubscriptionCard({ onOpenPaywall }) {
 
             toast.success('Renovación pausada. Mantendrás tu acceso PRO hasta el final de tu ciclo actual.');
             setShowCancelModal(false);
-        } catch (error) {
+        } catch {
             toast.error('Error al pausar la renovación. Intenta de nuevo más tarde.');
         } finally {
             setIsCancelling(false);
@@ -186,7 +214,7 @@ export default function SubscriptionCard({ onOpenPaywall }) {
             await reactivateSubscription({ subscriptionId });
 
             toast.success('¡Suscripción reactivada! Tu plan PRO continúa activo.');
-        } catch (error) {
+        } catch {
             toast.error('Error al reactivar la suscripción. Intenta de nuevo más tarde.');
         } finally {
             setIsReactivating(false);
@@ -277,22 +305,34 @@ export default function SubscriptionCard({ onOpenPaywall }) {
 
                 {billingReceipts.length > 0 && (
                     <div className="bg-gray-50 dark:bg-slate-700/50 rounded-xl p-3 mb-3 transition-colors duration-200">
-                        <p className="text-xs text-gray-400 dark:text-slate-500 font-medium mb-2 transition-colors duration-200">Últimos comprobantes PayPal</p>
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                            <div>
+                                <p className="text-xs text-gray-400 dark:text-slate-500 font-medium transition-colors duration-200">Últimos comprobantes PayPal</p>
+                                <p className="text-[10px] text-gray-400 dark:text-slate-500 transition-colors duration-200">Registro interno. El recibo oficial vive en PayPal.</p>
+                            </div>
+                            <span className="material-symbols-rounded text-[16px] text-green-600 dark:text-green-400">verified</span>
+                        </div>
                         <div className="space-y-2">
                             {billingReceipts.map((receipt) => (
                                 <div key={receipt.id} className="flex items-center justify-between gap-3 text-xs">
                                     <div className="min-w-0">
                                         <p className="font-semibold text-gray-800 dark:text-zinc-100 truncate">
-                                            {receipt.amount || 'Cobro'} {receipt.currency || ''}
+                                            {formatReceiptAmount(receipt)}
                                         </p>
-                                        <p className="text-gray-400 dark:text-slate-500">
+                                        <p className="text-gray-400 dark:text-slate-500 truncate">
                                             {formatDate(parseDate(receipt.paidAt))}
+                                            {receipt.providerPaymentId ? ` · ${receipt.providerPaymentId}` : ''}
                                         </p>
                                     </div>
-                                    <span className="shrink-0 inline-flex items-center gap-1 text-green-600 dark:text-green-400 font-bold">
-                                        <span className="material-symbols-rounded text-[13px]">receipt_long</span>
-                                        PayPal
-                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => copyReceiptReference(receipt)}
+                                        className="shrink-0 inline-flex items-center gap-1 text-green-600 dark:text-green-400 font-bold bg-transparent"
+                                        aria-label="Copiar referencia del comprobante"
+                                    >
+                                        <span className="material-symbols-rounded text-[13px]">content_copy</span>
+                                        Ref.
+                                    </button>
                                 </div>
                             ))}
                         </div>
