@@ -31,6 +31,8 @@ service cloud.firestore {
         'subscriptionStartDate',
         'subscriptionUpdatedAt',
         'lastPaypalWebhookEventId',
+        'lastPaypalPaymentEventId',
+        'lastPaypalPaymentEventType',
         'paypalPaymentFailedAt',
         'trialEndsAt',
         'createdAt'
@@ -47,6 +49,8 @@ service cloud.firestore {
         'subscriptionStartDate',
         'subscriptionUpdatedAt',
         'lastPaypalWebhookEventId',
+        'lastPaypalPaymentEventId',
+        'lastPaypalPaymentEventType',
         'paypalPaymentFailedAt'
       ])
       && (!('isPro' in request.resource.data) || request.resource.data.isPro == false)
@@ -160,6 +164,11 @@ service cloud.firestore {
 
       match /loans/{loanId} {
         allow read, write: if isSignedInOwner(userId);
+      }
+
+      match /billingReceipts/{receiptId} {
+        allow read: if isSignedInOwner(userId);
+        allow write: if false;
       }
 
       match /{document=**} {
