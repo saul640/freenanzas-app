@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { FaCrown, FaTimes } from 'react-icons/fa';
 import { PayPalScriptProvider, PayPalButtons, usePayPalScriptReducer, DISPATCH_ACTION } from "@paypal/react-paypal-js";
+import { httpsCallable } from 'firebase/functions';
 import { toast } from 'react-hot-toast';
 import { SUPPORT_EMAIL } from '../data/legalPolicies';
+import { functions } from '../firebase';
 
 const getEnv = (...names) => {
     for (const name of names) {
@@ -59,10 +61,13 @@ function PaywallModalContent({ onClose }) {
                 throw new Error('PayPal no devolvió el ID de suscripción.');
             }
 
-            toast.success('Pago aprobado. Estamos validando tu suscripción con PayPal.', { duration: 6000 });
+            const syncSubscription = httpsCallable(functions, 'syncPayPalSubscription');
+            await syncSubscription({ subscriptionId: data.subscriptionID });
+
+            toast.success('Suscripción PRO activada. PayPal confirmó tu acceso.', { duration: 6000 });
             handleClose();
         } catch (error) {
-            setErrorMsg("PayPal aprobó el flujo, pero no pudimos iniciar la validación. Por favor contacta a soporte.");
+            setErrorMsg("PayPal aprobó el flujo, pero no pudimos validar tu suscripción automáticamente. Espera unos minutos o contacta a soporte.");
         } finally {
             setLoading(false);
         }
