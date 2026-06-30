@@ -310,6 +310,7 @@ export const generateGeminiContent = onCall(
     {
         region: 'us-central1',
         cors: ALLOWED_CORS_ORIGINS,
+        enforceAppCheck: true,
         secrets: [geminiApiKey],
         timeoutSeconds: 60,
         memory: '512MiB',
@@ -432,6 +433,7 @@ export const cancelPayPalSubscription = onCall(
     {
         region: 'us-central1',
         cors: ALLOWED_CORS_ORIGINS,
+        enforceAppCheck: true,
         secrets: [paypalClientId, paypalSecret],
         timeoutSeconds: 60,
     },
@@ -461,6 +463,7 @@ export const reactivatePayPalSubscription = onCall(
     {
         region: 'us-central1',
         cors: ALLOWED_CORS_ORIGINS,
+        enforceAppCheck: true,
         secrets: [paypalClientId, paypalSecret],
         timeoutSeconds: 60,
     },
@@ -495,6 +498,7 @@ export const deleteMyAccountData = onCall(
     {
         region: 'us-central1',
         cors: ALLOWED_CORS_ORIGINS,
+        enforceAppCheck: true,
         timeoutSeconds: 120,
         memory: '512MiB',
     },
