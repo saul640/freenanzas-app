@@ -85,7 +85,14 @@ export const legalPolicies = {
         body: [
           'Las funciones PRO pueden incluir IA, escaneo de recibos, exportaciones avanzadas y otras herramientas indicadas en la app.',
           'Las suscripciones se cobran mediante PayPal según el ciclo elegido. Los precios, beneficios y ciclos se muestran antes de confirmar el pago.',
-          'Puedes cancelar tu suscripción desde la sección Mi Suscripción. Mantendrás acceso PRO hasta el final del periodo ya pagado, salvo que la ley aplicable exija algo distinto.'
+          'Puedes pausar la renovación de tu suscripción desde la sección Mi Suscripción. Mantendrás acceso PRO hasta el final del periodo ya pagado, salvo que la ley aplicable exija algo distinto.'
+        ]
+      },
+      {
+        heading: 'Comprobantes de pago',
+        body: [
+          'PayPal procesa el cobro y emite o muestra los comprobantes oficiales disponibles en tu cuenta PayPal.',
+          'Freenanzas puede mostrar un registro interno de cobros confirmados por webhook para ayudarte a identificar pagos, pero ese registro no sustituye el comprobante oficial de PayPal ni una factura fiscal.'
         ]
       },
       {
@@ -189,7 +196,7 @@ export const legalPolicies = {
         heading: 'Cancelación',
         body: [
           'Puedes cancelar tu suscripción PRO desde Configuración > Mi Suscripción > Cancelar Suscripción.',
-          'La cancelación evita renovaciones futuras. Normalmente mantienes acceso PRO hasta el final del periodo de facturación ya pagado.',
+          'La app puede pausar la renovación en PayPal para evitar cobros futuros cuando PayPal lo permita. Normalmente mantienes acceso PRO hasta el final del periodo de facturación ya pagado.',
           'También puedes revisar o cancelar pagos recurrentes desde tu cuenta PayPal cuando PayPal lo permita.'
         ]
       },
