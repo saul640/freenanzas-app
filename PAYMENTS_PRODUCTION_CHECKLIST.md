@@ -66,12 +66,92 @@ Esta checklist debe completarse antes de abrir Freenanzas PRO al público. Guard
 
 ## Evidencia
 
-| Fecha | Responsable | Prueba | Evidencia |
-| --- | --- | --- | --- |
-|  |  | Compra mensual live |  |
-|  |  | Compra anual live |  |
-|  |  | Webhook activación |  |
-|  |  | Recibo PayPal |  |
-|  |  | Pausa renovación |  |
-|  |  | Reactivación |  |
-|  |  | Dominio propio |  |
+No guardes tarjetas, tokens, secretos, correos completos de clientes reales ni capturas con datos financieros sensibles. Usa usuarios de prueba controlados y redacta IDs dejando solo los últimos 6 caracteres cuando el documento se comparta.
+
+### Compra Mensual Live
+
+- Fecha y zona horaria:
+- Responsable:
+- URL usada:
+- UID de prueba redactado:
+- Plan ID PayPal redactado:
+- Subscription ID PayPal redactado:
+- Resultado PayPal:
+- Estado en Firestore `users/{uid}`:
+- Captura del paywall:
+- Captura de Mi Suscripción:
+- Observaciones:
+
+### Compra Anual Live
+
+- Fecha y zona horaria:
+- Responsable:
+- URL usada:
+- UID de prueba redactado:
+- Plan ID PayPal redactado:
+- Subscription ID PayPal redactado:
+- Resultado PayPal:
+- Estado en Firestore `users/{uid}`:
+- Captura del paywall:
+- Captura de Mi Suscripción:
+- Observaciones:
+
+### Webhook de Activación
+
+- Fecha y zona horaria:
+- Responsable:
+- Evento PayPal recibido:
+- Event ID redactado:
+- `paypalWebhookEvents/{eventId}` tiene `processedAt`:
+- Firma verificada por backend:
+- Resultado al reenviar el mismo evento:
+- Evidencia de que no duplicó cambios:
+- Observaciones:
+
+### Recibo PayPal
+
+- Fecha y zona horaria:
+- Responsable:
+- Evento de pago recibido:
+- Payment/Event ID redactado:
+- Ruta `users/{uid}/billingReceipts/{paymentId}`:
+- Monto y moneda esperados:
+- Comprobante interno visible en Mi Suscripción:
+- Recibo oficial ubicable en PayPal:
+- Observaciones:
+
+### Pausa de Renovación
+
+- Fecha y zona horaria:
+- Responsable:
+- Subscription ID PayPal redactado:
+- Estado PayPal antes:
+- Estado PayPal después de `suspend`:
+- Firestore `cancelAtPeriodEnd`:
+- Firestore `paypalStatus`:
+- Acceso PRO durante periodo pagado:
+- Observaciones:
+
+### Reactivación
+
+- Fecha y zona horaria:
+- Responsable:
+- Subscription ID PayPal redactado:
+- Estado PayPal antes:
+- Estado PayPal después de `activate`:
+- Firestore `cancelAtPeriodEnd`:
+- Firestore `paypalStatus`:
+- Acceso PRO restaurado solo con estado `ACTIVE`:
+- Observaciones:
+
+### Dominio Propio
+
+- Fecha y zona horaria:
+- Responsable:
+- Dominio comprado:
+- Firebase Hosting conectado:
+- Certificado SSL activo:
+- PayPal app/webhook actualizado:
+- App Check actualizado:
+- URL pública verificada:
+- Observaciones:
