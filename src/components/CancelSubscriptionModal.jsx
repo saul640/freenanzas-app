@@ -63,7 +63,7 @@ export default function CancelSubscriptionModal({ isOpen, onClose, onConfirm, is
                         {isLoading ? (
                             <>
                                 <span className="animate-spin material-symbols-rounded text-[18px]">progress_activity</span>
-                                Cancelando...
+                                Pausando...
                             </>
                         ) : (
                             'Sí, pausar renovación'
