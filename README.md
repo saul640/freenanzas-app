@@ -47,6 +47,15 @@ Antes de vender al público, completa y conserva evidencia de la checklist en
 planes reales de PayPal, evento real de webhook, prueba de cancelación/reactivación,
 recibo o comprobante y dominio propio.
 
+Valida la configuración local de producción antes de desplegar:
+
+```bash
+PAYPAL_ENV=live npm run verify:payments
+```
+
+El verificador no imprime credenciales ni IDs completos; solo confirma presencia,
+formato esperado y consistencia básica con la UI y Cloud Functions.
+
 ## Arquitectura de Datos (Firestore)
 
 | Ruta | Descripción |
