@@ -285,25 +285,6 @@ const deleteUserFirestoreData = async (uid) => {
     await db.doc(`users/${uid}`).delete();
 };
 
-const cancelSubscriptionBeforeAccountDeletion = async (uid) => {
-    const snapshot = await getFirestore().doc(`users/${uid}`).get();
-    const subscriptionId = snapshot.data()?.paypalSubscriptionId;
-    if (!subscriptionId) return;
-
-    try {
-        await callPaypal(`/v1/billing/subscriptions/${encodeURIComponent(subscriptionId)}/suspend`, {
-            method: 'POST',
-            body: { reason: 'Cuenta eliminada por el usuario desde la app' },
-        });
-    } catch (error) {
-        console.warn('Unable to suspend PayPal subscription during account deletion:', {
-            uid,
-            subscriptionId,
-            error,
-        });
-    }
-};
-
 const deleteUserAvatarFiles = async (uid) => {
     const bucket = getStorage().bucket();
     const prefixes = [
@@ -514,7 +495,6 @@ export const deleteMyAccountData = onCall(
     {
         region: 'us-central1',
         cors: ALLOWED_CORS_ORIGINS,
-        secrets: [paypalClientId, paypalSecret],
         timeoutSeconds: 120,
         memory: '512MiB',
     },
@@ -526,7 +506,6 @@ export const deleteMyAccountData = onCall(
         const uid = request.auth.uid;
 
         try {
-            await cancelSubscriptionBeforeAccountDeletion(uid);
             await deleteUserAvatarFiles(uid);
             await deleteUserFirestoreData(uid);
             await getAuth().deleteUser(uid);
