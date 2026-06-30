@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { FaCrown, FaTimes } from 'react-icons/fa';
 import { PayPalScriptProvider, PayPalButtons, usePayPalScriptReducer, DISPATCH_ACTION } from "@paypal/react-paypal-js";
 import { toast } from 'react-hot-toast';
+import { SUPPORT_EMAIL } from '../data/legalPolicies';
 
 function PaywallModalContent({ onClose }) {
     const { currentUser } = useAuth();
@@ -259,6 +260,13 @@ function PaywallModalContent({ onClose }) {
                     <p className="text-xs text-gray-400 mt-4 pb-2">
                         Cancela en cualquier momento. Cobro seguro mediante PayPal.
                     </p>
+
+                    <div className="text-[11px] leading-5 text-gray-400 dark:text-gray-500 px-1">
+                        La IA ofrece orientación educativa, no asesoría financiera profesional. Al suscribirte aceptas los{' '}
+                        <a href="/terms" target="_blank" rel="noopener noreferrer" className="font-semibold underline">Términos</a>, la{' '}
+                        <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold underline">Privacidad</a> y la{' '}
+                        <a href="/refunds-cancellation" target="_blank" rel="noopener noreferrer" className="font-semibold underline">política de reembolsos</a>.
+                    </div>
                 </div>
             </div>
         </div>
@@ -276,7 +284,7 @@ export default function PaywallModal({ isOpen, onClose }) {
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl w-full max-w-sm text-center">
                     <p className="text-red-500 font-bold mb-4">Error de Configuración</p>
                     <p className="text-gray-700 dark:text-gray-300 text-sm mb-6">
-                        El Client ID de PayPal no está configurado. Por favor, comunícate con soporte técnico.
+                        El Client ID de PayPal no está configurado. Por favor, comunícate con soporte técnico: {SUPPORT_EMAIL}.
                     </p>
                     <button onClick={onClose} className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg font-medium">Cerrar</button>
                 </div>
