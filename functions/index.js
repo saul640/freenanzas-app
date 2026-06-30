@@ -126,6 +126,12 @@ const getPeriodEnd = (subscription) => {
     return Number.isNaN(date.getTime()) ? null : Timestamp.fromDate(date);
 };
 
+const assertActiveSubscription = (subscription) => {
+    if (subscription?.status !== 'ACTIVE') {
+        throw new HttpsError('failed-precondition', `PayPal devolvió estado ${subscription?.status || 'desconocido'}.`);
+    }
+};
+
 const activateUserSubscription = async ({ userId, subscription, planType, eventId }) => {
     const db = getFirestore();
     const userRef = db.doc(`users/${userId}`);
@@ -240,9 +246,7 @@ const handleSubscriptionWebhook = async (event) => {
     switch (event.event_type) {
         case 'BILLING.SUBSCRIPTION.ACTIVATED':
         case 'BILLING.SUBSCRIPTION.RE-ACTIVATED':
-            if (!['ACTIVE', 'APPROVAL_PENDING'].includes(subscription.status)) {
-                throw new Error(`Unexpected PayPal subscription status: ${subscription.status}`);
-            }
+            assertActiveSubscription(subscription);
             await activateUserSubscription({
                 userId,
                 subscription,
@@ -479,9 +483,7 @@ export const syncPayPalSubscription = onCall(
         const subscription = await getSubscription(subscriptionId);
         const { userId, planType } = assertSubscriptionBelongsToUser(subscription, request.auth.uid);
 
-        if (!['ACTIVE', 'APPROVAL_PENDING'].includes(subscription.status)) {
-            throw new HttpsError('failed-precondition', `PayPal devolvió estado ${subscription.status || 'desconocido'}.`);
-        }
+        assertActiveSubscription(subscription);
 
         await activateUserSubscription({
             userId,
