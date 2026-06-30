@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import { getAuth } from 'firebase/auth';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
@@ -16,11 +17,22 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase only if config is present
-let app, auth, db, functions, storage;
+let app, appCheck, auth, db, functions, storage;
 
 try {
     if (firebaseConfig.apiKey) {
         app = initializeApp(firebaseConfig);
+        const appCheckSiteKey = import.meta.env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY;
+
+        if (appCheckSiteKey) {
+            appCheck = initializeAppCheck(app, {
+                provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
+                isTokenAutoRefreshEnabled: true,
+            });
+        } else {
+            console.warn("Firebase App Check site key is missing. Add VITE_RECAPTCHA_ENTERPRISE_SITE_KEY to your environment.");
+        }
+
         auth = getAuth(app);
         
         // Habilitar persistencia local IndexedDB con soporte multi-pestaña para PWA
@@ -39,5 +51,5 @@ try {
     console.error("Firebase initialization error", error);
 }
 
-export { auth, db, functions, storage };
+export { appCheck, auth, db, functions, storage };
 export default app;
