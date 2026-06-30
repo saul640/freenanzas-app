@@ -66,7 +66,7 @@ function PaywallModalContent({ onClose }) {
 
             toast.success('Suscripción PRO activada. PayPal confirmó tu acceso.', { duration: 6000 });
             handleClose();
-        } catch (error) {
+        } catch {
             setErrorMsg("PayPal aprobó el flujo, pero no pudimos validar tu suscripción automáticamente. Espera unos minutos o contacta a soporte.");
         } finally {
             setLoading(false);
