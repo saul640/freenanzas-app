@@ -29,7 +29,15 @@ npx firebase-tools functions:secrets:set GEMINI_API_KEY
 
 ```bash
 npm run build
-npx firebase-tools deploy --only hosting,functions,firestore:rules
+npx firebase-tools deploy --only hosting,functions,firestore:rules,storage
+```
+
+Aplica CORS al bucket de Storage después del primer deploy o cuando cambie `storage.cors.json`:
+
+```bash
+gcloud storage buckets update gs://freenanzas-app.firebasestorage.app --cors-file=storage.cors.json
+# Alternativa:
+gsutil cors set storage.cors.json gs://freenanzas-app.firebasestorage.app
 ```
 
 ## Arquitectura de Datos (Firestore)
