@@ -146,6 +146,15 @@ const activateUserSubscription = async ({ userId, subscription, planType, eventI
     }, { merge: true });
 };
 
+const assertSubscriptionBelongsToUser = (subscription, uid) => {
+    const { userId, planType } = parseCustomId(subscription?.custom_id);
+    if (!userId || userId !== uid) {
+        throw new HttpsError('permission-denied', 'Esta suscripción de PayPal no pertenece al usuario actual.');
+    }
+
+    return { userId, planType };
+};
+
 const setUserSubscriptionStatus = async ({ userId, subscription, updates, eventId }) => {
     const db = getFirestore();
     await db.doc(`users/${userId}`).set({
@@ -446,6 +455,47 @@ export const generateGeminiContent = onCall(
         }
 
         return { text };
+    },
+);
+
+export const syncPayPalSubscription = onCall(
+    {
+        region: 'us-central1',
+        cors: ALLOWED_CORS_ORIGINS,
+        enforceAppCheck: true,
+        secrets: [paypalClientId, paypalSecret],
+        timeoutSeconds: 60,
+    },
+    async (request) => {
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'Debes iniciar sesión para validar tu suscripción.');
+        }
+
+        const { subscriptionId } = request.data || {};
+        if (!subscriptionId || typeof subscriptionId !== 'string') {
+            throw new HttpsError('invalid-argument', 'Falta el ID de suscripción de PayPal.');
+        }
+
+        const subscription = await getSubscription(subscriptionId);
+        const { userId, planType } = assertSubscriptionBelongsToUser(subscription, request.auth.uid);
+
+        if (!['ACTIVE', 'APPROVAL_PENDING'].includes(subscription.status)) {
+            throw new HttpsError('failed-precondition', `PayPal devolvió estado ${subscription.status || 'desconocido'}.`);
+        }
+
+        await activateUserSubscription({
+            userId,
+            subscription,
+            planType,
+            eventId: null,
+        });
+
+        return {
+            ok: true,
+            status: subscription.status,
+            planType,
+            currentPeriodEnd: getPeriodEnd(subscription)?.toDate?.()?.toISOString?.() || null,
+        };
     },
 );
 
