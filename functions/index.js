@@ -12,6 +12,12 @@ const paypalWebhookId = defineSecret('PAYPAL_WEBHOOK_ID');
 const MODEL_NAME = 'gemini-2.5-flash';
 const PAYPAL_LIVE_API_BASE = 'https://api-m.paypal.com';
 const PAYPAL_SANDBOX_API_BASE = 'https://api-m.sandbox.paypal.com';
+const ALLOWED_CORS_ORIGINS = [
+    'https://freenanzas-app.web.app',
+    'https://freenanzas-app.firebaseapp.com',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+];
 
 const getPaypalApiBase = () => (
     process.env.PAYPAL_ENV === 'sandbox'
@@ -237,6 +243,7 @@ const isValidContents = (contents) => (
 export const generateGeminiContent = onCall(
     {
         region: 'us-central1',
+        cors: ALLOWED_CORS_ORIGINS,
         secrets: [geminiApiKey],
         timeoutSeconds: 60,
         memory: '512MiB',
@@ -295,6 +302,7 @@ export const generateGeminiContent = onCall(
 export const paypalWebhook = onRequest(
     {
         region: 'us-central1',
+        cors: false,
         secrets: [paypalClientId, paypalSecret, paypalWebhookId],
         timeoutSeconds: 60,
     },
@@ -357,6 +365,7 @@ const assertOwnSubscription = async (uid, subscriptionId) => {
 export const cancelPayPalSubscription = onCall(
     {
         region: 'us-central1',
+        cors: ALLOWED_CORS_ORIGINS,
         secrets: [paypalClientId, paypalSecret],
         timeoutSeconds: 60,
     },
@@ -385,6 +394,7 @@ export const cancelPayPalSubscription = onCall(
 export const reactivatePayPalSubscription = onCall(
     {
         region: 'us-central1',
+        cors: ALLOWED_CORS_ORIGINS,
         secrets: [paypalClientId, paypalSecret],
         timeoutSeconds: 60,
     },
