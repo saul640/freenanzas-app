@@ -586,12 +586,16 @@ export const cancelPayPalSubscription = onCall(
             body: { reason: 'Cancelado por el usuario desde la app' },
         });
 
-        await getFirestore().doc(`users/${request.auth.uid}`).set({
-            cancelAtPeriodEnd: true,
-            subscriptionUpdatedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
+        const subscription = await getSubscription(subscriptionId);
+        await setUserSubscriptionStatus({
+            userId: request.auth.uid,
+            subscription,
+            updates: {
+                cancelAtPeriodEnd: true,
+            },
+        });
 
-        return { ok: true };
+        return { ok: true, status: subscription.status || null };
     },
 );
 
@@ -617,6 +621,8 @@ export const reactivatePayPalSubscription = onCall(
         });
 
         const subscription = await getSubscription(subscriptionId);
+        assertActiveSubscription(subscription);
+
         await setUserSubscriptionStatus({
             userId: request.auth.uid,
             subscription,
@@ -626,7 +632,7 @@ export const reactivatePayPalSubscription = onCall(
             },
         });
 
-        return { ok: true };
+        return { ok: true, status: subscription.status };
     },
 );
 
