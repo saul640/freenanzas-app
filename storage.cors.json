@@ -1,0 +1,18 @@
+[
+  {
+    "origin": [
+      "https://freenanzas-app.web.app",
+      "https://freenanzas-app.firebaseapp.com",
+      "http://localhost:5173",
+      "http://127.0.0.1:5173"
+    ],
+    "method": ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"],
+    "responseHeader": [
+      "Authorization",
+      "Content-Type",
+      "x-goog-resumable",
+      "x-firebase-storage-version"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]
