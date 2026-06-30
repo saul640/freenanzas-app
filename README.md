@@ -40,6 +40,13 @@ gcloud storage buckets update gs://freenanzas-app.firebasestorage.app --cors-fil
 gsutil cors set storage.cors.json gs://freenanzas-app.firebasestorage.app
 ```
 
+## Pagos en Producción
+
+Antes de vender al público, completa y conserva evidencia de la checklist en
+[PAYMENTS_PRODUCTION_CHECKLIST.md](PAYMENTS_PRODUCTION_CHECKLIST.md). Incluye
+planes reales de PayPal, evento real de webhook, prueba de cancelación/reactivación,
+recibo o comprobante y dominio propio.
+
 ## Arquitectura de Datos (Firestore)
 
 | Ruta | Descripción |
