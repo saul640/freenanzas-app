@@ -158,6 +158,63 @@ const setUserSubscriptionStatus = async ({ userId, subscription, updates, eventI
     }, { merge: true });
 };
 
+const getUserIdForSubscription = async (subscriptionId) => {
+    const subscription = await getSubscription(subscriptionId);
+    const { userId } = parseCustomId(subscription.custom_id);
+    if (userId) return { userId, subscription };
+
+    const snapshot = await getFirestore()
+        .collection('users')
+        .where('paypalSubscriptionId', '==', subscriptionId)
+        .limit(1)
+        .get();
+
+    if (snapshot.empty) {
+        throw new Error(`Unable to map PayPal subscription ${subscriptionId} to a Firebase user.`);
+    }
+
+    return { userId: snapshot.docs[0].id, subscription };
+};
+
+const getPaypalAmount = (resource) => {
+    const amount = resource?.amount || resource?.seller_receivable_breakdown?.gross_amount || {};
+    return {
+        amount: amount.total || amount.value || null,
+        currency: amount.currency || amount.currency_code || null,
+    };
+};
+
+const getPaypalTimestamp = (value) => {
+    if (!value) return FieldValue.serverTimestamp();
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? FieldValue.serverTimestamp() : Timestamp.fromDate(date);
+};
+
+const saveBillingReceipt = async ({ userId, subscription, event }) => {
+    const resource = event?.resource || {};
+    const paymentId = resource.id || event.id;
+    if (!paymentId) return;
+
+    const { amount, currency } = getPaypalAmount(resource);
+    const receiptRef = getFirestore()
+        .doc(`users/${userId}/billingReceipts/${paymentId}`);
+
+    await receiptRef.set({
+        provider: 'paypal',
+        providerPaymentId: paymentId,
+        paypalSubscriptionId: subscription.id,
+        paypalStatus: resource.state || resource.status || null,
+        planType: parseCustomId(subscription.custom_id).planType || null,
+        amount,
+        currency,
+        paidAt: getPaypalTimestamp(resource.create_time || resource.update_time || event.create_time),
+        eventId: event.id || null,
+        eventType: event.event_type || null,
+        officialReceiptProvider: 'PayPal',
+        updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+};
+
 const handleSubscriptionWebhook = async (event) => {
     const resource = event?.resource || {};
     const subscriptionId = resource.id || resource.billing_agreement_id;
@@ -215,6 +272,32 @@ const handleSubscriptionWebhook = async (event) => {
                     paypalPaymentFailedAt: FieldValue.serverTimestamp(),
                 },
             });
+            break;
+        default:
+            break;
+    }
+};
+
+const handlePaymentWebhook = async (event) => {
+    const resource = event?.resource || {};
+    const subscriptionId = resource.billing_agreement_id || resource.billing_agreement_id__c;
+    if (!subscriptionId) return;
+
+    const { userId, subscription } = await getUserIdForSubscription(subscriptionId);
+
+    switch (event.event_type) {
+        case 'PAYMENT.SALE.COMPLETED':
+            await saveBillingReceipt({ userId, subscription, event });
+            break;
+        case 'PAYMENT.SALE.REFUNDED':
+        case 'PAYMENT.SALE.REVERSED':
+        case 'PAYMENT.SALE.DENIED':
+            await saveBillingReceipt({ userId, subscription, event });
+            await getFirestore().doc(`users/${userId}`).set({
+                lastPaypalPaymentEventId: event.id || null,
+                lastPaypalPaymentEventType: event.event_type || null,
+                subscriptionUpdatedAt: FieldValue.serverTimestamp(),
+            }, { merge: true });
             break;
         default:
             break;
@@ -408,6 +491,7 @@ export const paypalWebhook = onRequest(
 
             if (!alreadyProcessed) {
                 await handleSubscriptionWebhook(event);
+                await handlePaymentWebhook(event);
                 await eventRef.set({
                     processedAt: FieldValue.serverTimestamp(),
                 }, { merge: true });
