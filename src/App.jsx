@@ -12,6 +12,7 @@ import CreditCards from './components/CreditCards';
 import AIAdvisor from './components/AIAdvisor';
 import Loans from './components/Loans';
 import AuthAction from './components/AuthAction';
+import LegalPage from './components/LegalPage';
 import { AuthProvider } from './contexts/AuthContextProvider';
 import PrivateRoute from './components/PrivateRoute';
 
@@ -25,6 +26,11 @@ function App() {
               <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/auth/action" element={<AuthAction />} />
+              <Route path="/privacy" element={<LegalPage policyKey="privacy" />} />
+              <Route path="/terms" element={<LegalPage policyKey="terms" />} />
+              <Route path="/data-deletion" element={<LegalPage policyKey="dataDeletion" />} />
+              <Route path="/ai-financial-notice" element={<LegalPage policyKey="aiNotice" />} />
+              <Route path="/refunds-cancellation" element={<LegalPage policyKey="refunds" />} />
               <Route path="/add" element={<PrivateRoute><AddTransaction /></PrivateRoute>} />
               <Route path="/add/:txId" element={<PrivateRoute><AddTransaction /></PrivateRoute>} />
               <Route path="/budgets" element={<PrivateRoute><BudgetsGoals /></PrivateRoute>} />
