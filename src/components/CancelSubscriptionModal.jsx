@@ -45,6 +45,15 @@ export default function CancelSubscriptionModal({ isOpen, onClose, onConfirm, is
                     </p>
                 )}
 
+                <a
+                    href="/refunds-cancellation"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-xs text-center text-gray-500 underline font-medium mb-5"
+                >
+                    Ver política de reembolsos y cancelación
+                </a>
+
                 <div className="space-y-2">
                     <button
                         onClick={onConfirm}
