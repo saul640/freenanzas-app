@@ -29,7 +29,7 @@ export default function CancelSubscriptionModal({ isOpen, onClose, onConfirm, is
                 </h3>
 
                 <p className="text-sm text-gray-500 text-center mb-1">
-                    ¿Estás seguro de que deseas cancelar tu suscripción PRO?
+                    ¿Quieres pausar la renovación de tu suscripción PRO?
                 </p>
 
                 {formattedDate && (
@@ -41,7 +41,7 @@ export default function CancelSubscriptionModal({ isOpen, onClose, onConfirm, is
 
                 {!formattedDate && (
                     <p className="text-sm text-gray-600 text-center font-medium mb-6">
-                        Mantendrás tus beneficios PRO hasta el final de tu ciclo de facturación actual.
+                        Mantendrás tus beneficios PRO hasta el final de tu ciclo de facturación actual y podrás reactivarla si PayPal lo permite.
                     </p>
                 )}
 
@@ -66,7 +66,7 @@ export default function CancelSubscriptionModal({ isOpen, onClose, onConfirm, is
                                 Cancelando...
                             </>
                         ) : (
-                            'Sí, cancelar suscripción'
+                            'Sí, pausar renovación'
                         )}
                     </button>
 
