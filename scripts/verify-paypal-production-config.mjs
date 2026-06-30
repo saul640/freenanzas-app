@@ -104,6 +104,8 @@ requireSourceText('functions/index.js', [
     'verify-webhook-signature',
     'assertActiveSubscription(subscription);',
     'billingReceipts',
+    '/suspend',
+    '/activate',
 ]);
 
 for (const warning of warnings) {
