@@ -12,6 +12,7 @@ Esta checklist debe completarse antes de abrir Freenanzas PRO al público. Guard
 - [ ] `VITE_PAYPAL_PLAN_ID_MONTHLY` corresponde al plan mensual live.
 - [ ] `VITE_PAYPAL_PLAN_ID_ANNUAL` corresponde al plan anual live.
 - [ ] Los fallback links de PayPal apuntan a los mismos planes live.
+- [ ] `PAYPAL_ENV=live npm run verify:payments` pasa sin errores antes del deploy.
 
 ## Planes Reales
 
