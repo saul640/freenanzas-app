@@ -68,6 +68,12 @@ export default function Profile() {
 
         const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
         const maxAvatarSize = 2 * 1024 * 1024;
+        const avatarExtensionsByType = {
+            'image/jpeg': 'jpg',
+            'image/jpg': 'jpg',
+            'image/png': 'png',
+            'image/webp': 'webp',
+        };
 
         if (!allowedTypes.includes(file.type)) {
             toast.error("Por favor, selecciona una imagen válida.");
@@ -83,9 +89,10 @@ export default function Profile() {
         setLoading(true);
 
         try {
-            const storageRef = ref(storage, `avatars/${currentUser.uid}/profile`);
+            const avatarExtension = avatarExtensionsByType[file.type];
+            const storageRef = ref(storage, `avatars/${currentUser.uid}.${avatarExtension}`);
 
-            await uploadBytes(storageRef, file);
+            await uploadBytes(storageRef, file, { contentType: file.type });
             const downloadURL = await getDownloadURL(storageRef);
 
             // Update Auth
