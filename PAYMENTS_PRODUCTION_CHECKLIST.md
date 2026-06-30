@@ -60,6 +60,7 @@ Esta checklist debe completarse antes de abrir Freenanzas PRO al público. Guard
 - [ ] Política de reembolsos publicada y enlazada desde el paywall.
 - [ ] Términos, privacidad, eliminación de datos y aviso IA publicados.
 - [ ] Dominio propio comprado.
+- [ ] `CUSTOM_DOMAIN_RUNBOOK.md` completado.
 - [ ] Dominio propio conectado a Firebase Hosting.
 - [ ] PayPal app/webhook actualizados con el dominio propio si aplica.
 - [ ] App Check reCAPTCHA Enterprise actualizado con el dominio propio.
