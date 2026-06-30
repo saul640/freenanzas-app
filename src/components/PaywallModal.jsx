@@ -5,6 +5,18 @@ import { PayPalScriptProvider, PayPalButtons, usePayPalScriptReducer, DISPATCH_A
 import { toast } from 'react-hot-toast';
 import { SUPPORT_EMAIL } from '../data/legalPolicies';
 
+const getEnv = (...names) => {
+    for (const name of names) {
+        const value = import.meta.env[name];
+        if (value) return value;
+    }
+    return "";
+};
+
+const isPlaceholder = (value) => (
+    !value || /TODO|TEST|AQUI|YOUR_|PLAN_ID|CLIENT_ID/i.test(value)
+);
+
 function PaywallModalContent({ onClose }) {
     const { currentUser } = useAuth();
     const [{ isPending, isRejected }, dispatch] = usePayPalScriptReducer();
@@ -12,9 +24,10 @@ function PaywallModalContent({ onClose }) {
     const [errorMsg, setErrorMsg] = useState("");
     const [billingCycle, setBillingCycle] = useState("monthly");
 
-    const planIdMonthly = import.meta.env.VITE_PAYPAL_PLAN_MONTHLY || "P-MONTHLY-TODO";
-    const planIdAnnual = import.meta.env.VITE_PAYPAL_PLAN_ANNUAL || "P-ANNUAL-TODO";
+    const planIdMonthly = getEnv('VITE_PAYPAL_PLAN_ID_MONTHLY', 'VITE_PAYPAL_PLAN_MONTHLY');
+    const planIdAnnual = getEnv('VITE_PAYPAL_PLAN_ID_ANNUAL', 'VITE_PAYPAL_PLAN_ANNUAL');
     const currentPlanId = billingCycle === "annual" ? planIdAnnual : planIdMonthly;
+    const hasValidPlans = !isPlaceholder(planIdMonthly) && !isPlaceholder(planIdAnnual);
 
     const fallbackLinkMonthly = import.meta.env.VITE_PAYPAL_FALLBACK_MONTHLY || "";
     const fallbackLinkAnnual = import.meta.env.VITE_PAYPAL_FALLBACK_ANNUAL || "";
@@ -32,7 +45,7 @@ function PaywallModalContent({ onClose }) {
     };
 
     // ─── Auth + SDK readiness guard ───
-    const isReady = !!currentUser && !isPending && !isRejected;
+    const isReady = !!currentUser && hasValidPlans && !isPending && !isRejected;
 
     const handleApprove = async (data, _actions) => {
         if (!currentUser) {
@@ -244,6 +257,10 @@ function PaywallModalContent({ onClose }) {
                                     style={{ layout: "vertical", shape: "pill", color: "gold", label: "subscribe" }}
                                     createSubscription={(data, actions) => {
                                         setErrorMsg("");
+                                        if (isPlaceholder(currentPlanId)) {
+                                            setErrorMsg("Este plan PRO todavía no está disponible. Contacta a soporte para ayudarte con la suscripción.");
+                                            return Promise.reject(new Error('Missing PayPal plan ID'));
+                                        }
                                         return actions.subscription.create({
                                             plan_id: currentPlanId,
                                             custom_id: `${currentUser.uid}|${billingCycle}`,
@@ -253,6 +270,18 @@ function PaywallModalContent({ onClose }) {
                                     onError={handleError}
                                     onCancel={handleCancel}
                                 />
+                            </div>
+                        )}
+
+                        {!hasValidPlans && (
+                            <div className="flex flex-col items-center gap-3 py-6 bg-amber-50 dark:bg-amber-900/30 rounded-xl p-4">
+                                <span className="material-symbols-rounded text-3xl text-amber-500">construction</span>
+                                <p className="text-amber-700 dark:text-amber-300 text-sm text-center font-medium">
+                                    Las suscripciones PRO todavía no están disponibles para cobro público.
+                                </p>
+                                <p className="text-gray-600 dark:text-gray-300 text-xs text-center">
+                                    Falta configurar los planes reales de PayPal. Escríbenos a {SUPPORT_EMAIL}.
+                                </p>
                             </div>
                         )}
                     </div>
@@ -278,7 +307,7 @@ export default function PaywallModal({ isOpen, onClose }) {
 
     const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
 
-    if (!clientId || clientId === "test") {
+    if (isPlaceholder(clientId)) {
         return (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl w-full max-w-sm text-center">
