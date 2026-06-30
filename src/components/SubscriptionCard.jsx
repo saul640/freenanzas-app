@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { httpsCallable } from 'firebase/functions';
-import { functions } from '../firebase';
+import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
+import { db, functions } from '../firebase';
 import { toast } from 'react-hot-toast';
 import CancelSubscriptionModal from './CancelSubscriptionModal';
 import { TRIAL_DAYS } from '../utils/trial';
@@ -16,6 +17,35 @@ export default function SubscriptionCard({ onOpenPaywall }) {
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [isCancelling, setIsCancelling] = useState(false);
     const [isReactivating, setIsReactivating] = useState(false);
+    const [billingReceipts, setBillingReceipts] = useState([]);
+
+    useEffect(() => {
+        if (!currentUser || !db) {
+            setBillingReceipts([]);
+            return;
+        }
+
+        let isMounted = true;
+        const loadReceipts = async () => {
+            try {
+                const receiptsQuery = query(
+                    collection(db, 'users', currentUser.uid, 'billingReceipts'),
+                    orderBy('paidAt', 'desc'),
+                    limit(3)
+                );
+                const snapshot = await getDocs(receiptsQuery);
+                if (!isMounted) return;
+                setBillingReceipts(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+            } catch (error) {
+                if (isMounted) setBillingReceipts([]);
+            }
+        };
+
+        loadReceipts();
+        return () => {
+            isMounted = false;
+        };
+    }, [currentUser]);
 
     // ── Helper: parse Firestore timestamp or Date ──
     const parseDate = (val) => {
@@ -137,10 +167,10 @@ export default function SubscriptionCard({ onOpenPaywall }) {
             const cancelSubscription = httpsCallable(functions, 'cancelPayPalSubscription');
             await cancelSubscription({ subscriptionId });
 
-            toast.success('Suscripción cancelada. Mantendrás tu acceso PRO hasta el final de tu ciclo actual.');
+            toast.success('Renovación pausada. Mantendrás tu acceso PRO hasta el final de tu ciclo actual.');
             setShowCancelModal(false);
         } catch (error) {
-            toast.error('Error al cancelar la suscripción. Intenta de nuevo más tarde.');
+            toast.error('Error al pausar la renovación. Intenta de nuevo más tarde.');
         } finally {
             setIsCancelling(false);
         }
@@ -245,6 +275,30 @@ export default function SubscriptionCard({ onOpenPaywall }) {
                     </p>
                 )}
 
+                {billingReceipts.length > 0 && (
+                    <div className="bg-gray-50 dark:bg-slate-700/50 rounded-xl p-3 mb-3 transition-colors duration-200">
+                        <p className="text-xs text-gray-400 dark:text-slate-500 font-medium mb-2 transition-colors duration-200">Últimos comprobantes PayPal</p>
+                        <div className="space-y-2">
+                            {billingReceipts.map((receipt) => (
+                                <div key={receipt.id} className="flex items-center justify-between gap-3 text-xs">
+                                    <div className="min-w-0">
+                                        <p className="font-semibold text-gray-800 dark:text-zinc-100 truncate">
+                                            {receipt.amount || 'Cobro'} {receipt.currency || ''}
+                                        </p>
+                                        <p className="text-gray-400 dark:text-slate-500">
+                                            {formatDate(parseDate(receipt.paidAt))}
+                                        </p>
+                                    </div>
+                                    <span className="shrink-0 inline-flex items-center gap-1 text-green-600 dark:text-green-400 font-bold">
+                                        <span className="material-symbols-rounded text-[13px]">receipt_long</span>
+                                        PayPal
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Action Buttons */}
                 <div className="space-y-2">
                     {/* Reactivate (grace period only) */}
@@ -286,7 +340,7 @@ export default function SubscriptionCard({ onOpenPaywall }) {
                             className="w-full py-2.5 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-500 dark:text-red-400 font-medium rounded-xl text-sm transition-colors duration-200 flex items-center justify-center gap-1.5"
                         >
                             <span className="material-symbols-rounded text-[16px]">cancel</span>
-                            Cancelar Suscripción
+                            Pausar renovación
                         </button>
                     )}
 
