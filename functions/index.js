@@ -1,9 +1,15 @@
 import { initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
 
-initializeApp();
+const STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET || 'freenanzas-app.firebasestorage.app';
+
+initializeApp({
+    storageBucket: STORAGE_BUCKET,
+});
 
 const geminiApiKey = defineSecret('GEMINI_API_KEY');
 const paypalClientId = defineSecret('PAYPAL_CLIENT_ID');
@@ -240,6 +246,85 @@ const isValidContents = (contents) => (
     ))
 );
 
+const USER_SUBCOLLECTIONS_TO_DELETE = [
+    'creditCards',
+    'recurring',
+    'categories',
+    'budgets',
+    'loans',
+];
+
+const deleteQueryInPages = async (queryFactory, pageSize = 450) => {
+    while (true) {
+        const snapshot = await queryFactory(pageSize).get();
+        if (snapshot.empty) return;
+
+        const batch = snapshot.docs[0].ref.firestore.batch();
+        snapshot.docs.forEach((docSnapshot) => {
+            batch.delete(docSnapshot.ref);
+        });
+        await batch.commit();
+
+        if (snapshot.size < pageSize) return;
+    }
+};
+
+const deleteUserFirestoreData = async (uid) => {
+    const db = getFirestore();
+
+    for (const subcollection of USER_SUBCOLLECTIONS_TO_DELETE) {
+        await deleteQueryInPages((pageSize) => (
+            db.collection('users').doc(uid).collection(subcollection).limit(pageSize)
+        ));
+    }
+
+    await deleteQueryInPages((pageSize) => (
+        db.collection('transactions').where('userId', '==', uid).limit(pageSize)
+    ));
+
+    await db.doc(`users/${uid}`).delete();
+};
+
+const cancelSubscriptionBeforeAccountDeletion = async (uid) => {
+    const snapshot = await getFirestore().doc(`users/${uid}`).get();
+    const subscriptionId = snapshot.data()?.paypalSubscriptionId;
+    if (!subscriptionId) return;
+
+    try {
+        await callPaypal(`/v1/billing/subscriptions/${encodeURIComponent(subscriptionId)}/suspend`, {
+            method: 'POST',
+            body: { reason: 'Cuenta eliminada por el usuario desde la app' },
+        });
+    } catch (error) {
+        console.warn('Unable to suspend PayPal subscription during account deletion:', {
+            uid,
+            subscriptionId,
+            error,
+        });
+    }
+};
+
+const deleteUserAvatarFiles = async (uid) => {
+    const bucket = getStorage().bucket();
+    const prefixes = [
+        `avatars/${uid}`,
+        `avatars/${uid}/`,
+    ];
+    const seen = new Set();
+
+    for (const prefix of prefixes) {
+        const [files] = await bucket.getFiles({ prefix });
+        const deletions = files
+            .filter((file) => !seen.has(file.name))
+            .map((file) => {
+                seen.add(file.name);
+                return file.delete({ ignoreNotFound: true });
+            });
+
+        await Promise.all(deletions);
+    }
+};
+
 export const generateGeminiContent = onCall(
     {
         region: 'us-central1',
@@ -422,5 +507,34 @@ export const reactivatePayPalSubscription = onCall(
         });
 
         return { ok: true };
+    },
+);
+
+export const deleteMyAccountData = onCall(
+    {
+        region: 'us-central1',
+        cors: ALLOWED_CORS_ORIGINS,
+        secrets: [paypalClientId, paypalSecret],
+        timeoutSeconds: 120,
+        memory: '512MiB',
+    },
+    async (request) => {
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'Debes iniciar sesión para eliminar tu cuenta.');
+        }
+
+        const uid = request.auth.uid;
+
+        try {
+            await cancelSubscriptionBeforeAccountDeletion(uid);
+            await deleteUserAvatarFiles(uid);
+            await deleteUserFirestoreData(uid);
+            await getAuth().deleteUser(uid);
+
+            return { ok: true };
+        } catch (error) {
+            console.error('deleteMyAccountData error:', { uid, error });
+            throw new HttpsError('internal', 'No pudimos eliminar todos los datos de la cuenta. Contacta soporte.');
+        }
     },
 );
