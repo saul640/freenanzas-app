@@ -1,14 +1,16 @@
 import React, { useState, useRef } from 'react';
 import { deleteUser } from 'firebase/auth';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import BottomNav from './BottomNav';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db, storage } from '../firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { collection, deleteDoc, doc, getDocs, query, updateDoc, where, writeBatch } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions, storage } from '../firebase';
+import { deleteObject, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast, Toaster } from 'react-hot-toast';
 import PaywallModal from './PaywallModal';
 import SubscriptionCard from './SubscriptionCard';
+import { legalLinks, SUPPORT_MAILTO } from '../data/legalPolicies';
 
 export default function Profile() {
     const navigate = useNavigate();
@@ -65,9 +67,16 @@ export default function Profile() {
         const file = e.target.files[0];
         if (!file) return;
 
-        // Basic validation
-        if (!file.type.startsWith('image/')) {
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        const maxAvatarSize = 2 * 1024 * 1024;
+
+        if (!allowedTypes.includes(file.type)) {
             toast.error("Por favor, selecciona una imagen válida.");
+            return;
+        }
+
+        if (file.size > maxAvatarSize) {
+            toast.error("La imagen no puede superar 2 MB.");
             return;
         }
 
@@ -75,8 +84,7 @@ export default function Profile() {
         setLoading(true);
 
         try {
-            const fileExtension = file.name.split('.').pop();
-            const storageRef = ref(storage, `avatars/${currentUser.uid}.${fileExtension}`);
+            const storageRef = ref(storage, `avatars/${currentUser.uid}/profile`);
 
             await uploadBytes(storageRef, file);
             const downloadURL = await getDownloadURL(storageRef);
@@ -213,22 +221,63 @@ export default function Profile() {
 
     // isPro ya viene del contexto centralizado (isProUser)
 
+    const deleteQuerySnapshotInBatches = async (snapshot) => {
+        const batchSize = 450;
+        for (let i = 0; i < snapshot.docs.length; i += batchSize) {
+            const batch = writeBatch(db);
+            snapshot.docs.slice(i, i + batchSize).forEach((docSnapshot) => {
+                batch.delete(docSnapshot.ref);
+            });
+            await batch.commit();
+        }
+    };
+
+    const deleteCollectionDocs = async (collectionRef) => {
+        const snapshot = await getDocs(collectionRef);
+        await deleteQuerySnapshotInBatches(snapshot);
+    };
+
+    const deleteUserData = async (uid) => {
+        const subcollections = ['budgets', 'categories', 'creditCards', 'recurring', 'loans'];
+
+        for (const name of subcollections) {
+            await deleteCollectionDocs(collection(db, 'users', uid, name));
+        }
+
+        const transactionsSnapshot = await getDocs(query(collection(db, 'transactions'), where('userId', '==', uid)));
+        await deleteQuerySnapshotInBatches(transactionsSnapshot);
+
+        try {
+            await deleteObject(ref(storage, `avatars/${uid}/profile`));
+        } catch (error) {
+            if (error.code !== 'storage/object-not-found') {
+                throw error;
+            }
+        }
+
+        await deleteDoc(doc(db, 'users', uid));
+    };
+
     const handleDeleteAccount = async () => {
         if (!currentUser) return;
         setIsDeleting(true);
+        const toastId = toast.loading('Eliminando cuenta y datos...');
         try {
-            // Delete Firestore document first
-            const userRef = doc(db, 'users', currentUser.uid);
-            await deleteDoc(userRef);
-            // Then delete Firebase Auth account
+            if (userData?.paypalSubscriptionId) {
+                const cancelSubscription = httpsCallable(functions, 'cancelPayPalSubscription');
+                await cancelSubscription({ subscriptionId: userData.paypalSubscriptionId });
+            }
+
+            await deleteUserData(currentUser.uid);
             await deleteUser(currentUser);
-            toast.success('Tu cuenta ha sido eliminada.');
+            toast.success('Tu cuenta y datos principales han sido eliminados.', { id: toastId });
             navigate('/onboarding');
         } catch (error) {
+            console.error('Account deletion error:', error);
             if (error.code === 'auth/requires-recent-login') {
-                toast.error('Por seguridad, inicia sesión de nuevo antes de eliminar tu cuenta.');
+                toast.error('Por seguridad, inicia sesión de nuevo antes de eliminar tu cuenta.', { id: toastId });
             } else {
-                toast.error('Error al eliminar la cuenta. Intenta de nuevo.');
+                toast.error('Error al eliminar la cuenta. Intenta de nuevo o contacta soporte.', { id: toastId });
             }
         } finally {
             setIsDeleting(false);
@@ -464,7 +513,7 @@ export default function Profile() {
                         </div>
 
                         <a
-                            href="mailto:saul640@gmail.com?subject=Soporte%20Freenanzas"
+                            href={SUPPORT_MAILTO}
                             className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors duration-200"
                         >
                             <div className="flex items-center gap-3 text-gray-700 dark:text-slate-300 text-sm font-medium transition-colors duration-200">
@@ -474,29 +523,19 @@ export default function Profile() {
                             <span className="material-symbols-rounded text-gray-300 dark:text-slate-600 transition-colors duration-200 text-[18px]">chevron_right</span>
                         </a>
 
-                        <a
-                            href="#"
-                            onClick={(e) => { e.preventDefault(); toast('Próximamente: Términos de Servicio'); }}
-                            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors duration-200 border-t border-gray-50 dark:border-slate-700"
-                        >
-                            <div className="flex items-center gap-3 text-gray-700 dark:text-slate-300 text-sm font-medium transition-colors duration-200">
-                                <span className="material-symbols-rounded text-[18px] text-gray-400 dark:text-slate-500 transition-colors duration-200">description</span>
-                                Términos de Servicio
-                            </div>
-                            <span className="material-symbols-rounded text-gray-300 dark:text-slate-600 transition-colors duration-200 text-[18px]">chevron_right</span>
-                        </a>
-
-                        <a
-                            href="#"
-                            onClick={(e) => { e.preventDefault(); toast('Próximamente: Política de Privacidad'); }}
-                            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors duration-200 border-t border-gray-50 dark:border-slate-700"
-                        >
-                            <div className="flex items-center gap-3 text-gray-700 dark:text-slate-300 text-sm font-medium transition-colors duration-200">
-                                <span className="material-symbols-rounded text-[18px] text-gray-400 dark:text-slate-500 transition-colors duration-200">privacy_tip</span>
-                                Política de Privacidad
-                            </div>
-                            <span className="material-symbols-rounded text-gray-300 dark:text-slate-600 transition-colors duration-200 text-[18px]">chevron_right</span>
-                        </a>
+                        {legalLinks.map((item) => (
+                            <Link
+                                key={item.path}
+                                to={item.path}
+                                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors duration-200 border-t border-gray-50 dark:border-slate-700"
+                            >
+                                <div className="flex items-center gap-3 text-gray-700 dark:text-slate-300 text-sm font-medium transition-colors duration-200">
+                                    <span className="material-symbols-rounded text-[18px] text-gray-400 dark:text-slate-500 transition-colors duration-200">{item.icon}</span>
+                                    {item.title}
+                                </div>
+                                <span className="material-symbols-rounded text-gray-300 dark:text-slate-600 transition-colors duration-200 text-[18px]">chevron_right</span>
+                            </Link>
+                        ))}
                     </div>
 
                     {/* Logout Card */}
@@ -527,8 +566,14 @@ export default function Profile() {
                             <div className="bg-red-50 dark:bg-red-900/20 rounded-2xl border border-red-200 dark:border-red-900/50 p-4 animate-fade-in transition-colors duration-200">
                                 <p className="text-sm text-red-700 dark:text-red-400 font-semibold text-center mb-1 transition-colors duration-200">¿Eliminar tu cuenta?</p>
                                 <p className="text-xs text-red-500 dark:text-red-400/80 text-center mb-4 transition-colors duration-200">
-                                    Esta acción es permanente. Se borrarán todos tus datos y no podrás recuperarlos.
+                                    Esta acción es permanente. Se borrarán tus datos principales y no podrás recuperarlos. Si tienes PRO activo, intentaremos cancelar la renovación antes de eliminar la cuenta.
                                 </p>
+                                <Link
+                                    to="/data-deletion"
+                                    className="block text-center text-xs font-semibold text-red-600 dark:text-red-300 underline mb-4"
+                                >
+                                    Ver política de eliminación de datos
+                                </Link>
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => setShowDeleteConfirm(false)}
