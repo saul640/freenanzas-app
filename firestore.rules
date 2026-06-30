@@ -53,6 +53,81 @@ service cloud.firestore {
       && (!('cancelAtPeriodEnd' in request.resource.data) || request.resource.data.cancelAtPeriodEnd == false);
     }
 
+    function isOptionalString(field, maxLength) {
+      return !(field in request.resource.data)
+        || (
+          request.resource.data[field] is string
+          && request.resource.data[field].size() <= maxLength
+        );
+    }
+
+    function isOptionalNumber(field, minValue, maxValue) {
+      return !(field in request.resource.data)
+        || (
+          request.resource.data[field] is number
+          && request.resource.data[field] >= minValue
+          && request.resource.data[field] <= maxValue
+        );
+    }
+
+    function isOptionalDateString(field) {
+      return !(field in request.resource.data)
+        || (
+          request.resource.data[field] is string
+          && request.resource.data[field].matches('^\\d{4}-\\d{2}-\\d{2}$')
+        );
+    }
+
+    function isOptionalTimestamp(field) {
+      return !(field in request.resource.data)
+        || request.resource.data[field] is timestamp;
+    }
+
+    function isValidTransactionOwner() {
+      return request.auth != null
+        && request.resource.data.userId == request.auth.uid;
+    }
+
+    function isValidTransactionData() {
+      return request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 1000000000
+        && request.resource.data.type in ['income', 'expense']
+        && isOptionalString('category', 80)
+        && isOptionalString('categoryId', 80)
+        && isOptionalString('categoryLabel', 80)
+        && isOptionalString('monthKey', 7)
+        && isOptionalString('note', 500)
+        && isOptionalString('merchant', 120)
+        && isOptionalString('location', 160)
+        && isOptionalString('rnc', 32)
+        && isOptionalString('ticketNumber', 80)
+        && isOptionalString('operator', 80)
+        && isOptionalString('details', 1000)
+        && isOptionalString('tarjetaCreditoId', 120)
+        && isOptionalString('metodoPago', 40)
+        && isOptionalString('estado', 40)
+        && isOptionalString('status', 40)
+        && isOptionalNumber('pagos_abonados', 0, 1000000000)
+        && isOptionalDateString('date')
+        && isOptionalTimestamp('timestamp')
+        && isOptionalTimestamp('updatedAt');
+    }
+
+    function isValidCustomCategory(userId) {
+      return request.auth != null
+        && request.auth.uid == userId
+        && (!('userId' in request.resource.data) || request.resource.data.userId == userId)
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.type in ['income', 'expense']
+        && isOptionalString('icon', 80)
+        && isOptionalString('color', 40)
+        && isOptionalTimestamp('createdAt')
+        && isOptionalTimestamp('updatedAt');
+    }
+
     // Regla estricta: Cada usuario puede leer/escribir SÓLO en su propia ruta de datos
     match /users/{userId} {
       allow read: if isSignedInOwner(userId);
@@ -66,20 +141,43 @@ service cloud.firestore {
         );
       allow delete: if isSignedInOwner(userId);
       
-      match /{document=**} {
+      match /categories/{categoryId} {
+        allow read, delete: if isSignedInOwner(userId);
+        allow create, update: if isValidCustomCategory(userId);
+      }
+
+      match /creditCards/{cardId} {
         allow read, write: if isSignedInOwner(userId);
+      }
+
+      match /recurring/{recurringId} {
+        allow read, write: if isSignedInOwner(userId);
+      }
+
+      match /budgets/{budgetId} {
+        allow read, write: if isSignedInOwner(userId);
+      }
+
+      match /loans/{loanId} {
+        allow read, write: if isSignedInOwner(userId);
+      }
+
+      match /{document=**} {
+        allow read, write: if false;
       }
     }
     
     // Regla para la colección raíz de transacciones
     match /transactions/{transactionId} {
       allow create: if request.auth != null
-        && request.resource.data.userId == request.auth.uid;
+        && isValidTransactionOwner()
+        && isValidTransactionData();
       allow read, delete: if request.auth != null
         && resource.data.userId == request.auth.uid;
       allow update: if request.auth != null
         && resource.data.userId == request.auth.uid
-        && request.resource.data.userId == request.auth.uid;
+        && (!('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid)
+        && isValidTransactionData();
     }
 
     // Las claves de IA viven en Firebase Functions Secrets, nunca en Firestore.
