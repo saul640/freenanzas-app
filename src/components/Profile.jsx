@@ -1,12 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { deleteUser } from 'firebase/auth';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import BottomNav from './BottomNav';
-import { collection, deleteDoc, doc, getDocs, query, updateDoc, where, writeBatch } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions, storage } from '../firebase';
-import { deleteObject, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast, Toaster } from 'react-hot-toast';
 import PaywallModal from './PaywallModal';
 import SubscriptionCard from './SubscriptionCard';
@@ -221,60 +220,18 @@ export default function Profile() {
 
     // isPro ya viene del contexto centralizado (isProUser)
 
-    const deleteQuerySnapshotInBatches = async (snapshot) => {
-        const batchSize = 450;
-        for (let i = 0; i < snapshot.docs.length; i += batchSize) {
-            const batch = writeBatch(db);
-            snapshot.docs.slice(i, i + batchSize).forEach((docSnapshot) => {
-                batch.delete(docSnapshot.ref);
-            });
-            await batch.commit();
-        }
-    };
-
-    const deleteCollectionDocs = async (collectionRef) => {
-        const snapshot = await getDocs(collectionRef);
-        await deleteQuerySnapshotInBatches(snapshot);
-    };
-
-    const deleteUserData = async (uid) => {
-        const subcollections = ['budgets', 'categories', 'creditCards', 'recurring', 'loans'];
-
-        for (const name of subcollections) {
-            await deleteCollectionDocs(collection(db, 'users', uid, name));
-        }
-
-        const transactionsSnapshot = await getDocs(query(collection(db, 'transactions'), where('userId', '==', uid)));
-        await deleteQuerySnapshotInBatches(transactionsSnapshot);
-
-        try {
-            await deleteObject(ref(storage, `avatars/${uid}/profile`));
-        } catch (error) {
-            if (error.code !== 'storage/object-not-found') {
-                throw error;
-            }
-        }
-
-        await deleteDoc(doc(db, 'users', uid));
-    };
-
     const handleDeleteAccount = async () => {
         if (!currentUser) return;
         setIsDeleting(true);
         const toastId = toast.loading('Eliminando cuenta y datos...');
         try {
-            if (userData?.paypalSubscriptionId) {
-                const cancelSubscription = httpsCallable(functions, 'cancelPayPalSubscription');
-                await cancelSubscription({ subscriptionId: userData.paypalSubscriptionId });
-            }
-
-            await deleteUserData(currentUser.uid);
-            await deleteUser(currentUser);
-            toast.success('Tu cuenta y datos principales han sido eliminados.', { id: toastId });
+            const deleteAccount = httpsCallable(functions, 'deleteMyAccountData');
+            await deleteAccount();
+            toast.success('Tu cuenta y datos han sido eliminados.', { id: toastId });
             navigate('/onboarding');
         } catch (error) {
             console.error('Account deletion error:', error);
-            if (error.code === 'auth/requires-recent-login') {
+            if (error.code === 'functions/unauthenticated') {
                 toast.error('Por seguridad, inicia sesión de nuevo antes de eliminar tu cuenta.', { id: toastId });
             } else {
                 toast.error('Error al eliminar la cuenta. Intenta de nuevo o contacta soporte.', { id: toastId });
@@ -566,7 +523,7 @@ export default function Profile() {
                             <div className="bg-red-50 dark:bg-red-900/20 rounded-2xl border border-red-200 dark:border-red-900/50 p-4 animate-fade-in transition-colors duration-200">
                                 <p className="text-sm text-red-700 dark:text-red-400 font-semibold text-center mb-1 transition-colors duration-200">¿Eliminar tu cuenta?</p>
                                 <p className="text-xs text-red-500 dark:text-red-400/80 text-center mb-4 transition-colors duration-200">
-                                    Esta acción es permanente. Se borrarán tus datos principales y no podrás recuperarlos. Si tienes PRO activo, intentaremos cancelar la renovación antes de eliminar la cuenta.
+                                    Esta acción es permanente. Se borrarán tus datos financieros, avatar y cuenta de acceso. No podrás recuperarlos.
                                 </p>
                                 <Link
                                     to="/data-deletion"
