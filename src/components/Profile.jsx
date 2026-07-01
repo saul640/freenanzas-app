@@ -467,6 +467,23 @@ export default function Profile() {
                         )}
                     </div>
 
+                    {/* Trust & Privacy Card */}
+                    <Link
+                        to="/security-privacy"
+                        className="bg-white dark:bg-slate-800 transition-colors duration-200 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-700/50"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-300 flex items-center justify-center transition-colors duration-200">
+                                <span className="material-symbols-rounded text-[20px]">shield_lock</span>
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-gray-800 dark:text-zinc-100 transition-colors duration-200">Seguridad y privacidad</h3>
+                                <p className="text-xs text-gray-400 dark:text-slate-500 transition-colors duration-200">Datos, IA, descargas y eliminación</p>
+                            </div>
+                        </div>
+                        <span className="material-symbols-rounded text-gray-300 dark:text-slate-600 transition-colors duration-200">chevron_right</span>
+                    </Link>
+
                     {/* Help & Legal Card */}
                     <div className="bg-white dark:bg-slate-800 transition-colors duration-200 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
                         <div className="flex items-center gap-2 p-4 pb-2">
