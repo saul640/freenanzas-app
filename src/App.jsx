@@ -13,6 +13,7 @@ import AIAdvisor from './components/AIAdvisor';
 import Loans from './components/Loans';
 import AuthAction from './components/AuthAction';
 import LegalPage from './components/LegalPage';
+import SecurityPrivacy from './components/SecurityPrivacy';
 import { AuthProvider } from './contexts/AuthContextProvider';
 import PrivateRoute from './components/PrivateRoute';
 
@@ -37,6 +38,7 @@ function App() {
               <Route path="/transactions" element={<PrivateRoute><Transactions /></PrivateRoute>} />
               <Route path="/expenses" element={<PrivateRoute><ExpenseDetail /></PrivateRoute>} />
               <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
+              <Route path="/security-privacy" element={<PrivateRoute><SecurityPrivacy /></PrivateRoute>} />
               <Route path="/recurring" element={<PrivateRoute><RecurringExpenses /></PrivateRoute>} />
               <Route path="/budget" element={<PrivateRoute><MonthlyBudget /></PrivateRoute>} />
               <Route path="/cards" element={<PrivateRoute><CreditCards /></PrivateRoute>} />
