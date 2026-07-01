@@ -1,4 +1,4 @@
-export const SUPPORT_EMAIL = 'soporte@freenanzas.com';
+export const SUPPORT_EMAIL = 'saul640@gmail.com';
 export const SUPPORT_MAILTO = `mailto:${SUPPORT_EMAIL}?subject=Soporte%20Freenanzas`;
 
 const updatedAt = '30 de junio de 2026';
