@@ -131,7 +131,10 @@ export default function Onboarding() {
             setError('');
             setLoading(true);
             const result = await loginWithGoogle();
+            // Si result es null, estamos en flujo de redirect — la página va a navegar
+            // No desactivar loading para no mostrar flash de UI antes del redirect
             if (result) navigate('/');
+            else return; // redirect en progreso, no hacer setLoading(false)
         } catch (err) {
             const code = err.code || '';
             if (code === 'auth/popup-closed-by-user') setError('Cerraste la ventana de Google. Intenta de nuevo.');
