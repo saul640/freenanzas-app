@@ -160,16 +160,29 @@ export function AuthProvider({ children }) {
             return null;
         }
 
-        const result = await signInWithPopup(auth, googleProvider);
-        const user = result.user;
+        try {
+            const result = await signInWithPopup(auth, googleProvider);
+            const user = result.user;
 
-        // Crear perfil solo si es la primera vez (no sobrescribe datos existentes)
-        await ensureUserProfile(user, {
-            name: user.displayName || '',
-            photoURL: user.photoURL || null,
-        });
+            // Crear perfil solo si es la primera vez (no sobrescribe datos existentes)
+            await ensureUserProfile(user, {
+                name: user.displayName || '',
+                photoURL: user.photoURL || null,
+            });
 
-        return result;
+            return result;
+        } catch (popupError) {
+            const code = popupError.code || '';
+            // Si el usuario cerró la ventana o canceló, re-lanzar para que el UI muestre mensaje
+            if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+                throw popupError;
+            }
+            // Para errores de popup bloqueado, dominio no autorizado, o error interno
+            // (CSP, iframe bloqueado, etc.), intentar con redirect como fallback
+            console.warn('signInWithPopup falló, intentando con redirect:', code, popupError.message);
+            await signInWithRedirect(auth, googleProvider);
+            return null;
+        }
     }
 
     function logout() {
