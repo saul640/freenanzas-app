@@ -27,10 +27,11 @@ googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 const shouldUseRedirectForGoogleAuth = () => {
     if (typeof window === 'undefined') return false;
-    const userAgent = window.navigator.userAgent || '';
-    const isIOS = /iPad|iPhone|iPod/.test(userAgent) || (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
     const isStandalone = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    return isIOS || isStandalone;
+    // Usar redirect únicamente si está en modo standalone (PWA) de iOS/Android.
+    // En Safari estándar de iOS, preferimos popup porque redirect es bloqueado por ITP
+    // y falla silenciosamente o se queda en blanco.
+    return isStandalone;
 };
 
 const toDate = (value) => {
