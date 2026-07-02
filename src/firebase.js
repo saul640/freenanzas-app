@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 import { getStorage } from 'firebase/storage';
 
@@ -22,28 +22,44 @@ let app, appCheck, auth, db, functions, storage;
 try {
     if (firebaseConfig.apiKey) {
         app = initializeApp(firebaseConfig);
-        const appCheckSiteKey = import.meta.env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY;
-
-        if (appCheckSiteKey) {
-            appCheck = initializeAppCheck(app, {
-                provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
-                isTokenAutoRefreshEnabled: true,
-            });
-        } else {
-            console.warn("Firebase App Check site key is missing. Add VITE_RECAPTCHA_ENTERPRISE_SITE_KEY to your environment.");
-        }
 
         auth = getAuth(app);
         
         // Habilitar persistencia local IndexedDB con soporte multi-pestaña para PWA
-        db = initializeFirestore(app, {
-            localCache: persistentLocalCache({
-                tabManager: persistentMultipleTabManager()
-            })
-        });
+        // Safari iOS (modo standalone/PWA) no soporta BroadcastChannel,
+        // lo que hace fallar persistentMultipleTabManager. Intentamos multi-tab
+        // primero y, si falla, usamos single-tab como fallback seguro.
+        try {
+            db = initializeFirestore(app, {
+                localCache: persistentLocalCache({
+                    tabManager: persistentMultipleTabManager()
+                })
+            });
+        } catch (_multiTabError) {
+            console.warn('Multi-tab Firestore no disponible (probable Safari PWA), usando single-tab:', _multiTabError.message);
+            db = initializeFirestore(app, {
+                localCache: persistentLocalCache({
+                    tabManager: persistentSingleTabManager({ forceOwnership: true })
+                })
+            });
+        }
         
         functions = getFunctions(app);
         storage = getStorage(app);
+
+        const appCheckSiteKey = import.meta.env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY;
+        if (appCheckSiteKey) {
+            try {
+                appCheck = initializeAppCheck(app, {
+                    provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
+                    isTokenAutoRefreshEnabled: true,
+                });
+            } catch (appCheckError) {
+                console.error("Firebase App Check initialization error", appCheckError);
+            }
+        } else {
+            console.warn("Firebase App Check site key is missing. Add VITE_RECAPTCHA_ENTERPRISE_SITE_KEY to your environment.");
+        }
     } else {
         console.warn("Firebase config is missing. Please add your credentials to .env.local");
     }

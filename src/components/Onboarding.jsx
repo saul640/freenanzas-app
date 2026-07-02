@@ -130,8 +130,8 @@ export default function Onboarding() {
         try {
             setError('');
             setLoading(true);
-            await loginWithGoogle();
-            navigate('/');
+            const result = await loginWithGoogle();
+            if (result) navigate('/');
         } catch (err) {
             const code = err.code || '';
             if (code === 'auth/popup-closed-by-user') setError('Cerraste la ventana de Google. Intenta de nuevo.');
@@ -139,6 +139,7 @@ export default function Onboarding() {
             else if (code === 'auth/cancelled-popup-request') { /* ignore duplicate popup */ }
             else if (code === 'auth/network-request-failed') setError('Sin conexión a internet. Verifica tu red.');
             else if (code === 'auth/unauthorized-domain') setError('Este dominio no está autorizado para Google Sign-In. Contacta al administrador.');
+            else if (code === 'auth/internal-error') setError('No pudimos completar el acceso con Google. Abre la app en Safari/Chrome e intenta de nuevo; si persiste, contacta soporte.');
             else setError(err.message || 'Error al iniciar sesión con Google.');
         } finally {
             setLoading(false);

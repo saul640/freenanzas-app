@@ -5,7 +5,9 @@ import {
     signOut,
     onAuthStateChanged,
     GoogleAuthProvider,
+    getRedirectResult,
     signInWithPopup,
+    signInWithRedirect,
     updateProfile,
     sendEmailVerification,
     updatePassword,
@@ -21,6 +23,15 @@ import { onSnapshot } from 'firebase/firestore';
 import { getTrialEndsAt, TRIAL_DAYS } from '../utils/trial';
 
 const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+const shouldUseRedirectForGoogleAuth = () => {
+    if (typeof window === 'undefined') return false;
+    const userAgent = window.navigator.userAgent || '';
+    const isIOS = /iPad|iPhone|iPod/.test(userAgent) || (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
+    const isStandalone = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    return isIOS || isStandalone;
+};
 
 const toDate = (value) => {
     if (!value) return null;
@@ -144,6 +155,11 @@ export function AuthProvider({ children }) {
     async function loginWithGoogle() {
         if (!auth || !db) throw new Error("Firebase no está configurado (falta .env.local).");
 
+        if (shouldUseRedirectForGoogleAuth()) {
+            await signInWithRedirect(auth, googleProvider);
+            return null;
+        }
+
         const result = await signInWithPopup(auth, googleProvider);
         const user = result.user;
 
@@ -166,6 +182,16 @@ export function AuthProvider({ children }) {
             Promise.resolve().then(() => setLoading(false));
             return;
         }
+
+        getRedirectResult(auth).then(async (result) => {
+            if (!result?.user) return;
+            await ensureUserProfile(result.user, {
+                name: result.user.displayName || '',
+                photoURL: result.user.photoURL || null,
+            });
+        }).catch((error) => {
+            console.error('Error completando login con Google redirect:', error);
+        });
 
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             setUserDataLoading(Boolean(user));
@@ -192,14 +218,25 @@ export function AuthProvider({ children }) {
         let receivedServerSnapshot = false;
         let cachedUserData = null;
 
-        // IndexedDB can contain an expired entitlement from an older app version.
-        // Give Firestore a chance to confirm the server state before blocking access.
+        // Si IndexedDB tiene datos en caché, los mostramos rápido como respaldo.
+        // Esto evita pantalla en blanco en Safari iOS donde la conexión puede ser lenta.
+        const quickCacheFallbackTimer = window.setTimeout(() => {
+            if (!isActive || receivedServerSnapshot) return;
+            if (cachedUserData) {
+                console.info('Mostrando perfil desde caché local mientras se espera al servidor.');
+                setUserData(cachedUserData);
+                setUserDataLoading(false);
+            }
+        }, 1500);
+
+        // Fallback final: si después de 4s el servidor no responde,
+        // usamos lo que tengamos (caché o null) para no dejar al usuario bloqueado.
         const cacheFallbackTimer = window.setTimeout(() => {
             if (!isActive || receivedServerSnapshot) return;
             console.warn('Usando perfil local porque Firestore no respondió a tiempo.');
             setUserData(cachedUserData);
             setUserDataLoading(false);
-        }, 8000);
+        }, 4000);
 
         const unsub = onSnapshot(
             doc(db, 'users', currentUser.uid),
@@ -213,12 +250,14 @@ export function AuthProvider({ children }) {
                 }
 
                 receivedServerSnapshot = true;
+                window.clearTimeout(quickCacheFallbackTimer);
                 window.clearTimeout(cacheFallbackTimer);
                 setUserData(nextUserData);
                 setStatusCheckedAt(new Date());
                 setUserDataLoading(false);
             },
             (error) => {
+                window.clearTimeout(quickCacheFallbackTimer);
                 window.clearTimeout(cacheFallbackTimer);
                 console.error('Error cargando perfil de usuario:', error);
                 setUserData(cachedUserData);
@@ -228,6 +267,7 @@ export function AuthProvider({ children }) {
 
         return () => {
             isActive = false;
+            window.clearTimeout(quickCacheFallbackTimer);
             window.clearTimeout(cacheFallbackTimer);
             unsub();
         };

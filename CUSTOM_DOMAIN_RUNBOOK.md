@@ -6,7 +6,7 @@ Usa este runbook cuando compres el dominio público de Freenanzas. No abras cobr
 
 - Dominio primario: `freenanzas.com`
 - App pública: `https://app.freenanzas.com` o `https://freenanzas.com`
-- Soporte: `soporte@freenanzas.com`
+- Soporte: `saul640@gmail.com`
 
 Elige un dominio primario y mantén el otro como redirección para evitar confundir a PayPal, Firebase Auth, App Check y soporte.
 

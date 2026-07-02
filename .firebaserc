@@ -1,5 +1,7 @@
 {
-  "projects": {},
+  "projects": {
+    "default": "freenanzas-app"
+  },
   "targets": {},
   "etags": {}
 }
