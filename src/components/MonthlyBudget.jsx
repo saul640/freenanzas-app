@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { collection, doc, setDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, setDoc, onSnapshot, query, serverTimestamp, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useLoans } from '../hooks/useLoans';
 import { calcAhorroRecomendado } from '../lib/gemini';
+import {
+    getMonthlyExpenseTransactions,
+    getRecurringBudgetOverview,
+    getTransactionMonthKey,
+} from '../utils/monthlyBudget';
 import BottomNav from './BottomNav';
 import PaywallModal from './PaywallModal';
 import jsPDF from 'jspdf';
@@ -12,6 +17,8 @@ import 'jspdf-autotable';
 
 const DEFAULT_CATEGORIES = ['Comida', 'Transporte', 'Servicios', 'Renta', 'Ocio', 'Salud', 'Educación', 'Otros'];
 const CURRENT_MONTH_KEY = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+const SAVINGS_CATEGORIES = new Set(['ahorro', 'ahorro e inversión']);
+const isSavingsTransaction = (transaction) => SAVINGS_CATEGORIES.has((transaction.category || '').toLowerCase());
 
 function getBarColor(pct) {
     if (pct >= 90) return { bar: 'bg-red-500', text: 'text-red-600', label: '¡Cuidado!' };
@@ -35,6 +42,10 @@ export default function MonthlyBudget() {
     const [saving, setSaving] = useState(false);
     const [tempGlobal, setTempGlobal] = useState('');
     const [tempCats, setTempCats] = useState({});
+    const [showResetDialog, setShowResetDialog] = useState(false);
+    const [resetAcknowledged, setResetAcknowledged] = useState(false);
+    const [resetting, setResetting] = useState(false);
+    const [budgetNotice, setBudgetNotice] = useState(null);
 
     // ─── Loans integration ───
     const { loans, totalCuotasPendientes } = useLoans(currentUser?.uid);
@@ -48,6 +59,9 @@ export default function MonthlyBudget() {
                 const data = snap.data();
                 setGlobalLimit(data.globalLimit || 0);
                 setCategoryLimits(data.categoryLimits || {});
+            } else {
+                setGlobalLimit(0);
+                setCategoryLimits({});
             }
         });
         return unsub;
@@ -58,24 +72,17 @@ export default function MonthlyBudget() {
         if (!currentUser || !db) return;
         const q = query(collection(db, 'transactions'), where('userId', '==', currentUser.uid));
         const unsub = onSnapshot(q, snap => {
-            const now = new Date();
-            const thisMonth = now.getMonth();
-            const thisYear = now.getFullYear();
-            const txs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(tx => {
-                if (tx.type !== 'expense') return false;
-                const txDate = tx.timestamp?.toDate ? tx.timestamp.toDate() : tx.date ? new Date(tx.date) : null;
-                return txDate && txDate.getMonth() === thisMonth && txDate.getFullYear() === thisYear;
-            });
+            const txs = getMonthlyExpenseTransactions(
+                snap.docs.map(d => ({ id: d.id, ...d.data() })),
+                monthKey,
+            );
             setTransactions(txs);
         });
         return unsub;
-    }, [currentUser]);
+    }, [currentUser, monthKey]);
 
-    const SAVINGS_CATS = ['ahorro', 'ahorro e inversión'];
-    const isSavingsTx = (tx) => SAVINGS_CATS.includes((tx.category || '').toLowerCase());
-    const spendingTransactions = useMemo(() => transactions.filter(tx => !isSavingsTx(tx)), [transactions]);
+    const spendingTransactions = useMemo(() => transactions.filter(tx => !isSavingsTransaction(tx)), [transactions]);
     const totalSpent = useMemo(() => spendingTransactions.reduce((s, t) => s + (t.amount || 0), 0), [spendingTransactions]);
-    const totalSavings = useMemo(() => transactions.filter(tx => isSavingsTx(tx)).reduce((s, t) => s + (t.amount || 0), 0), [transactions]);
 
     // ─── Income tracking (for savings calc) ───
     const [allTx, setAllTx] = useState([]);
@@ -108,22 +115,15 @@ export default function MonthlyBudget() {
     useEffect(() => {
         if (!currentUser || !db) return;
         return onSnapshot(collection(db, 'users', currentUser.uid, 'recurring'), snap => {
-            setRecurring(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.active));
+            setRecurring(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
     }, [currentUser]);
 
-    const totalRecurrentesPendientes = useMemo(() => {
-        return recurring.reduce((sum, item) => {
-            const startStr = item.startDate ? item.startDate.substring(0, 7) : null;
-            if (startStr && startStr > monthKey) return sum; // Not started yet
-
-            const paidSet = new Set(item.paidMonths || []);
-            if (!paidSet.has(monthKey)) {
-                return sum + (item.amount || 0);
-            }
-            return sum;
-        }, 0);
-    }, [recurring, monthKey]);
+    const recurringOverview = useMemo(
+        () => getRecurringBudgetOverview(recurring, monthKey),
+        [recurring, monthKey],
+    );
+    const totalRecurrentesPendientes = recurringOverview.totalPending;
 
     const totalCardDebt = useMemo(() => creditCards.reduce((s, c) => s + getCardBalanceDOP(c), 0), [creditCards]);
     const credimasDebt = useMemo(() => creditCards.reduce((s, c) => s + (c.credimasTotalAdeudado || 0), 0), [creditCards]);
@@ -147,6 +147,28 @@ export default function MonthlyBudget() {
 
     const formatMoney = useCallback((n) => new Intl.NumberFormat('es-DO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n), []);
 
+    const automaticPayments = useMemo(
+        () => transactions.filter((transaction) => transaction.automaticPayment),
+        [transactions],
+    );
+    const totalAutomaticPayments = useMemo(
+        () => automaticPayments.reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0),
+        [automaticPayments],
+    );
+    const automaticPaymentsUSD = useMemo(
+        () => allTx.filter((transaction) => (
+            transaction.type === 'expense'
+            && transaction.automaticPayment
+            && transaction.currency === 'USD'
+            && getTransactionMonthKey(transaction) === monthKey
+        )),
+        [allTx, monthKey],
+    );
+    const totalAutomaticPaymentsUSD = useMemo(
+        () => automaticPaymentsUSD.reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0),
+        [automaticPaymentsUSD],
+    );
+
     const startEditing = () => {
         setTempGlobal(String(globalLimit || ''));
         setTempCats({ ...categoryLimits });
@@ -156,12 +178,42 @@ export default function MonthlyBudget() {
     const handleSave = async () => {
         if (!currentUser || !db) return;
         setSaving(true);
-        const parsed = parseFloat(tempGlobal) || 0;
-        const parsedCats = {};
-        Object.entries(tempCats).forEach(([k, v]) => { const n = parseFloat(v); if (n > 0) parsedCats[k] = n; });
-        await setDoc(doc(db, 'users', currentUser.uid, 'budgets', monthKey), { globalLimit: parsed, categoryLimits: parsedCats, updatedAt: new Date().toISOString() });
-        setEditing(false);
-        setSaving(false);
+        try {
+            const parsed = parseFloat(tempGlobal) || 0;
+            const parsedCats = {};
+            Object.entries(tempCats).forEach(([k, v]) => { const n = parseFloat(v); if (n > 0) parsedCats[k] = n; });
+            await setDoc(doc(db, 'users', currentUser.uid, 'budgets', monthKey), { globalLimit: parsed, categoryLimits: parsedCats, updatedAt: serverTimestamp() });
+            setEditing(false);
+            setBudgetNotice({ type: 'success', text: 'Presupuesto actualizado correctamente.' });
+        } catch {
+            setBudgetNotice({ type: 'error', text: 'No pudimos guardar el presupuesto. Inténtalo de nuevo.' });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleResetBudget = async () => {
+        if (!currentUser || !db || !resetAcknowledged) return;
+        setResetting(true);
+        try {
+            await setDoc(doc(db, 'users', currentUser.uid, 'budgets', monthKey), {
+                globalLimit: 0,
+                categoryLimits: {},
+                resetAt: serverTimestamp(),
+                resetNoticeVersion: 1,
+            });
+            setEditing(false);
+            setShowResetDialog(false);
+            setResetAcknowledged(false);
+            setBudgetNotice({
+                type: 'success',
+                text: `Presupuesto de ${MONTH_NAMES[new Date().getMonth()].toLowerCase()} restablecido. Tus movimientos se conservaron.`,
+            });
+        } catch {
+            setBudgetNotice({ type: 'error', text: 'No pudimos restablecer el presupuesto. No se cambió ningún dato.' });
+        } finally {
+            setResetting(false);
+        }
     };
 
     const globalPct = globalLimit > 0 ? Math.min(Math.round((totalSpent / globalLimit) * 100), 100) : 0;
@@ -300,6 +352,26 @@ export default function MonthlyBudget() {
                     )}
                 </div>
 
+                {budgetNotice && (
+                    <div
+                        role="status"
+                        className={`rounded-2xl px-4 py-3 flex items-start gap-3 text-sm font-semibold ${budgetNotice.type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}
+                    >
+                        <span className="material-symbols-rounded text-xl">
+                            {budgetNotice.type === 'success' ? 'check_circle' : 'error'}
+                        </span>
+                        <span className="flex-1">{budgetNotice.text}</span>
+                        <button
+                            type="button"
+                            onClick={() => setBudgetNotice(null)}
+                            aria-label="Cerrar aviso"
+                            className="w-7 h-7 rounded-lg hover:bg-black/5 flex items-center justify-center"
+                        >
+                            <span className="material-symbols-rounded text-base">close</span>
+                        </button>
+                    </div>
+                )}
+
                 {/* Ahorro Recomendado Card */}
                 {monthlyIncome > 0 && (
                     <div className="bg-gradient-to-r from-sky-500 to-cyan-500 rounded-[28px] p-5 shadow-lg relative overflow-hidden">
@@ -315,6 +387,92 @@ export default function MonthlyBudget() {
                         </div>
                         <p className="text-white/70 text-[10px] mt-2">Regla adaptativa: {totalDeudaGlobal > monthlyIncome * 0.4 ? 'Ahorro reducido por nivel de deuda' : 'Basado en la regla 50/30/20'}. Ingreso: RD$ {formatMoney(monthlyIncome)}</p>
                     </div>
+                )}
+
+                {automaticPayments.length > 0 && (
+                    <section aria-labelledby="automatic-payments-title">
+                        <div className="flex items-end justify-between mb-3 px-1">
+                            <div>
+                                <h3 id="automatic-payments-title" className="text-[17px] font-bold text-gray-900">Pagos registrados automáticamente</h3>
+                                <p className="text-[11px] text-gray-400 mt-0.5">Ya están incluidos en el gasto del mes.</p>
+                            </div>
+                            <span className="text-sm font-extrabold text-emerald-600">RD$ {formatMoney(totalAutomaticPayments)}</span>
+                        </div>
+                        <div className="bg-white rounded-[24px] p-5 shadow-sm space-y-3">
+                            {automaticPayments.map((payment) => (
+                                <div key={payment.id} className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                                            <span className="material-symbols-rounded text-emerald-600 text-lg">done_all</span>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="font-bold text-sm text-gray-900 truncate">{payment.note || 'Pago realizado'}</p>
+                                            <p className="text-[10px] text-gray-400">{payment.category || 'Otros'}</p>
+                                        </div>
+                                    </div>
+                                    <p className="font-extrabold text-sm text-gray-800 shrink-0">RD$ {formatMoney(payment.amount)}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                )}
+
+                {totalAutomaticPaymentsUSD > 0 && (
+                    <div className="bg-cyan-50 rounded-2xl px-4 py-3 flex items-start gap-3">
+                        <span className="material-symbols-rounded text-cyan-600">currency_exchange</span>
+                        <div>
+                            <p className="text-sm font-bold text-cyan-800">Pagos en USD registrados: US$ {formatMoney(totalAutomaticPaymentsUSD)}</p>
+                            <p className="text-[11px] text-cyan-700 mt-0.5">Se muestran por separado y no se mezclan con el presupuesto en RD$ sin una tasa de cambio.</p>
+                        </div>
+                    </div>
+                )}
+
+                {recurringOverview.items.length > 0 && (
+                    <section aria-labelledby="recurring-budget-title">
+                        <div className="mb-3 px-1">
+                            <h3 id="recurring-budget-title" className="text-[17px] font-bold text-gray-900">Pagos recurrentes del mes</h3>
+                            <p className="text-[11px] text-gray-400 mt-0.5">Comprometido: RD$ {formatMoney(recurringOverview.totalCommitted)} · Pendiente: RD$ {formatMoney(recurringOverview.totalPending)}</p>
+                        </div>
+                        <div className="bg-white rounded-[24px] p-5 shadow-sm space-y-3">
+                            {recurringOverview.items.map((item) => {
+                                const statusConfig = item.status === 'paid'
+                                    ? { label: 'Pagado', classes: 'bg-emerald-100 text-emerald-700', icon: 'check_circle' }
+                                    : item.status === 'partial'
+                                        ? { label: 'Parcial', classes: 'bg-sky-100 text-sky-700', icon: 'timelapse' }
+                                        : { label: 'Pendiente', classes: 'bg-amber-100 text-amber-700', icon: 'schedule' };
+                                return (
+                                    <div key={item.id} className="flex items-center justify-between gap-3">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${statusConfig.classes}`}>
+                                                <span className="material-symbols-rounded text-lg">{statusConfig.icon}</span>
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="font-bold text-sm text-gray-900 truncate">{item.name}</p>
+                                                <p className="text-[10px] text-gray-400">
+                                                    {item.category || 'Otros'}
+                                                    {item.startDate ? ` · Día ${Number(item.startDate.slice(8, 10))}` : ''}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                            <p className="font-extrabold text-sm text-gray-800">RD$ {formatMoney(item.amount)}</p>
+                                            <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${statusConfig.classes}`}>{statusConfig.label}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            <div className="border-t border-gray-100 pt-3 grid grid-cols-2 gap-3">
+                                <div>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase">Pagado</p>
+                                    <p className="text-sm font-extrabold text-emerald-600">RD$ {formatMoney(recurringOverview.totalPaid)}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase">Pendiente</p>
+                                    <p className="text-sm font-extrabold text-amber-600">RD$ {formatMoney(recurringOverview.totalPending)}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
                 )}
 
                 {/* Category Budgets */}
@@ -399,7 +557,77 @@ export default function MonthlyBudget() {
                         Descargar Presupuesto (PDF)
                     </button>
                 </div>
+
+                <button
+                    type="button"
+                    onClick={() => {
+                        setResetAcknowledged(false);
+                        setShowResetDialog(true);
+                    }}
+                    className="w-full min-h-12 flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-white text-red-600 font-bold text-sm hover:bg-red-50 active:scale-[0.98] transition-all"
+                >
+                    <span className="material-symbols-rounded">restart_alt</span>
+                    Restablecer presupuesto del mes
+                </button>
             </div>
+
+            {showResetDialog && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="presentation">
+                    <button
+                        type="button"
+                        aria-label="Cerrar aviso de restablecimiento"
+                        className="absolute inset-0 bg-black/45 backdrop-blur-sm"
+                        onClick={() => !resetting && setShowResetDialog(false)}
+                    />
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="reset-budget-title"
+                        aria-describedby="reset-budget-description"
+                        className="relative w-full max-w-sm bg-white rounded-[30px] p-6 shadow-2xl"
+                    >
+                        <div className="w-14 h-14 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mb-4">
+                            <span className="material-symbols-rounded text-3xl">warning</span>
+                        </div>
+                        <h2 id="reset-budget-title" className="text-xl font-extrabold text-gray-900">
+                            ¿Restablecer el presupuesto de {MONTH_NAMES[now.getMonth()].toLowerCase()}?
+                        </h2>
+                        <p id="reset-budget-description" className="text-sm text-gray-500 mt-2 leading-relaxed">
+                            El límite general y los límites por categoría volverán a RD$ 0. Tus transacciones, pagos recurrentes, pagos realizados, préstamos, tarjetas y presupuestos de otros meses se conservarán.
+                        </p>
+                        <label className="mt-5 flex items-start gap-3 rounded-2xl bg-red-50 p-4 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={resetAcknowledged}
+                                onChange={(event) => setResetAcknowledged(event.target.checked)}
+                                disabled={resetting}
+                                className="mt-0.5 w-5 h-5 rounded border-red-300 text-red-600 focus:ring-red-500"
+                            />
+                            <span className="text-sm font-semibold text-red-800">Entiendo que los límites de este mes quedarán en cero.</span>
+                        </label>
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                type="button"
+                                autoFocus
+                                disabled={resetting}
+                                onClick={() => setShowResetDialog(false)}
+                                className="flex-1 min-h-12 rounded-2xl bg-gray-100 text-gray-700 font-bold disabled:opacity-50"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                disabled={!resetAcknowledged || resetting}
+                                onClick={handleResetBudget}
+                                className="flex-1 min-h-12 rounded-2xl bg-red-600 text-white font-bold disabled:opacity-40 flex items-center justify-center gap-2"
+                            >
+                                {resetting && <span className="material-symbols-rounded animate-spin text-lg">progress_activity</span>}
+                                {resetting ? 'Restableciendo…' : `Sí, restablecer ${MONTH_NAMES[now.getMonth()].toLowerCase()}`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} />
             <BottomNav />

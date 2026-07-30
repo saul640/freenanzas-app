@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
+import { buildPaymentTransaction } from '../lib/paymentTransactions';
 import BottomNav from './BottomNav';
 import PaywallModal from './PaywallModal';
 
@@ -244,20 +245,36 @@ export default function CreditCards() {
         setProcessingPayment(true);
         try {
             const cardRef = doc(db, 'users', currentUser.uid, 'creditCards', paymentCard.id);
+            const paymentRef = doc(collection(db, 'transactions'));
+            const batch = writeBatch(db);
             if (paymentCurrency === 'USD') {
                 const nextBalanceUSD = Math.max(getCardBalanceUSD(paymentCard) - amount, 0);
-                await updateDoc(cardRef, {
+                batch.update(cardRef, {
                     balanceUSD: nextBalanceUSD,
                     balanceDolaresALaFecha: nextBalanceUSD,
                 });
             } else {
                 const nextBalanceDOP = Math.max(getCardBalanceDOP(paymentCard) - amount, 0);
-                await updateDoc(cardRef, {
+                batch.update(cardRef, {
                     balanceDOP: nextBalanceDOP,
                     balanceALaFecha: nextBalanceDOP,
                     balance: nextBalanceDOP,
                 });
             }
+            batch.set(paymentRef, buildPaymentTransaction({
+                userId: currentUser.uid,
+                amount,
+                category: 'Tarjetas',
+                note: `Pago de tarjeta: ${paymentCard.name || 'Tarjeta'}`,
+                sourceType: 'credit_card',
+                sourceId: paymentCard.id,
+                currency: paymentCurrency,
+                extra: {
+                    cardId: paymentCard.id,
+                    paymentStatus: 'paid',
+                },
+            }));
+            await batch.commit();
             setPaymentCard(null);
             setPaymentAmount('');
         } catch (error) {

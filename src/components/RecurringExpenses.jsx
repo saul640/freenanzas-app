@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { collection, addDoc, onSnapshot, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, updateDoc, deleteDoc, doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
+import { buildPaymentTransaction, getAutomaticPaymentId } from '../lib/paymentTransactions';
 import BottomNav from './BottomNav';
 
 const FREQUENCIES = [
@@ -306,34 +307,55 @@ export default function RecurringExpenses() {
         const curKey = currentMonthKey();
         const paidMonths = [...(item.paidMonths || [])];
         const isPaying = !paidMonths.includes(curKey);
+        const batch = writeBatch(db);
+        const recurringRef = doc(db, 'users', currentUser.uid, 'recurring', item.id);
+        const paymentRef = doc(
+            db,
+            'transactions',
+            getAutomaticPaymentId(currentUser.uid, 'recurring', item.id, curKey),
+        );
 
         if (!isPaying) {
-            // Unmark paid
             const idx = paidMonths.indexOf(curKey);
             paidMonths.splice(idx, 1);
-
-            // Revert credit card payment is not implemented here to avoid complexity
+            const paymentSnapshot = await getDoc(paymentRef);
+            if (paymentSnapshot.exists()) batch.delete(paymentRef);
         } else {
-            // Mark paid
             paidMonths.push(curKey);
-
-            // Deduct from Credit Card active balance
-            if (item.type === 'credit_card' && item.cardId) {
-                const card = creditCards.find(c => c.id === item.cardId);
-                if (card) {
-                    const currentBalance = Number(card.balanceDOP || card.balanceALaFecha || card.balance || 0);
-                    const newBalance = Math.max(0, currentBalance - item.amount);
-                    const cardRef = doc(db, 'users', currentUser.uid, 'creditCards', item.cardId);
-                    await updateDoc(cardRef, {
-                        ...(card.balanceDOP !== undefined && { balanceDOP: newBalance }),
-                        ...(card.balanceALaFecha !== undefined && { balanceALaFecha: newBalance }),
-                        ...(card.balance !== undefined && { balance: newBalance })
-                    }).catch(console.error);
-                }
+            if (Number(item.amount) > 0) {
+                batch.set(paymentRef, buildPaymentTransaction({
+                    userId: currentUser.uid,
+                    amount: item.amount,
+                    category: item.category || 'Otros',
+                    note: `Pago recurrente: ${item.name}`,
+                    sourceType: 'recurring',
+                    sourceId: item.id,
+                    extra: {
+                        recurringId: item.id,
+                        paymentStatus: 'paid',
+                    },
+                }));
             }
         }
 
-        await updateDoc(doc(db, 'users', currentUser.uid, 'recurring', item.id), { paidMonths });
+        if (item.type === 'credit_card' && item.cardId) {
+            const card = creditCards.find(c => c.id === item.cardId);
+            if (card) {
+                const currentBalance = Number(card.balanceDOP || card.balanceALaFecha || card.balance || 0);
+                const nextBalance = isPaying
+                    ? Math.max(0, currentBalance - Number(item.amount || 0))
+                    : currentBalance + Number(item.amount || 0);
+                const cardRef = doc(db, 'users', currentUser.uid, 'creditCards', item.cardId);
+                batch.update(cardRef, {
+                    ...(card.balanceDOP !== undefined && { balanceDOP: nextBalance }),
+                    ...(card.balanceALaFecha !== undefined && { balanceALaFecha: nextBalance }),
+                    ...(card.balance !== undefined && { balance: nextBalance }),
+                });
+            }
+        }
+
+        batch.update(recurringRef, { paidMonths, pagos_abonados: 0 });
+        await batch.commit();
     };
 
     // ─── Mark all previous months as paid (clear carry-over) ───

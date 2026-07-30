@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, deleteDoc, getDoc, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
+import { buildPaymentTransaction, getAutomaticPaymentId, getMonthKey } from '../lib/paymentTransactions';
 
 /**
  * Custom hook for managing loans in Firestore.
@@ -60,22 +61,43 @@ export function useLoans(userId) {
     const markAsPaid = useCallback(async (loan) => {
         if (!userId || !db) return;
         const ref = doc(db, 'users', userId, 'loans', loan.id);
+        const monthKey = getMonthKey();
+        const paymentRef = doc(db, 'transactions', getAutomaticPaymentId(userId, 'loan', loan.id, monthKey));
+        const batch = writeBatch(db);
         const newBalance = Math.max((loan.balancePendiente || 0) - (loan.cuotaMensual || 0), 0);
-        await updateDoc(ref, {
+        batch.update(ref, {
             pagadoEsteMes: true,
             balancePendiente: newBalance,
             fechaUltimoPago: new Date().toISOString(),
         });
+        if (Number(loan.cuotaMensual) > 0) {
+            batch.set(paymentRef, buildPaymentTransaction({
+                userId,
+                amount: loan.cuotaMensual,
+                category: 'Préstamos',
+                note: `Cuota de préstamo: ${loan.nombrePrestamo || 'Préstamo'}`,
+                sourceType: 'loan',
+                sourceId: loan.id,
+                extra: { loanId: loan.id, paymentStatus: 'paid' },
+            }));
+        }
+        await batch.commit();
     }, [userId]);
 
     const undoPaid = useCallback(async (loan) => {
         if (!userId || !db) return;
         const ref = doc(db, 'users', userId, 'loans', loan.id);
-        await updateDoc(ref, {
+        const monthKey = getMonthKey();
+        const paymentRef = doc(db, 'transactions', getAutomaticPaymentId(userId, 'loan', loan.id, monthKey));
+        const paymentSnapshot = await getDoc(paymentRef);
+        const batch = writeBatch(db);
+        batch.update(ref, {
             pagadoEsteMes: false,
             balancePendiente: (loan.balancePendiente || 0) + (loan.cuotaMensual || 0),
             fechaUltimoPago: null,
         });
+        if (paymentSnapshot.exists()) batch.delete(paymentRef);
+        await batch.commit();
     }, [userId]);
 
     // Derived values

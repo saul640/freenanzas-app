@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { collection, doc, updateDoc, onSnapshot, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, where, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../hooks/useAuth';
+import { buildPaymentTransaction, getAutomaticPaymentId } from '../lib/paymentTransactions';
 
 const FREQUENCIES = [
     { id: 'weekly', label: 'Semanal', days: 7 },
@@ -201,27 +202,35 @@ export default function PendingPayments() {
         setPaymentProcessing(true);
         try {
             const isPartial = amountToPay < selectedPayment.amount;
+            const curKey = currentMonthKey();
+            const batch = writeBatch(db);
+            const paymentRef = !isPartial && selectedPayment.type === 'recurring'
+                ? doc(
+                    db,
+                    'transactions',
+                    getAutomaticPaymentId(currentUser.uid, 'recurring', selectedPayment.id, curKey),
+                )
+                : doc(collection(db, 'transactions'));
 
-            // 1. Transaction creation
-            const txData = {
+            batch.set(paymentRef, buildPaymentTransaction({
                 userId: currentUser.uid,
-                type: 'expense',
                 amount: amountToPay,
                 category: selectedPayment.category || 'Gastos',
-                date: new Date().toISOString().split('T')[0],
                 note: `Pago ${isPartial ? 'parcial' : 'total'} de ${selectedPayment.name}`,
-                timestamp: serverTimestamp()
-            };
-            await addDoc(collection(db, 'transactions'), txData);
+                sourceType: selectedPayment.type,
+                sourceId: selectedPayment.id,
+                extra: {
+                    paymentStatus: isPartial ? 'partial' : 'paid',
+                    recurringId: selectedPayment.type === 'recurring' ? selectedPayment.id : '',
+                },
+            }));
 
-            // 2. Original item update
             if (selectedPayment.type === 'recurring') {
                 const itemRef = doc(db, 'users', currentUser.uid, 'recurring', selectedPayment.id);
                 if (isPartial) {
                     const currentAbonado = Number(selectedPayment.sourceItem.pagos_abonados || 0);
-                    await updateDoc(itemRef, { pagos_abonados: currentAbonado + amountToPay });
+                    batch.update(itemRef, { pagos_abonados: currentAbonado + amountToPay });
                 } else {
-                    const curKey = currentMonthKey();
                     const dueKeys = Array.from(getDueMonthKeys(selectedPayment.sourceItem.startDate || new Date().toISOString().split('T')[0], selectedPayment.sourceItem.frequency || 'monthly', new Date().getFullYear(), new Date().getMonth()));
                     const toAdd = dueKeys.filter(k => k <= curKey);
 
@@ -229,18 +238,19 @@ export default function PendingPayments() {
 
                     const paidArr = selectedPayment.sourceItem.paidMonths || [];
                     const newPaid = Array.from(new Set([...paidArr, ...toAdd]));
-                    await updateDoc(itemRef, { paidMonths: newPaid, pagos_abonados: 0 });
+                    batch.update(itemRef, { paidMonths: newPaid, pagos_abonados: 0 });
                 }
             } else if (selectedPayment.type === 'transaction') {
                 const itemRef = doc(db, 'transactions', selectedPayment.id);
                 if (isPartial) {
                     const currentAbonado = Number(selectedPayment.sourceItem.pagos_abonados || 0);
-                    await updateDoc(itemRef, { pagos_abonados: currentAbonado + amountToPay });
+                    batch.update(itemRef, { pagos_abonados: currentAbonado + amountToPay });
                 } else {
-                    await updateDoc(itemRef, { estado: 'pagado', status: 'pagado', pagos_abonados: 0 });
+                    batch.update(itemRef, { estado: 'pagado', status: 'pagado', pagos_abonados: 0 });
                 }
             }
 
+            await batch.commit();
             setSelectedPayment(null);
             setPaymentAmount('');
         } catch (e) {
