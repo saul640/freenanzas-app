@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { buildPaymentTransaction } from '../lib/paymentTransactions';
+import { buildCreditPaymentUpdate, getCardBalanceDOP, getCardBalanceUSD, getCredimasDebt } from '../utils/creditDebt';
 import BottomNav from './BottomNav';
 import PaywallModal from './PaywallModal';
 
@@ -32,10 +33,8 @@ function formatDate(day) {
 }
 
 const getCardLimitDOP = (card) => card.limitDOP ?? card.limitePesos ?? card.limit ?? 0;
-const getCardBalanceDOP = (card) => card.balanceDOP ?? card.balanceALaFecha ?? card.balance ?? 0;
 const getCardMinPaymentDOP = (card) => card.minPaymentDOP ?? card.pagoMinimo ?? card.minPayment ?? 0;
 const getCardLimitUSD = (card) => card.limitUSD ?? card.limiteDolares ?? 0;
-const getCardBalanceUSD = (card) => card.balanceUSD ?? card.balanceDolaresALaFecha ?? 0;
 const getCardMinPaymentUSD = (card) => card.minPaymentUSD ?? card.pagoMinimoUSD ?? 0;
 
 // Avalanche: pay highest interest rate first
@@ -131,6 +130,8 @@ export default function CreditCards() {
     const [paymentCard, setPaymentCard] = useState(null);
     const [paymentAmount, setPaymentAmount] = useState('');
     const [paymentCurrency, setPaymentCurrency] = useState('DOP');
+    const [paymentType, setPaymentType] = useState('card');
+    const [paymentError, setPaymentError] = useState('');
     const [processingPayment, setProcessingPayment] = useState(false);
     const appId = 'finanzas_boveda_dual_v2';
 
@@ -143,6 +144,8 @@ export default function CreditCards() {
             setPaymentCard(null);
             setPaymentAmount('');
             setPaymentCurrency('DOP');
+            setPaymentType('card');
+            setPaymentError('');
             return;
         }
         const unsubCards = onSnapshot(collection(db, 'users', currentUser.uid, 'creditCards'), snap => {
@@ -232,53 +235,68 @@ export default function CreditCards() {
         await deleteDoc(doc(db, 'users', currentUser.uid, 'creditCards', id));
     };
 
-    const openPayment = (card, currency = 'DOP') => {
+    const openPayment = (card, currency = 'DOP', type = 'card') => {
         setPaymentCard(card);
         setPaymentCurrency(currency);
+        setPaymentType(type);
         setPaymentAmount('');
+        setPaymentError('');
     };
 
     const handlePayment = async () => {
         if (!currentUser || !appId || !paymentCard) return;
         const amount = parseFloat(paymentAmount) || 0;
-        if (amount <= 0) return;
+        if (amount <= 0) {
+            setPaymentError('Ingresa un monto mayor que cero.');
+            return;
+        }
+        if (amount > paymentBalance) {
+            setPaymentError(`El pago no puede superar el balance de ${paymentCurrencyLabel} ${formatMoney(paymentBalance)}.`);
+            return;
+        }
+        setPaymentError('');
         setProcessingPayment(true);
         try {
             const cardRef = doc(db, 'users', currentUser.uid, 'creditCards', paymentCard.id);
             const paymentRef = doc(collection(db, 'transactions'));
-            const batch = writeBatch(db);
-            if (paymentCurrency === 'USD') {
-                const nextBalanceUSD = Math.max(getCardBalanceUSD(paymentCard) - amount, 0);
-                batch.update(cardRef, {
-                    balanceUSD: nextBalanceUSD,
-                    balanceDolaresALaFecha: nextBalanceUSD,
+            await runTransaction(db, async (transaction) => {
+                const freshCardSnapshot = await transaction.get(cardRef);
+                if (!freshCardSnapshot.exists()) throw new Error('CARD_NOT_FOUND');
+                const freshCard = { id: freshCardSnapshot.id, ...freshCardSnapshot.data() };
+                const payment = buildCreditPaymentUpdate({
+                    card: freshCard,
+                    paymentType,
+                    currency: paymentCurrency,
+                    amount,
                 });
-            } else {
-                const nextBalanceDOP = Math.max(getCardBalanceDOP(paymentCard) - amount, 0);
-                batch.update(cardRef, {
-                    balanceDOP: nextBalanceDOP,
-                    balanceALaFecha: nextBalanceDOP,
-                    balance: nextBalanceDOP,
-                });
-            }
-            batch.set(paymentRef, buildPaymentTransaction({
-                userId: currentUser.uid,
-                amount,
-                category: 'Tarjetas',
-                note: `Pago de tarjeta: ${paymentCard.name || 'Tarjeta'}`,
-                sourceType: 'credit_card',
-                sourceId: paymentCard.id,
-                currency: paymentCurrency,
-                extra: {
-                    cardId: paymentCard.id,
-                    paymentStatus: 'paid',
-                },
-            }));
-            await batch.commit();
+                if (payment.appliedAmount !== amount) throw new Error('PAYMENT_EXCEEDS_BALANCE');
+
+                transaction.update(cardRef, payment.updates);
+                transaction.set(paymentRef, buildPaymentTransaction({
+                    userId: currentUser.uid,
+                    amount: payment.appliedAmount,
+                    category: paymentType === 'credimas' ? 'Credimás' : 'Tarjetas',
+                    note: paymentType === 'credimas'
+                        ? `Pago de Credimás: ${freshCard.name || 'Tarjeta'}`
+                        : `Pago de tarjeta: ${freshCard.name || 'Tarjeta'}`,
+                    sourceType: paymentType === 'credimas' ? 'credimas' : 'credit_card',
+                    sourceId: freshCard.id,
+                    currency: paymentType === 'credimas' ? 'DOP' : paymentCurrency,
+                    extra: {
+                        cardId: freshCard.id,
+                        debtType: paymentType === 'credimas' ? 'credimas' : 'credit_card',
+                        paymentStatus: 'paid',
+                    },
+                }));
+            });
             setPaymentCard(null);
             setPaymentAmount('');
+            setPaymentError('');
         } catch (error) {
             console.error('Error al registrar el pago', error);
+            setPaymentError(error?.message === 'PAYMENT_EXCEEDS_BALANCE'
+                ? 'El balance cambió. Revisa el monto e inténtalo de nuevo.'
+                : 'No se pudo registrar el pago. Inténtalo de nuevo.');
         } finally {
             setProcessingPayment(false);
         }
@@ -288,17 +306,21 @@ export default function CreditCards() {
 
 
 
-    const totalDebt = useMemo(() => cards.reduce((s, c) => s + getCardBalanceDOP(c) + (c.credimasTotalAdeudado || 0), 0), [cards]);
-    const totalLimit = useMemo(() => cards.reduce((s, c) => s + getCardLimitDOP(c), 0), [cards]);
+    const totalCardDebtDOP = useMemo(() => cards.reduce((s, c) => s + getCardBalanceDOP(c), 0), [cards]);
+    const totalCredimasDebt = useMemo(() => cards.reduce((s, c) => s + getCredimasDebt(c), 0), [cards]);
+    const totalDebt = totalCardDebtDOP + totalCredimasDebt;
+    const totalCardAvailable = useMemo(() => cards.reduce((s, c) => s + Math.max(getCardLimitDOP(c) - getCardBalanceDOP(c), 0), 0), [cards]);
+    const totalCredimasAvailable = useMemo(() => cards.reduce((s, c) => s + (Number(c.credimasDisponible) || 0), 0), [cards]);
     const totalDebtUSD = useMemo(() => cards.reduce((s, c) => s + getCardBalanceUSD(c), 0), [cards]);
     const totalLimitUSD = useMemo(() => cards.reduce((s, c) => s + getCardLimitUSD(c), 0), [cards]);
-    const totalCredimas = useMemo(() => cards.reduce((s, c) => s + (c.credimasCuotaMensual || 0), 0), [cards]);
     const avalanche = useMemo(() => calcAvalanche(cards, parseFloat(extraPayment) || 2000), [cards, extraPayment]);
     const snowball = useMemo(() => calcSnowball(cards, parseFloat(extraPayment) || 2000), [cards, extraPayment]);
     const paymentBalance = paymentCard
-        ? (paymentCurrency === 'USD' ? getCardBalanceUSD(paymentCard) : getCardBalanceDOP(paymentCard))
+        ? (paymentType === 'credimas'
+            ? getCredimasDebt(paymentCard)
+            : paymentCurrency === 'USD' ? getCardBalanceUSD(paymentCard) : getCardBalanceDOP(paymentCard))
         : 0;
-    const paymentCurrencyLabel = paymentCurrency === 'USD' ? 'US$' : 'RD$';
+    const paymentCurrencyLabel = paymentType === 'credimas' || paymentCurrency === 'DOP' ? 'RD$' : 'US$';
 
     return (
         <>
@@ -341,7 +363,7 @@ export default function CreditCards() {
                         <div className="absolute -top-8 -right-8 w-28 h-28 bg-white/5 rounded-full blur-2xl" />
                         <p className="text-white/60 text-xs font-bold uppercase tracking-wider">Deuda Total (TC + Credimás)</p>
                         <p className="text-3xl font-extrabold text-white mt-1">RD$ {formatMoney(totalDebt)}</p>
-                        <p className="text-white/50 text-xs mt-1">Crédito disponible: RD$ {formatMoney(Math.max(totalLimit - totalDebt, 0))}</p>
+                        <p className="text-white/50 text-xs mt-1">Saldos en pesos dominicanos; USD se muestra aparte.</p>
                         <div className="flex gap-3 mt-3 flex-wrap">
                             {cards.length > 0 && (
                                 <div className="bg-cyan-500/20 rounded-xl px-3 py-2">
@@ -349,18 +371,24 @@ export default function CreditCards() {
                                     <p className="text-white font-extrabold text-sm">US$ {formatMoney(totalDebtUSD)} <span className="text-white/50 text-[10px]">/ {formatMoney(totalLimitUSD)}</span></p>
                                 </div>
                             )}
-                            {totalCredimas > 0 && (
-                                <div className="bg-white/10 rounded-xl px-3 py-2">
-                                    <p className="text-white/60 text-[10px] font-bold uppercase">Credimás/Mes</p>
-                                    <p className="text-white font-extrabold text-sm">RD$ {formatMoney(totalCredimas)}</p>
-                                </div>
-                            )}
                             <div className="bg-white/10 rounded-xl px-3 py-2">
-                                <p className="text-white/60 text-[10px] font-bold uppercase">Tarjetas</p>
-                                <p className="text-white font-extrabold text-sm">{cards.length}</p>
+                                <p className="text-white/60 text-[10px] font-bold uppercase">Deuda TC</p>
+                                <p className="text-white font-extrabold text-sm">RD$ {formatMoney(totalCardDebtDOP)}</p>
+                            </div>
+                            <div className="bg-cyan-500/15 rounded-xl px-3 py-2">
+                                <p className="text-cyan-200/70 text-[10px] font-bold uppercase">Deuda Credimás</p>
+                                <p className="text-white font-extrabold text-sm">RD$ {formatMoney(totalCredimasDebt)}</p>
+                            </div>
+                            <div className="bg-white/10 rounded-xl px-3 py-2">
+                                <p className="text-white/60 text-[10px] font-bold uppercase">Disponible TC</p>
+                                <p className="text-white font-extrabold text-sm">RD$ {formatMoney(totalCardAvailable)}</p>
+                            </div>
+                            <div className="bg-cyan-500/15 rounded-xl px-3 py-2">
+                                <p className="text-cyan-200/70 text-[10px] font-bold uppercase">Disponible Credimás</p>
+                                <p className="text-white font-extrabold text-sm">RD$ {formatMoney(totalCredimasAvailable)}</p>
                             </div>
                         </div>
-                        {totalDebt === 0 && <span className="inline-block mt-2 bg-green-500/20 text-green-300 text-xs font-bold px-3 py-1 rounded-full">🎉 Totalero — Sin deuda</span>}
+                        {totalDebt === 0 && totalDebtUSD === 0 && <span className="inline-block mt-2 bg-green-500/20 text-green-300 text-xs font-bold px-3 py-1 rounded-full">🎉 Totalero — Sin deuda</span>}
                     </div>
 
 
@@ -383,7 +411,8 @@ export default function CreditCards() {
                                 const daysPay = daysUntil(card.fechaLimitePago || card.paymentDueDay || 25);
                                 const daysCut = daysUntil(card.cutoffDay || 15);
                                 const isUrgent = daysPay <= 5 && balCorte > 0;
-                                const hasCredimas = (card.credimasLimiteAprobado || 0) > 0;
+                                const hasCredimas = [card.credimasLimiteAprobado, card.credimasDisponible, card.credimasTotalAdeudado, card.credimasCuotaMensual]
+                                    .some(value => (Number(value) || 0) > 0);
                                 const isExpanded = expandedCard === card.id;
 
                                 return (
@@ -394,10 +423,13 @@ export default function CreditCards() {
 
                                             {/* Header */}
                                             <div className="flex items-center justify-between mb-4">
-                                                <div>
+                                                <div className="min-w-0">
                                                     <p className="text-white/70 text-xs font-bold uppercase tracking-wider">{card.name}</p>
                                                     <p className="text-2xl font-extrabold text-white mt-1">RD$ {formatMoney(bal)}</p>
-                                                    <p className="text-white/50 text-[10px]">Balance a la fecha</p>
+                                                    <p className="text-white/50 text-[10px]">Deuda de tarjeta</p>
+                                                    {hasCredimas && (
+                                                        <p className="text-cyan-200 text-xs font-bold mt-1">Credimás: RD$ {formatMoney(getCredimasDebt(card))}</p>
+                                                    )}
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <button onClick={() => openPayment(card)} className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center active:scale-90 transition-transform">
@@ -726,20 +758,39 @@ export default function CreditCards() {
                                 </button>
                             </div>
 
-                            <div className="flex bg-gray-100 rounded-2xl p-1 mb-4">
+                            <div className="flex bg-gray-100 rounded-2xl p-1 mb-4" aria-label="Tipo de deuda a pagar">
                                 <button
-                                    onClick={() => setPaymentCurrency('DOP')}
+                                    onClick={() => { setPaymentType('card'); setPaymentError(''); setPaymentAmount(''); }}
+                                    aria-pressed={paymentType === 'card'}
+                                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${paymentType === 'card' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`}
+                                >
+                                    Tarjeta
+                                </button>
+                                <button
+                                    onClick={() => { setPaymentType('credimas'); setPaymentCurrency('DOP'); setPaymentError(''); setPaymentAmount(''); }}
+                                    aria-pressed={paymentType === 'credimas'}
+                                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${paymentType === 'credimas' ? 'bg-cyan-600 text-white shadow-sm' : 'text-gray-400'}`}
+                                >
+                                    Credimás
+                                </button>
+                            </div>
+
+                            {paymentType === 'card' && (
+                            <div className="flex bg-gray-100 rounded-2xl p-1 mb-4" aria-label="Moneda de la tarjeta">
+                                <button
+                                    onClick={() => { setPaymentCurrency('DOP'); setPaymentError(''); setPaymentAmount(''); }}
                                     className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${paymentCurrency === 'DOP' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`}
                                 >
                                     DOP
                                 </button>
                                 <button
-                                    onClick={() => setPaymentCurrency('USD')}
+                                    onClick={() => { setPaymentCurrency('USD'); setPaymentError(''); setPaymentAmount(''); }}
                                     className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${paymentCurrency === 'USD' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`}
                                 >
                                     USD
                                 </button>
                             </div>
+                            )}
 
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Monto a abonar</label>
@@ -747,21 +798,27 @@ export default function CreditCards() {
                                     <span className="text-sm font-bold text-gray-500">{paymentCurrencyLabel}</span>
                                     <input
                                         type="number"
+                                        min="0"
+                                        max={paymentBalance}
+                                        step="0.01"
                                         value={paymentAmount}
-                                        onChange={(e) => setPaymentAmount(e.target.value)}
+                                        onChange={(e) => { setPaymentAmount(e.target.value); setPaymentError(''); }}
                                         placeholder="0"
                                         className="flex-1 bg-transparent text-sm font-semibold outline-none"
                                     />
                                 </div>
-                                <p className="text-[10px] text-gray-400">Balance actual: {paymentCurrencyLabel} {formatMoney(paymentBalance)}</p>
+                                <p className="text-[10px] text-gray-400">
+                                    Balance actual de {paymentType === 'credimas' ? 'Credimás' : 'tarjeta'}: {paymentCurrencyLabel} {formatMoney(paymentBalance)}
+                                </p>
+                                {paymentError && <p role="alert" className="text-xs font-semibold text-red-500">{paymentError}</p>}
                             </div>
 
                             <button
                                 onClick={handlePayment}
-                                disabled={processingPayment || !paymentAmount}
+                                disabled={processingPayment || !paymentAmount || paymentBalance <= 0}
                                 className="w-full mt-6 bg-gradient-to-r from-slate-800 to-slate-950 text-white font-bold py-4 rounded-2xl disabled:opacity-50 active:scale-[0.98] transition-transform"
                             >
-                                {processingPayment ? 'Procesando...' : 'Registrar Pago'}
+                                {processingPayment ? 'Procesando...' : `Registrar pago de ${paymentType === 'credimas' ? 'Credimás' : 'tarjeta'}`}
                             </button>
                         </div>
                     </div>

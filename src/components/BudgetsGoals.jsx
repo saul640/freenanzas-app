@@ -6,6 +6,8 @@ import { db } from '../firebase';
 import BottomNav from './BottomNav';
 import CategoryDetailModal from './CategoryDetailModal';
 import { getSmartCategoryIcon } from '../utils/smartCategoryIcon';
+import { useLoans } from '../hooks/useLoans';
+import { getCardBalanceDOP, getCardBalanceUSD, getCredimasDebt, summarizeDebts } from '../utils/creditDebt';
 
 // ─── Color mapping: Firestore color id → hex + tailwind ───
 const COLOR_MAP = {
@@ -48,7 +50,9 @@ export default function Analytics() {
 
     const [allTransactions, setAllTransactions] = useState([]);
     const [customCategories, setCustomCategories] = useState([]);
+    const [creditCards, setCreditCards] = useState([]);
     const [showAllCats, setShowAllCats] = useState(false);
+    const { loans } = useLoans(currentUser?.uid);
 
     // ─── Drill-down modal state ───
     const [selectedCategory, setSelectedCategory] = useState(null);
@@ -62,6 +66,13 @@ export default function Analytics() {
             setAllTransactions(txs);
         });
         return unsubscribe;
+    }, [currentUser]);
+
+    useEffect(() => {
+        if (!currentUser || !db) return undefined;
+        return onSnapshot(collection(db, 'users', currentUser.uid, 'creditCards'), (snapshot) => {
+            setCreditCards(snapshot.docs.map(card => ({ id: card.id, ...card.data() })));
+        });
     }, [currentUser]);
 
     // ─── Fetch custom categories ───
@@ -127,6 +138,13 @@ export default function Analytics() {
 
     const percentSpent = totalIncome > 0 ? Math.min(Math.round((totalExpense / totalIncome) * 100), 100) : 0;
     const balanceAvailable = totalIncome - totalExpense;
+    const debtSummary = useMemo(() => summarizeDebts({ cards: creditCards, loans }), [creditCards, loans]);
+    const financialStatus = balanceAvailable < 0 ? 'Déficit' : debtSummary.hasDebt ? 'Con deuda' : 'Saludable';
+    const statusStyles = balanceAvailable < 0
+        ? 'bg-red-50 border-red-100 text-red-600'
+        : debtSummary.hasDebt
+            ? 'bg-amber-50 border-amber-100 text-amber-700'
+            : 'bg-[#e6fceb] border-primary/10 text-primary-dark';
 
     // ─── Donut chart segments (memoized) ───
     const CIRCUMFERENCE = 2 * Math.PI * 42; // ~263.89
@@ -260,10 +278,10 @@ export default function Analytics() {
                             <p className="text-sm font-semibold text-gray-500 mb-1">Balance Disponible</p>
                             <h2 className="text-3xl font-extrabold text-gray-900">RD$ {formatMoney(balanceAvailable)}</h2>
                         </div>
-                        <div className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border ${balanceAvailable >= 0 ? 'bg-[#e6fceb] border-primary/10' : 'bg-red-50 border-red-100'}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${balanceAvailable >= 0 ? 'bg-primary' : 'bg-red-500'}`}></span>
-                            <span className={`text-xs font-bold ${balanceAvailable >= 0 ? 'text-primary-dark' : 'text-red-600'}`}>
-                                {balanceAvailable >= 0 ? 'Saludable' : 'Déficit'}
+                        <div className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border ${statusStyles}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${balanceAvailable < 0 ? 'bg-red-500' : debtSummary.hasDebt ? 'bg-amber-500' : 'bg-primary'}`}></span>
+                            <span className="text-xs font-bold">
+                                {financialStatus}
                             </span>
                         </div>
                     </div>
@@ -283,6 +301,45 @@ export default function Analytics() {
                         </svg>
                         <p className="text-[10px] font-bold text-gray-400 absolute bottom-[-5px] right-0 bg-white pl-2">Tendencia de ahorro +4%</p>
                     </div>
+                </div>
+
+                {/* Deuda registrada — visible sin abrir cada producto */}
+                <div className="bg-slate-900 rounded-[28px] p-5 text-white shadow-lg">
+                    <div className="flex items-start justify-between gap-3 mb-4">
+                        <div>
+                            <p className="text-white/60 text-[10px] font-bold uppercase tracking-wider">Deuda registrada</p>
+                            <p className="text-2xl font-extrabold mt-1">RD$ {formatMoney(debtSummary.totalDOP)}</p>
+                            {debtSummary.cardUSD > 0 && <p className="text-cyan-300 text-xs font-bold mt-1">Más US$ {formatMoney(debtSummary.cardUSD)} en tarjetas</p>}
+                        </div>
+                        <span className="material-symbols-rounded text-amber-300 text-3xl">account_balance_wallet</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mb-4">
+                        <div className="bg-white/10 rounded-xl p-2.5">
+                            <p className="text-white/50 text-[9px] uppercase font-bold">Tarjetas</p>
+                            <p className="text-sm font-extrabold">RD$ {formatMoney(debtSummary.cardDOP)}</p>
+                        </div>
+                        <div className="bg-cyan-500/15 rounded-xl p-2.5">
+                            <p className="text-cyan-200/70 text-[9px] uppercase font-bold">Credimás</p>
+                            <p className="text-sm font-extrabold">RD$ {formatMoney(debtSummary.credimas)}</p>
+                        </div>
+                        <div className="bg-white/10 rounded-xl p-2.5">
+                            <p className="text-white/50 text-[9px] uppercase font-bold">Préstamos</p>
+                            <p className="text-sm font-extrabold">RD$ {formatMoney(debtSummary.loanDebt)}</p>
+                        </div>
+                    </div>
+                    {creditCards.length > 0 && (
+                        <div className="space-y-2 border-t border-white/10 pt-3">
+                            {creditCards.map(card => (
+                                <div key={card.id} className="bg-white/5 rounded-xl px-3 py-2.5 flex items-center justify-between gap-3">
+                                    <p className="text-xs font-bold truncate">{card.name || 'Tarjeta'}</p>
+                                    <div className="text-right shrink-0">
+                                        <p className="text-[11px] font-bold">TC RD$ {formatMoney(getCardBalanceDOP(card))}{getCardBalanceUSD(card) > 0 ? ` · US$ ${formatMoney(getCardBalanceUSD(card))}` : ''}</p>
+                                        {getCredimasDebt(card) > 0 && <p className="text-[10px] font-bold text-cyan-300">Credimás RD$ {formatMoney(getCredimasDebt(card))}</p>}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {/* Listado de Categorías — INTERACTIVO */}
