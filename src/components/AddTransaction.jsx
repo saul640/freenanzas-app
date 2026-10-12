@@ -55,6 +55,7 @@ const CATEGORY_COLORS = [
 ];
 
 const normalizeCategoryName = (value) => value.trim().toLowerCase();
+const SAVINGS_CATS_AT = ['ahorro', 'ahorro e inversión'];
 const getCardBalanceDOP = (card) => card.balanceDOP ?? card.balanceALaFecha ?? card.balance ?? 0;
 const toISODate = (value) => {
     if (!value) return null;
@@ -90,6 +91,7 @@ export default function AddTransaction() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [showAllCats, setShowAllCats] = useState(false);
+    const [showMoreOptions, setShowMoreOptions] = useState(false);
     const [scanning, setScanning] = useState(false);
     const [scanProgress, setScanProgress] = useState('');
     const [isFromScan, setIsFromScan] = useState(false);
@@ -136,6 +138,7 @@ export default function AddTransaction() {
                 if (docSnap.exists() && docSnap.data().userId === currentUser.uid) {
                     const data = { id: docSnap.id, ...docSnap.data() };
                     setEditingRecord(data);
+                    setShowMoreOptions(true);
                     // Pre-populate form fields
                     setType(data.type || 'expense');
                     setAmount(data.amount?.toString() || '');
@@ -158,7 +161,7 @@ export default function AddTransaction() {
                 } else {
                     setError('No se encontró la transacción o no tienes permisos para editarla.');
                 }
-            } catch (err) {
+            } catch {
                 setError('Error al cargar la transacción para editar.');
             } finally {
                 setLoading(false);
@@ -314,7 +317,6 @@ export default function AddTransaction() {
         });
     }, [currentUser]);
 
-    const SAVINGS_CATS_AT = ['ahorro', 'ahorro e inversión'];
     const { budgetSpent, monthlyIncome, categorySpending } = useMemo(() => {
         const now = new Date();
         let spent = 0, income = 0;
@@ -632,6 +634,7 @@ export default function AddTransaction() {
                         <button
                             type="button"
                             onClick={() => setType('expense')}
+                            aria-pressed={type === 'expense'}
                             className={`flex-1 py-2.5 font-semibold rounded-lg transition-all text-sm ${type === 'expense' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400'}`}
                         >
                             Gasto
@@ -639,6 +642,7 @@ export default function AddTransaction() {
                         <button
                             type="button"
                             onClick={() => setType('income')}
+                            aria-pressed={type === 'income'}
                             className={`flex-1 py-2.5 font-semibold rounded-lg transition-all text-sm ${type === 'income' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400'}`}
                         >
                             Ingreso
@@ -716,6 +720,7 @@ export default function AddTransaction() {
                                     key={cat.name}
                                     type="button"
                                     onClick={() => handleCategorySelect(cat.name)}
+                                    aria-pressed={category === cat.name}
                                     className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${category === cat.name
                                         ? 'border-primary bg-white shadow-sm'
                                         : 'border-transparent bg-white'
@@ -786,6 +791,24 @@ export default function AddTransaction() {
                             </div>
                         )}
                     </div>
+
+                    <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden">
+                        <button
+                            type="button"
+                            onClick={() => setShowMoreOptions(!showMoreOptions)}
+                            aria-expanded={showMoreOptions}
+                            aria-controls="transaction-more-options"
+                            className="w-full p-4 flex items-center justify-between text-left"
+                        >
+                            <span>
+                                <span className="block font-semibold text-sm text-gray-800">Más opciones</span>
+                                <span className="block text-xs text-gray-400 mt-0.5">Fecha, nota, tarjeta y detalles opcionales</span>
+                            </span>
+                            <span className={`material-symbols-rounded text-gray-400 transition-transform ${showMoreOptions ? 'rotate-180' : ''}`}>expand_more</span>
+                        </button>
+                    </div>
+
+                    {showMoreOptions && <div id="transaction-more-options" className="space-y-4">
 
                     {/* Date Picker */}
                     <div className="bg-white rounded-2xl p-4 flex items-center gap-4 border border-gray-100">
@@ -957,11 +980,6 @@ export default function AddTransaction() {
                             </div>
                         </div>
                     )}
-                </div>
-
-                {/* Submit Button */}
-                <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto p-6 bg-gradient-to-t from-[#f7f9f8] via-[#f7f9f8] to-transparent pt-10">
-                    {/* AI Quick-Consult Button */}
                     {type === 'expense' && (
                         <button
                             type="button"
@@ -971,12 +989,17 @@ export default function AddTransaction() {
                                 setAiResult(null);
                                 setShowAIConsult(true);
                             }}
-                            className="w-full mb-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-3 rounded-2xl active:scale-[0.98] transition-transform flex items-center justify-center gap-2 text-sm shadow-md"
+                            className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-3 rounded-2xl active:scale-[0.98] transition-transform flex items-center justify-center gap-2 text-sm shadow-md"
                         >
                             <span className="material-symbols-rounded text-lg">smart_toy</span>
-                            ¿Debería comprar esto? Consultar IA 🤖
+                            Consultar IA antes de comprar
                         </button>
                     )}
+                    </div>}
+                </div>
+
+                {/* Submit Button */}
+                <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto p-6 bg-gradient-to-t from-[#f7f9f8] via-[#f7f9f8] to-transparent pt-10">
                     <button
                         type="submit"
                         disabled={loading || scanning || creatingCategory}
@@ -985,7 +1008,7 @@ export default function AddTransaction() {
                         {loading ? (
                             <span className="material-symbols-rounded animate-spin">progress_activity</span>
                         ) : (
-                            isEditMode ? 'Actualizar Transacción' : 'Guardar Transacción'
+                            isEditMode ? 'Actualizar movimiento' : `Guardar ${type === 'income' ? 'ingreso' : 'gasto'}`
                         )}
                     </button>
                 </div>

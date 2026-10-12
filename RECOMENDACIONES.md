@@ -32,7 +32,7 @@ Registro de siete sugerencias de mejora para Freenanzas APP.
 - **Mejora sugerida:** Diseñar un registro de ingresos y gastos rápido y fácil de completar, que ayude a mantener el presupuesto y las finanzas personales al día, incluso a personas con poco tiempo o dificultad para sostener el hábito.
 - **Criterio de aceptación:** Una persona puede registrar un ingreso y un gasto con claridad y pocos pasos, y mantener sus movimientos al día sin tener que acumularlos para una sesión larga.
 - **Fecha recibida:** 8 de octubre de 2026.
-- **Estado:** Pendiente de evaluación.
+- **Estado:** Implementado y verificado visualmente; el registro rápido deja visibles solo los campos esenciales y conserva los detalles como opciones adicionales.
 
 ## 5. Facilitar el registro de gastos desde distintas fuentes
 
