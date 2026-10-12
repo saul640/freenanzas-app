@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useLoans } from '../hooks/useLoans';
 import { scanReceiptWithAI, getBestCategory, consultPreventiveAI, consultPreventiveAILocal, calcAhorroRecomendado } from '../lib/gemini';
 import PaywallModal from './PaywallModal';
+import BottomNav from './BottomNav';
 import { getSmartCategoryIcon } from '../utils/smartCategoryIcon';
 
 // ─── Exponential Backoff Utility ───
@@ -1122,6 +1123,7 @@ export default function AddTransaction() {
                 </div>
             )}
             <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} />
+            <BottomNav />
         </div>
     );
 }
