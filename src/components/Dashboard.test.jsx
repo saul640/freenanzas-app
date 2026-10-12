@@ -102,6 +102,19 @@ describe('Dashboard', () => {
         expect(navigate).toHaveBeenCalledWith('/transactions/import');
     });
 
+    it('muestra la guía de deuda sin ofertas y permite cerrarla con Escape', () => {
+        render(<Dashboard />);
+
+        expect(screen.getByText('Orientación financiera')).toBeTruthy();
+        expect(screen.queryByText('Ofertas para ti')).toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: 'Abrir guía paso a paso' }));
+
+        expect(screen.getByRole('dialog', { name: 'Guía para revisar y reducir una deuda' })).toBeTruthy();
+        expect(screen.getByText(/ningún método garantiza aprobación, ahorro o una tasa específica/)).toBeTruthy();
+        fireEvent.keyDown(window, { key: 'Escape' });
+        expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
     it('alterna las cifras principales y el icono de privacidad en ambas tarjetas', async () => {
         render(<Dashboard />);
         await waitFor(() => expect(screen.getAllByText('visibility')).toHaveLength(2));

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useLoans } from '../hooks/useLoans';
@@ -25,8 +25,20 @@ export default function Dashboard() {
     const [selectedTx, setSelectedTx] = useState(null);
     const [creditCards, setCreditCards] = useState([]);
     const [showPaywall, setShowPaywall] = useState(false);
+    const [showDebtGuide, setShowDebtGuide] = useState(false);
+    const debtGuideCloseButton = useRef(null);
 
     const daysRemaining = trialDaysLeft !== undefined ? Math.max(0, trialDaysLeft) : trialDays;
+
+    useEffect(() => {
+        if (!showDebtGuide) return undefined;
+        debtGuideCloseButton.current?.focus();
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') setShowDebtGuide(false);
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [showDebtGuide]);
 
 
 
@@ -63,7 +75,7 @@ export default function Dashboard() {
     const userName = currentUser?.displayName?.split(' ')[0] || 'Usuario';
     const budgetUsed = balance.income > 0 ? Math.min(Math.round((balance.spendingExpense / balance.income) * 100), 100) : 0;
 
-    // Lógica de Recomendaciones (Affiliate Engine)
+    // Orientación basada únicamente en la información de deuda que registró la persona.
     const recommendation = useMemo(() => {
         try {
             const getCardBalanceDOP = (card) => card.balanceDOP ?? card.balanceALaFecha ?? card.balance ?? 0;
@@ -79,10 +91,8 @@ export default function Dashboard() {
             if (allDebts.length > 0) {
                 const worstDebt = allDebts.sort((a, b) => b.rate - a.rate)[0];
                 return {
-                    title: "🚨 Alerta de Interés Alto",
-                    content: `Estás pagando un ${worstDebt.rate}% de interés en tu ${worstDebt.type} "${worstDebt.name}". Una consolidación al 15% te ahorraría miles de pesos.`,
-                    cta: "Ver oferta de consolidación",
-                    link: import.meta.env.VITE_AFFILIATE_LOAN_LINK || "https://ejemplo-banco.com/afiliado"
+                    title: "Revisa el costo de tu deuda",
+                    content: `En Freenanzas registraste una tasa de ${worstDebt.rate}% para una deuda. Confirma la tasa y el balance en tu estado de cuenta; esta app no consulta tu banco.`,
                 };
             }
         } catch (error) {
@@ -90,10 +100,8 @@ export default function Dashboard() {
         }
 
         return {
-            title: "💡 Tip Financiero",
-            content: "Mantén tu ahorro del 10% hoy. Tu 'yo' del futuro te lo agradecerá enormemente.",
-            cta: null,
-            link: null
+            title: "Guía para manejar deudas",
+            content: "Consulta pasos prácticos y fuentes oficiales para revisar el costo de una tarjeta o préstamo.",
         };
     }, [creditCards, loans]);
 
@@ -272,27 +280,48 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                {/* Ofertas para ti (Lead Gen Engine) */}
+                {/* Guía de deuda: orientación educativa, sin conexión bancaria ni ofertas */}
                 <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 shadow-sm dark:shadow-indigo-500/20 border border-gray-100 dark:border-slate-700 overflow-hidden relative transition-all duration-300 hover:shadow-md">
                     <div className="absolute top-0 right-0 p-3">
                         <span className="material-symbols-rounded text-primary/20 dark:text-primary/10 text-4xl leading-none">request_quote</span>
                     </div>
-                    <h3 className="text-xs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-2 transition-colors duration-200">Ofertas para ti</h3>
+                    <h3 className="text-xs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-2 transition-colors duration-200">Orientación financiera</h3>
                     <p className="text-sm font-bold text-gray-800 dark:text-indigo-200 mb-1 transition-colors duration-200">{recommendation.title}</p>
                     <p className="text-xs text-gray-500 dark:text-slate-300 mb-4 pr-10 transition-colors duration-200">{recommendation.content}</p>
 
-                    {recommendation.cta && (
-                        <a
-                            href={recommendation.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 bg-primary text-black text-xs font-bold px-4 py-2.5 rounded-xl active:scale-95 transition-transform shadow-sm"
-                        >
-                            {recommendation.cta}
-                            <span className="material-symbols-rounded text-sm">open_in_new</span>
-                        </a>
-                    )}
+                    <button type="button" onClick={() => setShowDebtGuide(true)} className="inline-flex min-h-11 items-center gap-2 bg-primary text-black text-xs font-bold px-4 py-2.5 rounded-xl active:scale-95 transition-transform shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">
+                        Abrir guía paso a paso
+                        <span aria-hidden="true" className="material-symbols-rounded text-sm">arrow_forward</span>
+                    </button>
                 </div>
+
+                {showDebtGuide && (
+                    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowDebtGuide(false); }}>
+                        <section role="dialog" aria-modal="true" aria-labelledby="debt-guide-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl dark:bg-slate-800 sm:rounded-3xl sm:p-7">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <p className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">Sin conexión bancaria</p>
+                                    <h2 id="debt-guide-title" className="mt-1 text-xl font-bold text-slate-900 dark:text-white">Guía para revisar y reducir una deuda</h2>
+                                </div>
+                                <button ref={debtGuideCloseButton} type="button" aria-label="Cerrar guía" onClick={() => setShowDebtGuide(false)} className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-slate-600 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-800 dark:text-slate-200 dark:hover:bg-slate-700">
+                                    <span aria-hidden="true" className="material-symbols-rounded">close</span>
+                                </button>
+                            </div>
+                            <ol className="mt-5 list-decimal space-y-4 pl-5 text-sm leading-6 text-slate-700 dark:text-slate-200">
+                                <li><strong>Confirma los datos.</strong> Revisa el estado de cuenta y contrato: balance al corte, tasa anual, pago mínimo, fecha límite y cargos. Los datos guardados aquí son los que tú registraste; no se actualizan desde el banco.</li>
+                                <li><strong>Evita caer en mora.</strong> Si puedes, paga el balance al corte completo antes de la fecha límite. Si no puedes, paga al menos el mínimo a tiempo y calcula cuánto adicional puedes destinar sin dejar de cubrir gastos esenciales.</li>
+                                <li><strong>Calcula un plan realista.</strong> Introduce balance, tasa anual y pago mensual en la <a className="font-semibold text-emerald-800 underline dark:text-emerald-300" href="https://prousuario.gob.do/educacion-financiera/calculadoras-financieras/pago-de-tarjeta-de-credito/" target="_blank" rel="noopener noreferrer">calculadora de pago de tarjeta de ProUsuario</a>. Sus resultados son aproximados, no una cotización ni garantía.</li>
+                                <li><strong>Compara antes de consolidar o refinanciar.</strong> Solicita condiciones por escrito a entidades reguladas y compara tasa, plazo, cuotas, seguros, comisiones y total a pagar. Usa <a className="font-semibold text-emerald-800 underline dark:text-emerald-300" href="https://simbad.sb.gob.do/" target="_blank" rel="noopener noreferrer">SIMBAD de la Superintendencia de Bancos</a> como referencia de mercado; sus tasas promedio no son ofertas personales. Una cuota menor puede costar más si extiende el plazo.</li>
+                                <li><strong>Si no puedes cumplir, contacta a tu entidad</strong> cuanto antes y pide alternativas y el costo total por escrito. Verifica cualquier acuerdo antes de aceptarlo.</li>
+                            </ol>
+                            <p className="mt-5 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100"><strong>Importante:</strong> estas fuentes permiten verificar datos y comparar opciones, pero ningún método garantiza aprobación, ahorro o una tasa específica. Freenanzas no recomienda ni vende una oferta bancaria en esta pantalla.</p>
+                            <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                                <a className="text-xs font-semibold text-emerald-800 underline dark:text-emerald-300" href="https://prousuario.gob.do/educacion-financiera/preguntas-frecuentes/" target="_blank" rel="noopener noreferrer">Ayuda y reclamaciones: ProUsuario</a>
+                                <button type="button" onClick={() => setShowDebtGuide(false)} className="min-h-11 rounded-xl bg-slate-100 px-5 text-sm font-bold text-slate-800 hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-800 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600">Cerrar</button>
+                            </div>
+                        </section>
+                    </div>
+                )}
 
                 {balance.unclassifiedCount > 0 && (
                     <div role="status" className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100">
