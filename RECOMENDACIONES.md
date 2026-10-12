@@ -24,7 +24,7 @@ Registro de siete sugerencias de mejora para Freenanzas APP.
 - **Mejora sugerida:** Mostrar al inicio de la experiencia una secuencia breve de pantallas deslizables con lo básico que cada usuario debe conocer para usar Freenanzas APP. La información esencial debe estar dentro de la aplicación, en una introducción fácil de recorrer, y no depender de que el usuario lea un documento aparte.
 - **Criterio de aceptación:** En el primer ingreso se presenta la introducción y el usuario puede recorrer pantallas cortas, claras y centradas en los aspectos básicos de la aplicación.
 - **Fecha recibida:** 8 de octubre de 2026.
-- **Estado:** Pendiente de evaluación.
+- **Estado:** Implementado y verificado visualmente.
 
 ## 4. Hacer sencillo el registro de ingresos y gastos
 

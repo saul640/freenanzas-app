@@ -5,23 +5,25 @@ import { useAuth } from '../hooks/useAuth';
 const slides = [
     {
         image: '/piggy-bank.png',
-        title: '¡Bienvenido a tu',
-        titleHighlight: 'libertad financiera!',
-        description: 'Toma el control de tus finanzas en RD$ y alcanza tus metas más rápido.'
+        title: 'Registra tus',
+        titleHighlight: 'ingresos y gastos',
+        description: 'Pulsa + para añadir un movimiento. Indica el monto, la categoría y la fecha para mantener tus registros al día.'
     },
     {
         icon: 'pie_chart',
-        title: 'Presupuestos',
-        titleHighlight: 'inteligentes',
-        description: 'Organiza tus gastos con la regla 50/30/20 y nunca pierdas el control.'
+        title: 'Organiza tu',
+        titleHighlight: 'presupuesto',
+        description: 'Define límites para tus gastos y revisa su avance en Análisis. Ajusta cada monto a tus ingresos y necesidades.'
     },
     {
         icon: 'savings',
-        title: 'Metas de',
-        titleHighlight: 'ahorro reales',
-        description: 'Crea tu fondo de emergencia y ahorra para lo que realmente importa.'
+        title: 'Revisa antes de',
+        titleHighlight: 'tomar decisiones',
+        description: 'Consulta tus balances y movimientos. La orientación de IA es informativa; verifica las recomendaciones según tu situación.'
     }
 ];
+
+const INTRO_STORAGE_KEY = 'hasSeenAppIntroV1';
 
 export default function Onboarding() {
     const navigate = useNavigate();
@@ -30,6 +32,7 @@ export default function Onboarding() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [showOnboarding, setShowOnboarding] = useState(true);
+    const [touchStartX, setTouchStartX] = useState(null);
 
     // Auth form state
     const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
@@ -39,7 +42,7 @@ export default function Onboarding() {
     const [showPassword, setShowPassword] = useState(false);
 
     useEffect(() => {
-        const hasSeen = localStorage.getItem('hasSeenOnboarding');
+        const hasSeen = localStorage.getItem(INTRO_STORAGE_KEY);
         if (hasSeen === 'true') {
             setShowOnboarding(false);
         }
@@ -50,7 +53,7 @@ export default function Onboarding() {
     }
 
     const markOnboardingSeen = () => {
-        localStorage.setItem('hasSeenOnboarding', 'true');
+        localStorage.setItem(INTRO_STORAGE_KEY, 'true');
         setShowOnboarding(false);
     };
 
@@ -64,6 +67,17 @@ export default function Onboarding() {
 
     const handleSkip = () => {
         markOnboardingSeen();
+    };
+
+    const handleTouchEnd = (event) => {
+        if (touchStartX === null) return;
+        const swipeDistance = touchStartX - event.changedTouches[0].screenX;
+        if (swipeDistance > 50 && currentSlide < slides.length - 1) {
+            setCurrentSlide(currentSlide + 1);
+        } else if (swipeDistance < -50 && currentSlide > 0) {
+            setCurrentSlide(currentSlide - 1);
+        }
+        setTouchStartX(null);
     };
 
     const handleEmailAuth = async (e) => {
@@ -239,7 +253,7 @@ export default function Onboarding() {
 
                 {/* Replay onboarding */}
                 <button
-                    onClick={() => { localStorage.removeItem('hasSeenOnboarding'); setShowOnboarding(true); }}
+                    onClick={() => { localStorage.removeItem(INTRO_STORAGE_KEY); setShowOnboarding(true); setCurrentSlide(0); }}
                     className="relative z-10 mt-4 text-[13px] font-semibold text-gray-400 hover:text-gray-600 transition-colors"
                 >
                     Ver introducción de nuevo
@@ -270,7 +284,11 @@ export default function Onboarding() {
             </div>
 
             {/* Content */}
-            <div className="flex-1 flex flex-col items-center justify-center px-8">
+            <div
+                className="flex-1 flex flex-col items-center justify-center px-8 touch-pan-y"
+                onTouchStart={(event) => setTouchStartX(event.changedTouches[0].screenX)}
+                onTouchEnd={handleTouchEnd}
+            >
                 {slide.image ? (
                     <div className="w-72 h-72 rounded-3xl overflow-hidden shadow-lg mb-10">
                         <img src={slide.image} alt="Onboarding" className="w-full h-full object-cover" />
@@ -281,7 +299,7 @@ export default function Onboarding() {
                     </div>
                 )}
 
-                <h1 className="text-3xl font-bold text-center leading-tight mb-4">
+                <h1 className="text-3xl font-bold text-center leading-tight mb-4 text-gray-900">
                     {slide.title}<br />
                     <span className="text-primary">{slide.titleHighlight}</span>
                 </h1>
