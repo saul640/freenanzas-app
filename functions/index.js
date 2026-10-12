@@ -5,6 +5,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
 import { normalizeQuickTransaction, persistQuickTransaction } from './quickTransaction.js';
+import { analyzeCsvImport, assertCsvAccountOwnership, changeCsvImportStatus, normalizeCsvImport, persistCsvImport } from './csvImports.js';
 
 const STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET || 'freenanzas-app.firebasestorage.app';
 
@@ -349,6 +350,7 @@ const USER_SUBCOLLECTIONS_TO_DELETE = [
     'categories',
     'budgets',
     'loans',
+    'importBatches',
 ];
 
 const deleteQueryInPages = async (queryFactory, pageSize = 450) => {
@@ -704,6 +706,104 @@ export const registerQuickTransaction = onCall(
             });
         } catch (error) {
             if (error?.code === 'already-exists') throw new HttpsError('already-exists', error.message);
+            throw error;
+        }
+    },
+);
+
+export const previewCsvImport = onCall(
+    { region: 'us-central1', cors: ALLOWED_CORS_ORIGINS, timeoutSeconds: 30, maxInstances: 20 },
+    async (request) => {
+        if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesión para revisar el archivo.');
+        let batch;
+        try { batch = normalizeCsvImport(request.auth.uid, request.data); }
+        catch (error) { throw new HttpsError('invalid-argument', error.message || 'Lote inválido.'); }
+        try { await assertCsvAccountOwnership({ database: getFirestore(), uid: request.auth.uid, accountId: batch.accountId }); }
+        catch (error) { throw new HttpsError(['permission-denied', 'invalid-argument'].includes(error.code) ? error.code : 'internal', error.message); }
+        const analysis = await analyzeCsvImport({
+            database: getFirestore(),
+            uid: request.auth.uid,
+            rows: batch.rows,
+            accountId: batch.accountId,
+            accountLabel: batch.accountLabel,
+        });
+        return { requestHash: batch.requestHash, ...analysis };
+    },
+);
+
+export const confirmCsvImport = onCall(
+    { region: 'us-central1', cors: ALLOWED_CORS_ORIGINS, timeoutSeconds: 60, maxInstances: 20 },
+    async (request) => {
+        if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesión para importar movimientos.');
+        let batch;
+        try { batch = normalizeCsvImport(request.auth.uid, request.data); }
+        catch (error) { throw new HttpsError('invalid-argument', error.message || 'Lote inválido.'); }
+        try { await assertCsvAccountOwnership({ database: getFirestore(), uid: request.auth.uid, accountId: batch.accountId }); }
+        catch (error) { throw new HttpsError(['permission-denied', 'invalid-argument'].includes(error.code) ? error.code : 'internal', error.message); }
+        try {
+            return await persistCsvImport({ database: getFirestore(), batch, now: Timestamp.now() });
+        } catch (error) {
+            if (error?.code === 'already-exists') throw new HttpsError('already-exists', error.message);
+            throw error;
+        }
+    },
+);
+
+export const listCsvImportBatches = onCall(
+    { region: 'us-central1', cors: ALLOWED_CORS_ORIGINS, timeoutSeconds: 30, maxInstances: 20 },
+    async (request) => {
+        if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+        const snapshot = await getFirestore().collection(`users/${request.auth.uid}/importBatches`)
+            .orderBy('createdAt', 'desc').limit(30).get();
+        return {
+            batches: snapshot.docs.map((doc) => {
+                const batch = doc.data();
+                return {
+                    batchId: doc.id,
+                    fileName: batch.fileName,
+                    accountLabel: batch.accountLabel,
+                    status: batch.status,
+                    rowCount: batch.rowCount,
+                    createdAt: batch.createdAt?.toDate?.().toISOString() || null,
+                    undoneAt: batch.undoneAt?.toDate?.().toISOString() || null,
+                    rows: (batch.rows || []).map((entry) => Object.fromEntries(
+                        Object.entries(entry).filter(([key]) => key !== 'transactionData'),
+                    )),
+                };
+            }),
+        };
+    },
+);
+
+export const undoCsvImportBatch = onCall(
+    { region: 'us-central1', cors: ALLOWED_CORS_ORIGINS, timeoutSeconds: 60, maxInstances: 20 },
+    async (request) => {
+        if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+        try {
+            return await changeCsvImportStatus({
+                database: getFirestore(), uid: request.auth.uid, batchId: request.data?.batchId,
+                action: 'undo', now: Timestamp.now(),
+            });
+        } catch (error) {
+            if (error instanceof TypeError) throw new HttpsError('invalid-argument', error.message);
+            if (['not-found', 'failed-precondition', 'already-exists'].includes(error?.code)) throw new HttpsError(error.code, error.message);
+            throw error;
+        }
+    },
+);
+
+export const restoreCsvImportBatch = onCall(
+    { region: 'us-central1', cors: ALLOWED_CORS_ORIGINS, timeoutSeconds: 60, maxInstances: 20 },
+    async (request) => {
+        if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+        try {
+            return await changeCsvImportStatus({
+                database: getFirestore(), uid: request.auth.uid, batchId: request.data?.batchId,
+                action: 'restore', now: Timestamp.now(),
+            });
+        } catch (error) {
+            if (error instanceof TypeError) throw new HttpsError('invalid-argument', error.message);
+            if (['not-found', 'failed-precondition', 'already-exists'].includes(error?.code)) throw new HttpsError(error.code, error.message);
             throw error;
         }
     },

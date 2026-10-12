@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Dashboard from './Dashboard';
 
 const navigate = vi.fn();
@@ -83,6 +83,7 @@ vi.mock('./TransactionDetailModal', () => ({ default: () => null }));
 
 describe('Dashboard', () => {
     beforeEach(() => navigate.mockClear());
+    afterEach(cleanup);
 
     it('muestra movimientos y ofrece el acceso al registro rápido', async () => {
         render(<Dashboard />);
@@ -93,5 +94,11 @@ describe('Dashboard', () => {
         expect(screen.getByText('Movimientos Recientes')).toBeTruthy();
         fireEvent.click(screen.getByRole('button', { name: /Registrar movimiento/ }));
         expect(navigate).toHaveBeenCalledWith('/add');
+    });
+
+    it('ofrece la importación CSV desde el inicio', () => {
+        render(<Dashboard />);
+        fireEvent.click(screen.getByRole('button', { name: 'Importar movimientos desde CSV' }));
+        expect(navigate).toHaveBeenCalledWith('/transactions/import');
     });
 });

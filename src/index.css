@@ -50,6 +50,13 @@ main:has(.quick-transaction-screen) {
   margin-inline: auto;
 }
 
+main:has(.csv-import-screen) {
+  box-sizing: border-box;
+  width: min(100vw, 64rem);
+  max-width: 64rem;
+  margin-inline: auto;
+}
+
 .quick-transaction-screen,
 .quick-transaction-screen * {
   box-sizing: border-box;

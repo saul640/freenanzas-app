@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytes } from 'firebase/storage';
 import { useAuth } from '../hooks/useAuth';
@@ -50,6 +50,7 @@ const getSaveError = (error) => {
 
 export default function QuickAddTransaction() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentUser } = useAuth();
   const uid = currentUser?.uid;
   const [draft, setDraft] = useState(() => readDraft(uid));
@@ -58,8 +59,12 @@ export default function QuickAddTransaction() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(null);
   const [draftWarning, setDraftWarning] = useState('');
+  const [captureNotice, setCaptureNotice] = useState('');
   const amountRef = useRef(null);
   const alertRef = useRef(null);
+  const captureHandledRef = useRef(false);
+  const captureDraft = location.state?.captureDraft;
+  const captureDisclosure = location.state?.captureDisclosure;
   const [keyboardInset, setKeyboardInset] = useState(0);
   const categories = useMemo(() => draft.type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES, [draft.type]);
   const amountMinor = parseDopToMinorUnits(draft.amount);
@@ -68,8 +73,37 @@ export default function QuickAddTransaction() {
 
   useEffect(() => {
     if (!uid) return;
+    const captured = captureDraft;
+    if (captured?.captureStatus === 'draft' && !captureHandledRef.current) {
+      captureHandledRef.current = true;
+      const existing = readDraft(uid);
+      if (existing.requestStatus === 'pending') {
+        setDraft(existing);
+        setCaptureNotice('Hay un guardado anterior pendiente de confirmar. Conservamos ese intento; revisa el historial antes de iniciar otro.');
+      } else {
+        const hasPriorData = Boolean(existing.amount || existing.note || existing.merchant || existing.receiptPath);
+        const next = {
+          ...createEmptyDraft(),
+          ...captured,
+          ...(hasPriorData ? {
+            amount: existing.amount,
+            note: existing.note,
+            merchant: existing.merchant,
+            receiptPath: existing.receiptPath,
+            date: existing.date,
+            type: existing.type,
+            category: existing.category,
+          } : {}),
+          requestId: newRequestId(),
+          requestStatus: 'editing',
+        };
+        setDraft(next);
+        setCaptureNotice(`${captureDisclosure || 'Captura simulada; completa los campos manualmente.'}${hasPriorData ? ' Conservamos además los campos del borrador anterior.' : ''}`);
+      }
+      return;
+    }
     setDraft(readDraft(uid));
-  }, [uid]);
+  }, [uid, location.key, captureDraft, captureDisclosure]);
 
   useEffect(() => {
     if (!uid) return;
@@ -217,6 +251,7 @@ export default function QuickAddTransaction() {
       </header>
 
       <form id="quick-transaction-form" onSubmit={handleSubmit} noValidate className="mx-auto w-full max-w-xl px-5 sm:px-8 space-y-5" aria-describedby={error ? 'quick-transaction-error' : undefined}>
+        {captureNotice && <div role="status" className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:bg-sky-950/40 dark:text-sky-100">{captureNotice}</div>}
         {draft.requestStatus === 'pending' && (
           <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:bg-amber-950/40 dark:text-amber-100">
             El resultado del último intento aún no se confirma. Reintenta con estos mismos datos para comprobarlo sin duplicar.

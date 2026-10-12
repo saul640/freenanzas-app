@@ -7,8 +7,8 @@
     "node": "22"
   },
   "scripts": {
-    "lint": "node --check index.js && node --check quickTransaction.js",
-    "test": "node --test test-quick-transaction.mjs"
+    "lint": "node --check index.js && node --check quickTransaction.js && node --check csvImports.js",
+    "test": "node --test test-quick-transaction.mjs test-csv-import.mjs"
   },
   "dependencies": {
     "firebase-admin": "^13.10.0",

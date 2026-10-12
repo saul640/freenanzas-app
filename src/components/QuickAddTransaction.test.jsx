@@ -9,7 +9,7 @@ const { saveTransactionMock, navigateMock } = vi.hoisted(() => ({
   navigateMock: vi.fn(),
 }));
 
-vi.mock('react-router-dom', () => ({ useNavigate: () => navigateMock }));
+vi.mock('react-router-dom', () => ({ useNavigate: () => navigateMock, useLocation: () => ({ state: null, key: 'test', pathname: '/add' }) }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => ({ currentUser: { uid: 'fake-user' } }) }));
 vi.mock('../firebase', () => ({ functions: {}, storage: {} }));
 vi.mock('firebase/functions', () => ({ httpsCallable: () => saveTransactionMock }));

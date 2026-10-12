@@ -34,18 +34,24 @@ export default function Transactions() {
         <div className="flex flex-col min-h-screen bg-[#f7f9f8] max-w-md mx-auto relative shadow-2xl overflow-x-hidden pb-32">
             {/* Header */}
             <header className="bg-primary text-black px-6 pt-12 pb-6 rounded-b-[2rem] shadow-sm relative z-10 transition-all duration-300">
-                <div className="flex justify-between items-center mb-0">
+                <div className="flex justify-between items-center gap-2 mb-0">
                     <div>
                         <p className="text-sm font-medium opacity-80">Tu historial</p>
                         <h1 className="text-2xl font-bold tracking-tight mt-1">Movimientos</h1>
                     </div>
-                    <button
-                        onClick={() => canAccessPremium ? navigate('/expenses') : setShowPaywall(true)}
-                        className="flex items-center gap-1.5 bg-black/10 hover:bg-black/20 px-3 py-2 rounded-xl transition-all active:scale-95"
-                    >
-                        <span className="material-symbols-rounded text-lg">{canAccessPremium ? 'download' : 'lock'}</span>
-                        <span className="text-xs font-bold">Exportar</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => navigate('/transactions/import')} className="flex min-h-10 items-center gap-1.5 rounded-xl bg-black/10 px-3 py-2 text-xs font-bold hover:bg-black/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-black">
+                            <span className="material-symbols-rounded text-lg" aria-hidden="true">upload_file</span>
+                            Importar CSV
+                        </button>
+                        <button
+                            onClick={() => canAccessPremium ? navigate('/expenses') : setShowPaywall(true)}
+                            className="flex min-h-10 items-center gap-1.5 rounded-xl bg-black/10 px-3 py-2 transition-all hover:bg-black/20 active:scale-95"
+                        >
+                            <span className="material-symbols-rounded text-lg">{canAccessPremium ? 'download' : 'lock'}</span>
+                            <span className="text-xs font-bold">Exportar</span>
+                        </button>
+                    </div>
                 </div>
             </header>
 

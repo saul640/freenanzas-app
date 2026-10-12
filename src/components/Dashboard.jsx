@@ -303,6 +303,9 @@ export default function Dashboard() {
                 <button onClick={() => navigate('/add')} className="min-h-14 w-full rounded-2xl bg-emerald-700 px-5 py-3 text-left text-white shadow-md transition hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-900 active:scale-[0.99]">
                     <span className="flex items-center gap-3"><span aria-hidden="true" className="material-symbols-rounded rounded-xl bg-white/15 p-2 text-2xl">add</span><span><span className="block font-bold">Registrar movimiento</span><span className="block text-xs text-white/85">Ingreso o gasto · datos esenciales</span></span></span>
                 </button>
+                <button type="button" onClick={() => navigate('/transactions/import')} className="min-h-11 w-full rounded-xl border border-emerald-700 bg-white px-4 py-2 text-left text-sm font-semibold text-emerald-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-900 dark:bg-slate-800 dark:text-emerald-100">
+                    Importar movimientos desde CSV
+                </button>
 
                 {/* Financial Tools Grid */}
                 <div>
