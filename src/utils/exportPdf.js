@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { formatMoney } from './format'
+import { sumTransactionAmounts } from './transactionTotals'
 
 /**
  * Exporta una lista de transacciones a un archivo PDF bien formateado.
@@ -27,12 +28,9 @@ export const exportExpensesToPdf = (transactions, title = 'Reporte de Gastos') =
     doc.text(`Total de transacciones: ${transactions.length}`, 14, 36)
 
     // ─── Summary ───
-    const totalExpense = transactions
-        .filter((tx) => tx.type === 'expense')
-        .reduce((sum, tx) => sum + (tx.amount || 0), 0)
-    const totalIncome = transactions
-        .filter((tx) => tx.type === 'income')
-        .reduce((sum, tx) => sum + (tx.amount || 0), 0)
+    const financialTransactions = transactions.filter((tx) => ['expense', 'income'].includes(tx.type))
+    const totalExpense = sumTransactionAmounts(financialTransactions.filter((tx) => tx.type === 'expense'))
+    const totalIncome = sumTransactionAmounts(financialTransactions.filter((tx) => tx.type === 'income'))
 
     doc.setFontSize(11)
     doc.setTextColor(17, 24, 19)
@@ -41,7 +39,7 @@ export const exportExpensesToPdf = (transactions, title = 'Reporte de Gastos') =
     doc.text(`Balance: RD$ ${formatMoney(totalIncome - totalExpense)}`, 14, 56)
 
     // ─── Table ───
-    const tableData = transactions.map((tx) => {
+    const tableData = financialTransactions.map((tx) => {
         const rawDate = tx.timestamp?.toDate
             ? tx.timestamp.toDate()
             : tx.date

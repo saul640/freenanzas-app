@@ -6,6 +6,7 @@ import { db } from '../firebase';
 import BottomNav from './BottomNav';
 import CategoryDetailModal from './CategoryDetailModal';
 import { getSmartCategoryIcon } from '../utils/smartCategoryIcon';
+import { getTransactionAmountMinor, sumTransactionAmounts } from '../utils/transactionTotals';
 
 // ─── Color mapping: Firestore color id → hex + tailwind ───
 const COLOR_MAP = {
@@ -100,26 +101,26 @@ export default function Analytics() {
 
     // ─── Memoized computations ───
     const { totalIncome, totalExpense, categorySpending } = useMemo(() => {
-        let income = 0;
-        let expense = 0;
+        const expenses = allTransactions.filter((tx) => tx.type === 'expense');
+        const incomes = allTransactions.filter((tx) => tx.type === 'income');
         const catMap = {};
 
         allTransactions.forEach(tx => {
-            if (tx.type === 'income') {
-                income += tx.amount;
-            } else {
-                expense += tx.amount;
-                if (!catMap[tx.category]) {
-                    catMap[tx.category] = { name: tx.category, amount: 0, count: 0 };
+            if (tx.type === 'expense') {
+                const category = tx.category || 'Sin clasificar';
+                if (!catMap[category]) {
+                    catMap[category] = { name: category, amountMinor: 0, count: 0 };
                 }
-                catMap[tx.category].amount += tx.amount;
-                catMap[tx.category].count += 1;
+                catMap[category].amountMinor += getTransactionAmountMinor(tx);
+                catMap[category].count += 1;
             }
         });
 
-        const topCategories = Object.values(catMap).sort((a, b) => b.amount - a.amount);
-        return { totalIncome: income, totalExpense: expense, categorySpending: topCategories };
+        const topCategories = Object.values(catMap).map((cat) => ({ ...cat, amount: cat.amountMinor / 100 })).sort((a, b) => b.amount - a.amount);
+        return { totalIncome: sumTransactionAmounts(incomes), totalExpense: sumTransactionAmounts(expenses), categorySpending: topCategories };
     }, [allTransactions]);
+
+    const unclassifiedExpenseCount = allTransactions.filter((tx) => tx.type === 'expense' && (!tx.category || tx.category === 'Sin clasificar')).length;
 
     const formatMoney = useCallback((amount) => {
         return new Intl.NumberFormat('es-DO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
@@ -298,6 +299,13 @@ export default function Analytics() {
                             {showAllCats ? 'Ver menos' : 'Ver todas'}
                         </button>
                     </div>
+
+                    {unclassifiedExpenseCount > 0 && (
+                        <div role="status" className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                            Hay {unclassifiedExpenseCount} {unclassifiedExpenseCount === 1 ? 'gasto sin clasificar' : 'gastos sin clasificar'}. El total los incluye, pero el desglose por categoría está incompleto.
+                            <button type="button" onClick={() => navigate('/transactions')} className="ml-2 font-bold underline underline-offset-2">Revisar</button>
+                        </div>
+                    )}
 
                     <div className="space-y-3">
                         {categorySpending.length === 0 ? (

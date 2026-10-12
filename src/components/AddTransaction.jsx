@@ -157,7 +157,7 @@ export default function AddTransaction() {
                 } else {
                     setError('No se encontró la transacción o no tienes permisos para editarla.');
                 }
-            } catch (err) {
+            } catch {
                 setError('Error al cargar la transacción para editar.');
             } finally {
                 setLoading(false);
@@ -172,7 +172,11 @@ export default function AddTransaction() {
         const typeCustomCategories = customCategories
             .filter((cat) => cat.type === type)
             .filter((cat) => !normalizedBaseNames.includes(normalizeCategoryName(cat.name)));
-        return [...baseCategories, ...typeCustomCategories];
+        const categories = [...baseCategories, ...typeCustomCategories];
+        if (!categories.some((cat) => cat.name === 'Sin clasificar')) {
+            categories.push({ name: 'Sin clasificar', icon: 'help' });
+        }
+        return categories;
     }, [baseCategories, customCategories, type]);
     const visibleCategories = showAllCats ? mergedCategories : mergedCategories.slice(0, 6);
 
@@ -484,6 +488,9 @@ export default function AddTransaction() {
         const updatedData = {
             type,
             amount: parsedAmount,
+            amountMinor: Math.round(parsedAmount * 100),
+            currency: 'DOP',
+            classificationStatus: category === 'Sin clasificar' ? 'unclassified' : 'classified',
             category,
             date,
             note: note.trim(),

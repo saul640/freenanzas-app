@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Onboarding from './components/Onboarding';
 import Dashboard from './components/Dashboard';
 import AddTransaction from './components/AddTransaction';
+import QuickAddTransaction from './components/QuickAddTransaction';
 import BudgetsGoals from './components/BudgetsGoals';
 import Transactions from './components/Transactions';
 import ExpenseDetail from './components/ExpenseDetail';
@@ -32,7 +33,7 @@ function App() {
               <Route path="/data-deletion" element={<LegalPage policyKey="dataDeletion" />} />
               <Route path="/ai-financial-notice" element={<LegalPage policyKey="aiNotice" />} />
               <Route path="/refunds-cancellation" element={<LegalPage policyKey="refunds" />} />
-              <Route path="/add" element={<PrivateRoute><AddTransaction /></PrivateRoute>} />
+              <Route path="/add" element={<PrivateRoute><QuickAddTransaction /></PrivateRoute>} />
               <Route path="/add/:txId" element={<PrivateRoute><AddTransaction /></PrivateRoute>} />
               <Route path="/budgets" element={<PrivateRoute><BudgetsGoals /></PrivateRoute>} />
               <Route path="/transactions" element={<PrivateRoute><Transactions /></PrivateRoute>} />

@@ -4,6 +4,7 @@ import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
+import { normalizeQuickTransaction, persistQuickTransaction } from './quickTransaction.js';
 
 const STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET || 'freenanzas-app.firebasestorage.app';
 
@@ -660,6 +661,50 @@ export const deleteMyAccountData = onCall(
         } catch (error) {
             console.error('deleteMyAccountData error:', { uid, error });
             throw new HttpsError('internal', 'No pudimos eliminar todos los datos de la cuenta. Contacta soporte.');
+        }
+    },
+);
+
+export const registerQuickTransaction = onCall(
+    {
+        region: 'us-central1',
+        cors: ALLOWED_CORS_ORIGINS,
+        timeoutSeconds: 30,
+        maxInstances: 20,
+    },
+    async (request) => {
+        if (!request.auth?.uid) {
+            throw new HttpsError('unauthenticated', 'Debes iniciar sesión para guardar el movimiento.');
+        }
+
+        let movement;
+        try {
+            movement = normalizeQuickTransaction(request.auth.uid, request.data);
+        } catch (error) {
+            throw new HttpsError('invalid-argument', error.message || 'Datos del movimiento inválidos.');
+        }
+
+        if (movement.receiptPath) {
+            const receipt = getStorage().bucket().file(movement.receiptPath);
+            const [exists] = await receipt.exists();
+            if (!exists) throw new HttpsError('failed-precondition', 'El comprobante no terminó de cargarse. Vuelve a seleccionarlo e inténtalo otra vez.');
+            const [metadata] = await receipt.getMetadata();
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+            if (!allowedTypes.includes(metadata.contentType) || Number(metadata.size) > 10 * 1024 * 1024) {
+                throw new HttpsError('invalid-argument', 'El comprobante debe ser una imagen o PDF de hasta 10 MB.');
+            }
+        }
+
+        try {
+            return await persistQuickTransaction({
+                database: getFirestore(),
+                movement,
+                uid: request.auth.uid,
+                serverTimestamp: () => FieldValue.serverTimestamp(),
+            });
+        } catch (error) {
+            if (error?.code === 'already-exists') throw new HttpsError('already-exists', error.message);
+            throw error;
         }
     },
 );

@@ -7,6 +7,7 @@ import { exportExpensesToPdf } from '../utils/exportPdf';
 import { exportExpensesToExcel } from '../utils/exportExcel';
 import BottomNav from './BottomNav';
 import PaywallModal from './PaywallModal';
+import { sumTransactionAmounts } from '../utils/transactionTotals';
 
 export default function ExpenseDetail() {
     const navigate = useNavigate();
@@ -23,6 +24,7 @@ export default function ExpenseDetail() {
     // ─── Filtered transactions ───
     const filtered = useMemo(() => {
         return transactions.filter((tx) => {
+            if (!['expense', 'income'].includes(tx.type)) return false;
             // Type filter
             if (typeFilter !== 'all' && tx.type !== typeFilter) return false;
 
@@ -37,8 +39,8 @@ export default function ExpenseDetail() {
 
     // ─── Summary ───
     const summary = useMemo(() => {
-        const expense = filtered.filter((tx) => tx.type === 'expense').reduce((s, tx) => s + (tx.amount || 0), 0);
-        const income = filtered.filter((tx) => tx.type === 'income').reduce((s, tx) => s + (tx.amount || 0), 0);
+        const expense = sumTransactionAmounts(filtered.filter((tx) => tx.type === 'expense'));
+        const income = sumTransactionAmounts(filtered.filter((tx) => tx.type === 'income'));
         return { expense, income, balance: income - expense };
     }, [filtered]);
 

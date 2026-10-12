@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { formatMoney } from '../utils/format';
+import { sumTransactionAmounts } from '../utils/transactionTotals';
 
 /**
  * Modal de detalle de categoría — muestra las transacciones filtradas
@@ -26,7 +27,7 @@ export default function CategoryDetailModal({ isOpen, onClose, categoryName, tra
     }, [categoryName, transactions]);
 
     // ─── Resumen ───
-    const total = useMemo(() => filtered.reduce((s, tx) => s + (tx.amount || 0), 0), [filtered]);
+    const total = useMemo(() => sumTransactionAmounts(filtered), [filtered]);
 
     const formatTxDate = (tx) => {
         if (tx.timestamp?.toDate) {

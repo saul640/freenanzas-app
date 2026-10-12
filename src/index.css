@@ -43,6 +43,10 @@ body {
   min-height: 100vh;
 }
 
+main:has(.quick-transaction-screen) {
+  max-width: 48rem;
+}
+
 /* Remove number input spinners */
 input[type='number']::-webkit-inner-spin-button,
 input[type='number']::-webkit-outer-spin-button {

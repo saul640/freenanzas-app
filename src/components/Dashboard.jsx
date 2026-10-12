@@ -9,6 +9,7 @@ import BottomNav from './BottomNav';
 import PaywallModal from './PaywallModal';
 import { formatMoney, formatDate, getCategoryIcon, getCategoryColor } from '../utils/format';
 import TransactionDetailModal from './TransactionDetailModal';
+import { calculateTransactionTotals } from '../utils/transactionTotals';
 
 export default function Dashboard() {
     const navigate = useNavigate();
@@ -18,7 +19,7 @@ export default function Dashboard() {
     const canAccessPremium = isProUser || isTrialUser;
 
     const [transactions, setTransactions] = useState([]);
-    const [balance, setBalance] = useState({ total: 0, income: 0, expense: 0, savings: 0, spendingExpense: 0, available: 0 });
+    const [balance, setBalance] = useState({ total: 0, income: 0, expense: 0, savings: 0, spendingExpense: 0, available: 0, unclassifiedCount: 0 });
     const [showBalance, setShowBalance] = useState(true);
     const [balanceTab, setBalanceTab] = useState('spending');
     const [selectedTx, setSelectedTx] = useState(null);
@@ -38,32 +39,10 @@ export default function Dashboard() {
             orderBy('timestamp', 'desc')
         );
 
-        const SAVINGS_CATEGORIES = ['ahorro', 'ahorro e inversión'];
-        const isSavingsCategory = (cat) => SAVINGS_CATEGORIES.includes((cat || '').toLowerCase());
-
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const txs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setTransactions(txs);
-
-            let income = 0;
-            let expense = 0;
-            let savings = 0;
-            let spendingExpense = 0;
-            txs.forEach(t => {
-                if (t.type === 'income') {
-                    income += t.amount;
-                } else {
-                    expense += t.amount;
-                    if (isSavingsCategory(t.category)) {
-                        savings += t.amount;
-                    } else {
-                        spendingExpense += t.amount;
-                    }
-                }
-            });
-
-            const available = income - spendingExpense - savings;
-            setBalance({ total: income - expense, income, expense, savings, spendingExpense, available });
+            setBalance(calculateTransactionTotals(txs));
         });
 
         return unsubscribe;
@@ -315,21 +294,15 @@ export default function Dashboard() {
                     )}
                 </div>
 
-                {/* Quick Actions */}
-                <div className="grid grid-cols-2 gap-3">
-                    <button onClick={() => { navigate('/add'); }} className="bg-white dark:bg-slate-800 rounded-2xl p-4 flex flex-col items-center gap-2 shadow-sm dark:shadow-indigo-500/10 border border-gray-100 dark:border-slate-700 active:scale-95 hover:-translate-y-1 hover:shadow-md transition-all duration-300">
-                        <div className="w-12 h-12 rounded-full bg-green-50 dark:bg-green-500/10 flex items-center justify-center transition-colors duration-200">
-                            <span className="material-symbols-rounded text-primary dark:text-green-400">arrow_upward</span>
-                        </div>
-                        <span className="text-sm font-semibold text-slate-900 dark:text-indigo-200 transition-colors duration-200">Ingresos</span>
-                    </button>
-                    <button onClick={() => { navigate('/add'); }} className="bg-white dark:bg-slate-800 rounded-2xl p-4 flex flex-col items-center gap-2 shadow-sm dark:shadow-indigo-500/10 border border-gray-100 dark:border-slate-700 active:scale-95 hover:-translate-y-1 hover:shadow-md transition-all duration-300">
-                        <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-500/10 flex items-center justify-center transition-colors duration-200">
-                            <span className="material-symbols-rounded text-red-500 dark:text-red-400">arrow_downward</span>
-                        </div>
-                        <span className="text-sm font-semibold text-slate-900 dark:text-indigo-200 transition-colors duration-200">Gastos</span>
-                    </button>
-                </div>
+                {balance.unclassifiedCount > 0 && (
+                    <div role="status" className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100">
+                        <p className="text-sm font-semibold">{balance.unclassifiedCount} {balance.unclassifiedCount === 1 ? 'movimiento está' : 'movimientos están'} sin clasificar.</p>
+                        <button type="button" onClick={() => navigate('/transactions')} className="mt-2 min-h-10 rounded-lg px-2 text-sm font-bold underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-900">Revisar y clasificar</button>
+                    </div>
+                )}
+                <button onClick={() => navigate('/add')} className="min-h-14 w-full rounded-2xl bg-emerald-700 px-5 py-3 text-left text-white shadow-md transition hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-900 active:scale-[0.99]">
+                    <span className="flex items-center gap-3"><span aria-hidden="true" className="material-symbols-rounded rounded-xl bg-white/15 p-2 text-2xl">add</span><span><span className="block font-bold">Registrar movimiento</span><span className="block text-xs text-white/85">Ingreso o gasto · datos esenciales</span></span></span>
+                </button>
 
                 {/* Financial Tools Grid */}
                 <div>
@@ -444,7 +417,7 @@ export default function Dashboard() {
                 {/* Recent Transactions */}
                 <section>
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-bold">Gastos Recientes</h3>
+                        <h3 className="text-lg font-bold">Movimientos Recientes</h3>
                         <button onClick={() => navigate('/transactions')} className="text-primary text-sm font-medium hover:underline transition-all">Ver todo</button>
                     </div>
 
@@ -469,7 +442,7 @@ export default function Dashboard() {
                                         </div>
                                         <div>
                                             <p className="font-semibold text-sm dark:text-slate-300">{tx.note || tx.category}</p>
-                                            <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(tx.timestamp)}</p>
+                                            <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(tx.date ? new Date(`${tx.date}T12:00:00`) : tx.timestamp)}</p>
                                         </div>
                                     </div>
                                     <span className={`font-bold text-sm ${tx.type === 'expense' ? 'text-gray-800 dark:text-zinc-100' : 'text-primary dark:text-green-400'}`}>

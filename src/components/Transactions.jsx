@@ -95,7 +95,7 @@ export default function Transactions() {
                                         </div>
                                         <div className="min-w-0">
                                             <p className="font-semibold text-sm truncate">{tx.note || tx.description || tx.category}</p>
-                                            <p className="text-xs text-gray-400 mt-0.5">{formatDate(tx.timestamp || tx.createdAt)}</p>
+                                            <p className="text-xs text-gray-400 mt-0.5">{formatDate(tx.date ? new Date(`${tx.date}T12:00:00`) : tx.timestamp || tx.createdAt)}</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0 ml-3">

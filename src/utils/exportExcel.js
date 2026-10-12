@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { getTransactionAmountMinor } from './transactionTotals';
 
 /**
  * Exporta transacciones a un archivo Excel profesional con estilos, formato condicional,
@@ -48,16 +49,19 @@ export const exportExpensesToExcel = async (transactions, sheetName = 'Detalle')
     dateCell.font = { size: 10, color: { argb: '9CA3AF' } };
 
     // Calculate totals
-    let totalIncome = 0, totalExpense = 0;
+    const financialTransactions = transactions.filter((tx) => ['expense', 'income'].includes(tx.type));
+    let totalIncomeMinor = 0, totalExpenseMinor = 0;
     const catMap = {};
-    transactions.forEach(tx => {
-        if (tx.type === 'income') totalIncome += tx.amount;
+    financialTransactions.forEach(tx => {
+        if (tx.type === 'income') totalIncomeMinor += getTransactionAmountMinor(tx);
         else {
-            totalExpense += tx.amount;
-            const cat = tx.category || 'Otros';
-            catMap[cat] = (catMap[cat] || 0) + tx.amount;
+            totalExpenseMinor += getTransactionAmountMinor(tx);
+            const cat = tx.category || 'Sin clasificar';
+            catMap[cat] = (catMap[cat] || 0) + getTransactionAmountMinor(tx);
         }
     });
+    const totalIncome = totalIncomeMinor / 100;
+    const totalExpense = totalExpenseMinor / 100;
     const balance = totalIncome - totalExpense;
 
     // Summary cards
@@ -89,7 +93,7 @@ export const exportExpensesToExcel = async (transactions, sheetName = 'Detalle')
         if (i > 0) { cell.font = headerFont; cell.fill = headerFill; cell.alignment = headerAlignment; }
     });
 
-    const sortedCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
+    const sortedCats = Object.entries(catMap).map(([category, amountMinor]) => [category, amountMinor / 100]).sort((a, b) => b[1] - a[1]);
     sortedCats.forEach(([cat, amount], i) => {
         const row = catTableHeader + 1 + i;
         const pct = totalExpense > 0 ? ((amount / totalExpense) * 100).toFixed(1) : '0.0';

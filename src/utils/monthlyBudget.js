@@ -1,3 +1,5 @@
+import { getTransactionCalendarParts } from './date.js';
+
 const toAmount = (value) => {
     const amount = Number(value);
     return Number.isFinite(amount) ? amount : 0;
@@ -8,14 +10,8 @@ export const getTransactionMonthKey = (transaction) => {
         return transaction.monthKey;
     }
 
-    const value = transaction?.timestamp?.toDate
-        ? transaction.timestamp.toDate()
-        : transaction?.date
-            ? new Date(`${transaction.date}T12:00:00`)
-            : null;
-
-    if (!value || Number.isNaN(value.getTime())) return null;
-    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}`;
+    const parts = getTransactionCalendarParts(transaction);
+    return parts ? `${parts.year}-${String(parts.month + 1).padStart(2, '0')}` : null;
 };
 
 export const getMonthlyExpenseTransactions = (transactions, monthKey) => (

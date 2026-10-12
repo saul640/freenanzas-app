@@ -50,9 +50,9 @@ export default function TransactionDetailModal({ transaction, creditCards, onClo
     // Format the full date/time
     const fullDate = (() => {
         try {
-            const d = tx.timestamp?.toDate ? tx.timestamp.toDate()
-                : tx.createdAt instanceof Date ? tx.createdAt
-                    : tx.date ? new Date(tx.date + 'T12:00:00')
+            const d = tx.date ? new Date(tx.date + 'T12:00:00')
+                : tx.timestamp?.toDate ? tx.timestamp.toDate()
+                    : tx.createdAt instanceof Date ? tx.createdAt
                         : null;
             if (!d) return 'Sin fecha';
             return d.toLocaleDateString('es-DO', {

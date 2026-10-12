@@ -7,21 +7,30 @@ import { db } from '../firebase';
 import { analyzeSpending, analyzeSpendingLocal, analyzeLoanStrategy, analyzeLoanStrategyLocal } from '../lib/gemini';
 import BottomNav from './BottomNav';
 import PaywallModal from './PaywallModal';
+import { getTransactionAmountMinor, sumTransactionAmounts } from '../utils/transactionTotals';
+import { getTransactionCalendarParts } from '../utils/date';
 
 const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const CURRENT_MONTH_KEY = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+const readCachedJSON = (key) => {
+    try {
+        return typeof sessionStorage === 'undefined' ? null : JSON.parse(sessionStorage.getItem(key) || 'null');
+    } catch (parseError) {
+        console.warn(`No se pudo leer el cache de ${key}:`, parseError);
+        return null;
+    }
+};
 
 export default function AIAdvisor() {
     const navigate = useNavigate();
-    const { currentUser, userData, isProUser: isPro } = useAuth();
+    const { currentUser, isProUser: isPro } = useAuth();
     const { loans } = useLoans(currentUser?.uid);
 
     const [transactions, setTransactions] = useState([]);
-    const [insights, setInsights] = useState(null);
-    const [debtPlan, setDebtPlan] = useState(null);
+    const [insights, setInsights] = useState(() => readCachedJSON('aiInsights'));
+    const [debtPlan, setDebtPlan] = useState(() => readCachedJSON('aiDebtPlan'));
     const [loading, setLoading] = useState(false);
     const [loadingDebt, setLoadingDebt] = useState(false);
-    const [error, setError] = useState(null);
     const [budgetLimit, setBudgetLimit] = useState(0);
     const [showPaywall, setShowPaywall] = useState(false);
 
@@ -48,28 +57,29 @@ export default function AIAdvisor() {
         const now = new Date();
         const thisMonth = now.getMonth();
         const thisYear = now.getFullYear();
-        let income = 0, expense = 0;
+        const incomes = [];
+        const expenses = [];
         const catMap = {};
         transactions.forEach(tx => {
-            const txDate = tx.timestamp?.toDate ? tx.timestamp.toDate() : tx.date ? new Date(tx.date) : null;
-            if (!txDate || txDate.getMonth() !== thisMonth || txDate.getFullYear() !== thisYear) return;
-            if (tx.type === 'income') income += tx.amount;
-            else {
-                expense += tx.amount;
-                const cat = tx.category || 'Otros';
-                if (!catMap[cat]) catMap[cat] = { name: cat, amount: 0, count: 0 };
-                catMap[cat].amount += tx.amount;
+            const txDate = getTransactionCalendarParts(tx);
+            if (!txDate || txDate.month !== thisMonth || txDate.year !== thisYear) return;
+            if (tx.type === 'income') incomes.push(tx);
+            else if (tx.type === 'expense') {
+                expenses.push(tx);
+                const cat = tx.category || 'Sin clasificar';
+                if (!catMap[cat]) catMap[cat] = { name: cat, amountMinor: 0, count: 0 };
+                catMap[cat].amountMinor += getTransactionAmountMinor(tx);
                 catMap[cat].count++;
             }
         });
-        return { totalIncome: income, totalExpense: expense, categories: Object.values(catMap).sort((a, b) => b.amount - a.amount) };
+        const categories = Object.values(catMap).map((category) => ({ ...category, amount: category.amountMinor / 100 })).sort((a, b) => b.amount - a.amount);
+        return { totalIncome: sumTransactionAmounts(incomes), totalExpense: sumTransactionAmounts(expenses), categories };
     }, [transactions]);
 
     const formatMoney = useCallback(n => new Intl.NumberFormat('es-DO').format(n), []);
 
     const handleAnalyze = async () => {
         setLoading(true);
-        setError(null);
         const monthName = MONTH_NAMES[new Date().getMonth()];
         try {
             if (!isPro) {
@@ -112,14 +122,6 @@ export default function AIAdvisor() {
         }
         setLoadingDebt(false);
     };
-
-    // Load cached insights
-    useEffect(() => {
-        const cached = sessionStorage.getItem('aiInsights');
-        if (cached) { try { setInsights(JSON.parse(cached)); } catch { } }
-        const cachedDebt = sessionStorage.getItem('aiDebtPlan');
-        if (cachedDebt) { try { setDebtPlan(JSON.parse(cachedDebt)); } catch { } }
-    }, []);
 
     return (
         <div className="flex flex-col min-h-screen bg-[#f5f7f6]">

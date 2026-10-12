@@ -14,6 +14,7 @@ import BottomNav from './BottomNav';
 import PaywallModal from './PaywallModal';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { sumTransactionAmounts, getTransactionAmountMinor } from '../utils/transactionTotals';
 
 const DEFAULT_CATEGORIES = ['Comida', 'Transporte', 'Servicios', 'Renta', 'Ocio', 'Salud', 'Educación', 'Otros'];
 const CURRENT_MONTH_KEY = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
@@ -82,7 +83,8 @@ export default function MonthlyBudget() {
     }, [currentUser, monthKey]);
 
     const spendingTransactions = useMemo(() => transactions.filter(tx => !isSavingsTransaction(tx)), [transactions]);
-    const totalSpent = useMemo(() => spendingTransactions.reduce((s, t) => s + (t.amount || 0), 0), [spendingTransactions]);
+    const totalSpent = useMemo(() => sumTransactionAmounts(spendingTransactions), [spendingTransactions]);
+    const unclassifiedExpenseCount = useMemo(() => spendingTransactions.filter((tx) => !tx.category || tx.category === 'Sin clasificar').length, [spendingTransactions]);
 
     // ─── Income tracking (for savings calc) ───
     const [allTx, setAllTx] = useState([]);
@@ -106,7 +108,7 @@ export default function MonthlyBudget() {
         const now = new Date();
         return allTx.filter(tx => {
             if (tx.type !== 'income') return false;
-            const d = tx.timestamp?.toDate ? tx.timestamp.toDate() : tx.date ? new Date(tx.date) : null;
+            const d = tx.date ? new Date(`${tx.date}T12:00:00`) : tx.timestamp?.toDate ? tx.timestamp.toDate() : null;
             return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
         }).reduce((s, t) => s + (t.amount || 0), 0);
     }, [allTx]);
@@ -134,10 +136,10 @@ export default function MonthlyBudget() {
     const spendingByCategory = useMemo(() => {
         const map = {};
         spendingTransactions.forEach(tx => {
-            const cat = tx.category || 'Otros';
-            map[cat] = (map[cat] || 0) + (tx.amount || 0);
+            const cat = tx.category || 'Sin clasificar';
+            map[cat] = (map[cat] || 0) + getTransactionAmountMinor(tx);
         });
-        return map;
+        return Object.fromEntries(Object.entries(map).map(([category, amountMinor]) => [category, amountMinor / 100]));
     }, [spendingTransactions]);
 
     const allCategories = useMemo(() => {
@@ -240,7 +242,7 @@ export default function MonthlyBudget() {
         // Block 1: Ingresos
         const currentMonthIncomeTxs = allTx.filter(tx => {
             if (tx.type !== 'income') return false;
-            const d = tx.timestamp?.toDate ? tx.timestamp.toDate() : tx.date ? new Date(tx.date) : null;
+            const d = tx.date ? new Date(`${tx.date}T12:00:00`) : tx.timestamp?.toDate ? tx.timestamp.toDate() : null;
             return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
         });
 
@@ -369,6 +371,13 @@ export default function MonthlyBudget() {
                         >
                             <span className="material-symbols-rounded text-base">close</span>
                         </button>
+                    </div>
+                )}
+
+                {unclassifiedExpenseCount > 0 && (
+                    <div role="status" className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                        Hay {unclassifiedExpenseCount} {unclassifiedExpenseCount === 1 ? 'gasto sin clasificar' : 'gastos sin clasificar'}. El total general los incluye; el desglose por categoría y sus límites están incompletos.
+                        <button type="button" onClick={() => navigate('/transactions')} className="ml-2 font-bold underline underline-offset-2">Revisar movimientos</button>
                     </div>
                 )}
 
