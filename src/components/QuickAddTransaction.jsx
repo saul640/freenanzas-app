@@ -250,6 +250,10 @@ export default function QuickAddTransaction() {
         </div>
       </header>
 
+      <div className="mx-auto w-full max-w-xl px-5 sm:px-8 pb-2 text-right">
+        <a href="/guia/#registro-movimientos" className="min-h-11 inline-flex items-center rounded-xl px-2 text-sm font-semibold text-emerald-800 underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800 dark:text-emerald-200">Ayuda de este módulo</a>
+      </div>
+
       <form id="quick-transaction-form" onSubmit={handleSubmit} noValidate className="mx-auto w-full max-w-xl px-5 sm:px-8 space-y-5" aria-describedby={error ? 'quick-transaction-error' : undefined}>
         {captureNotice && <div role="status" className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:bg-sky-950/40 dark:text-sky-100">{captureNotice}</div>}
         {draft.requestStatus === 'pending' && (

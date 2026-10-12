@@ -35,6 +35,7 @@ function App() {
               <Route path="/ai-financial-notice" element={<LegalPage policyKey="aiNotice" />} />
               <Route path="/refunds-cancellation" element={<LegalPage policyKey="refunds" />} />
               <Route path="/add" element={<PrivateRoute><QuickAddTransaction /></PrivateRoute>} />
+              <Route path="/add-advanced" element={<PrivateRoute><AddTransaction /></PrivateRoute>} />
               <Route path="/add/:txId" element={<PrivateRoute><AddTransaction /></PrivateRoute>} />
               <Route path="/budgets" element={<PrivateRoute><BudgetsGoals /></PrivateRoute>} />
               <Route path="/transactions" element={<PrivateRoute><Transactions /></PrivateRoute>} />

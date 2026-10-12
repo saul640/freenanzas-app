@@ -2,9 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Manual de Usuario - Freenanzas APP</title>
-  <!-- Modern Fonts from Google Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Guía de Freenanzas: empieza paso a paso o abre directamente la tarea que necesitas." />
+  <title>Guía de ayuda - Freenanzas</title>
   
   <style>
     /* CSS Variables matching brand identity */
@@ -31,19 +31,15 @@
       
       --card-shadow: 0 6px 18px rgba(31, 41, 51, 0.06);
       --card-radius: 16px;
-      --font-primary: 'Inter', sans-serif;
-      --font-secondary: 'Poppins', sans-serif;
+      --font-primary: Arial, Helvetica, sans-serif;
+      --font-secondary: Arial, Helvetica, sans-serif;
     }
 
     /* Print and Page-setup */
     @page {
       size: letter;
       margin: 1.6cm 1.6cm 2cm 1.6cm;
-    }
-    
-    @page :first {
-      margin-top: 0px;
-      margin-bottom: 0px;
+      @bottom-center { content: "Freenanzas · Guía · " counter(page); color: #6B7280; font-size: 9pt; }
     }
     
     @media print {
@@ -61,9 +57,16 @@
         page-break-inside: avoid;
         break-inside: avoid;
       }
-      header, footer {
+      header, footer, .guide-toolbar {
         display: none;
       }
+      .guide-toolbar { display: none !important; }
+      .guide-hero { display: block; page-break-after: always; break-after: page; }
+      .journey-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .quick-grid { display: block; columns: 2; column-gap: 12px; }
+      .quick-card { display: inline-block; width: 100%; margin: 0 0 8px; break-inside: avoid; page-break-inside: avoid; }
+      .quick-card::after { content: "Pág. " target-counter(attr(href), page); display: block; margin-top: 6px; color: var(--gray-medium); font-size: 11px; }
+      .document-container { box-shadow: none; }
     }
 
     /* Global reset and baseline styling */
@@ -80,6 +83,43 @@
       color: var(--charcoal);
       background-color: var(--gray-bg);
       padding: 20px;
+    }
+
+    html { scroll-behavior: smooth; scroll-padding-top: 92px; }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    a { color: #155e50; text-underline-offset: 3px; }
+    a:focus-visible { outline: 3px solid #155e50; outline-offset: 3px; border-radius: 4px; }
+    [id] { scroll-margin-top: 92px; }
+
+    .guide-toolbar { position: sticky; top: 0; z-index: 5; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; margin: -24px 0 24px; background: rgba(255,255,255,.97); border-bottom: 1px solid var(--gray-light); }
+    .guide-toolbar a { font-weight: 700; }
+    .guide-toolbar-links { display: flex; flex-wrap: wrap; gap: 16px; }
+    .guide-hero { padding: 8px 0 28px; }
+    .guide-hero h1 { font-size: clamp(28px, 5vw, 40px); margin: 0 0 8px; }
+    .guide-hero > p { max-width: 70ch; }
+    .journey-grid, .quick-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .journey-card, .quick-card { display: block; padding: 16px; border: 1px solid #d1e6df; border-radius: 14px; background: #f7fcfa; color: var(--charcoal); text-decoration: none; }
+    .journey-card:hover, .quick-card:hover { border-color: var(--primary-teal-dark); background: #edf8f4; }
+    .journey-card strong, .quick-card strong { display: block; margin-bottom: 4px; color: var(--primary-teal-dark); }
+    .journey-card span, .quick-card span { display: block; font-size: 14px; line-height: 1.45; }
+    .guide-hero h2 { margin-top: 28px; }
+    .start-steps { padding-left: 24px; }
+    .start-steps li { margin-bottom: 8px; }
+    .breadcrumbs { margin: 0 0 8px; font-size: 13px; color: var(--gray-medium); }
+    .breadcrumbs a, .back-index { font-weight: 700; }
+    .back-index { display: inline-block; margin: 12px 0 20px; font-size: 13px; }
+    .task-summary { padding: 12px 16px; border-left: 4px solid var(--primary-teal); background: var(--gray-light); border-radius: 0 10px 10px 0; }
+
+    @media (max-width: 620px) {
+      body { padding: 0; font-size: 16px; }
+      .document-container { border-radius: 0; padding: 20px 16px 32px; box-shadow: none; }
+      .guide-toolbar { margin: -20px -16px 20px; padding: 12px 16px; }
+      .guide-toolbar { align-items: flex-start; flex-direction: column; }
+      .guide-toolbar-links { gap: 10px 16px; }
+      .journey-grid, .quick-grid { grid-template-columns: 1fr; }
+      .feature-image-container { flex-basis: 100%; }
+      .feature-text { min-width: 0; }
+      table { display: block; max-width: 100%; overflow-x: auto; box-sizing: border-box; }
     }
 
     /* Main Container (A4 / Letter feel) */
@@ -414,53 +454,55 @@
 <body>
 
 <div class="document-container">
+  <div class="guide-toolbar">
+    <a href="#empezar">Guía de Freenanzas</a>
+    <nav class="guide-toolbar-links" aria-label="Rutas principales">
+      <a href="#empezar">Empezar</a>
+      <a href="#consulta">Consulta rápida</a>
+      <a href="/manual_usuario_app.pdf">Descargar PDF</a>
+      <a href="https://freenanzas-app.web.app/">Abrir Freenanzas</a>
+    </nav>
+  </div>
 
-  <!-- PORTADA -->
-  <div class="cover-page">
-    <div class="cover-logo-container">
-      <img src="screenshots_manual/01_inicio.png" class="cover-logo-img" alt="Logo Onboarding Freenanzas" />
+  <section class="guide-hero" aria-labelledby="guide-title">
+    <h1 id="guide-title">¿Qué necesitas hacer?</h1>
+    <p>Usa la ruta inicial para conocer lo esencial o abre directamente el módulo de tu consulta. No necesitas leer la guía completa.</p>
+    <div class="journey-grid" aria-label="Elige cómo usar la guía">
+      <a class="journey-card" href="#empezar"><strong>Empezar</strong><span>Inicia sesión, llega a Inicio y realiza tu primer registro.</span></a>
+      <a class="journey-card" href="#consulta"><strong>Consulta rápida</strong><span>Abre el tema que necesitas y sigue sus pasos.</span></a>
     </div>
-    <h1 class="cover-title">Manual de Usuario de <span>Freenanzas APP</span></h1>
-    <p class="cover-subtitle">Gestión inteligente de finanzas y libertad financiera</p>
-    
-    <div class="cover-meta">
-      <strong>Versión:</strong> 1.0 (Oficial)<br />
-      <strong>Fecha:</strong> Junio de 2026<br />
-      <strong>Localización:</strong> República Dominicana (RD$)<br />
-      <strong>Branding:</strong> Línea Gráfica 3D Suave (Menta/Teal/Rosado)
+    <h2 id="empezar">Empezar</h2>
+    <ol class="start-steps">
+      <li><a href="https://freenanzas-app.web.app/">Abre Freenanzas</a> e inicia sesión o crea tu cuenta.</li>
+      <li>Si es tu primer acceso, completa la introducción de bienvenida y continúa a Inicio. <a href="#3-primer-acceso">Ver el primer acceso</a>.</li>
+      <li>Para registrar una operación, abre <a href="#registro-movimientos">Registrar movimiento</a>. Para otra tarea, elige un módulo en <a href="#consulta">Consulta rápida</a>.</li>
+    </ol>
+    <h2 id="consulta">Consulta rápida</h2>
+    <p>Selecciona una tarea para ir directamente a sus instrucciones.</p>
+    <div class="quick-grid">
+      <a class="quick-card" href="#4-inicio-registro"><strong>Iniciar sesión o crear cuenta</strong><span>Acceso con Google o correo.</span></a>
+      <a class="quick-card" href="#5-pantalla-principal"><strong>Entender Inicio</strong><span>Consultar disponible, ahorros y accesos.</span></a>
+      <a class="quick-card" href="#registro-movimientos"><strong>Registrar ingreso o gasto</strong><span>Usar el formulario rápido y guardar el movimiento.</span></a>
+      <a class="quick-card" href="#importar-csv"><strong>Importar movimientos CSV</strong><span>Elegir archivo, revisar filas y confirmar el lote.</span></a>
+      <a class="quick-card" href="#movimientos-historial"><strong>Consultar movimientos y exportar</strong><span>Ver el historial, filtrar o exportar un informe.</span></a>
+      <a class="quick-card" href="#presupuestos-metas"><strong>Consultar análisis y presupuesto</strong><span>Revisar movimientos, límites y ahorro del periodo.</span></a>
+      <a class="quick-card" href="#filtro-ia"><strong>Usar Filtro IA</strong><span>Evaluar una compra desde Herramientas Financieras.</span></a>
+      <a class="quick-card" href="#escaneo-recibo"><strong>Escanear un recibo</strong><span>Revisar los datos propuestos en el formulario detallado.</span></a>
+      <a class="quick-card" href="#tarjetas-credito"><strong>Gestionar tarjetas</strong><span>Agregar una tarjeta y revisar su información.</span></a>
+      <a class="quick-card" href="#prestamos"><strong>Gestionar préstamos</strong><span>Registrar y revisar deudas.</span></a>
+      <a class="quick-card" href="#gastos-recurrentes"><strong>Revisar gastos recurrentes</strong><span>Consultar pagos recurrentes y sus estados.</span></a>
+      <a class="quick-card" href="#asesor-ia"><strong>Consultar el Asesor IA</strong><span>Ver análisis disponibles en tu cuenta.</span></a>
+      <a class="quick-card" href="#configuracion-usuario"><strong>Actualizar el perfil</strong><span>Revisar configuración, seguridad y suscripción.</span></a>
+      <a class="quick-card" href="#11-solucion-problemas"><strong>Resolver un problema</strong><span>Seguir pasos para recuperar el acceso o corregir un error.</span></a>
+      <a class="quick-card" href="#13-soporte"><strong>Contactar soporte</strong><span>Consultar el canal de ayuda que muestra la app.</span></a>
     </div>
-  </div>
-
-  <!-- HEADER DE PÁGINA -->
-  <div class="doc-header-brand">
-    <span class="logo-text">🐷 Freenanzas APP</span>
-    <span class="tagline">Manual del Usuario - Versión 1.0</span>
-  </div>
-
-  <!-- ÍNDICE -->
-  <div class="page-break no-break" style="page-break-after: always; break-after: page;">
-    <h2>Índice General</h2>
-    <ul class="toc-list" style="margin-top: 20px;">
-      <li><a href="#1-introduccion">1. Introducción</a> <span>Pág. 3</span></li>
-      <li><a href="#2-requisitos">2. Requisitos para usar la aplicación</a> <span>Pág. 3</span></li>
-      <li><a href="#3-primer-acceso">3. Primer acceso</a> <span>Pág. 4</span></li>
-      <li><a href="#4-inicio-registro">4. Inicio de sesión y registro</a> <span>Pág. 4</span></li>
-      <li><a href="#5-pantalla-principal">5. Pantalla principal</a> <span>Pág. 5</span></li>
-      <li><a href="#6-navegacion-general">6. Navegación general</a> <span>Pág. 5</span></li>
-      <li><a href="#7-funcionalidades">7. Funcionalidades principales</a> <span>Pág. 6</span></li>
-      <li><a href="#8-flujos-paso-a-paso">8. Flujos paso a paso</a> <span>Pág. 7</span></li>
-      <li><a href="#9-configuracion">9. Configuración del usuario</a> <span>Pág. 9</span></li>
-      <li><a href="#10-faq">10. Preguntas frecuentes</a> <span>Pág. 9</span></li>
-      <li><a href="#11-solucion-problemas">11. Solución de problemas</a> <span>Pág. 10</span></li>
-      <li><a href="#12-glosario">12. Glosario</a> <span>Pág. 10</span></li>
-      <li><a href="#13-soporte">13. Soporte</a> <span>Pág. 11</span></li>
-      <li><a href="#14-anexos">14. Anexos</a> <span>Pág. 11</span></li>
-    </ul>
-  </div>
+    <p class="callout callout-note">Las capturas ilustran pantallas de la app. Los nombres de módulos y pasos se mantienen alineados con las funciones disponibles.</p>
+  </section>
 
   <!-- 1. INTRODUCCIÓN -->
   <div class="no-break" id="1-introduccion">
-    <h2>1. Introducción</h2>
+      <nav class="breadcrumbs" aria-label="Ruta actual"><a href="#consulta">Consulta rápida</a> › Introducción</nav>
+      <h2>1. Introducción</h2>
     <div class="welcome-section">
       <p>¡Hola! Te damos la más cálida bienvenida a <strong>Freenanzas APP</strong>, tu nuevo planificador financiero personal. Sabemos que gestionar el dinero puede parecer complicado. Por eso hemos diseñado una aplicación <strong>amigable, simple y optimista</strong> para ayudarte a tomar el control de tus finanzas personales sin estrés.</p>
       
@@ -474,33 +516,34 @@
 
   <!-- 2. REQUISITOS PARA USAR LA APLICACIÓN -->
   <div class="no-break" id="2-requisitos">
+    <nav class="breadcrumbs" aria-label="Ruta actual"><a href="#consulta">Consulta rápida</a> › Requisitos</nav>
     <h2>2. Requisitos para usar la aplicación</h2>
     <p>Para garantizar el correcto funcionamiento de Freenanzas APP en tu dispositivo móvil o computadora, asegúrate de cumplir con los siguientes requisitos:</p>
     <ul>
       <li><strong>Navegador Web:</strong> Google Chrome, Apple Safari, Mozilla Firefox o Microsoft Edge actualizados a su última versión estable.</li>
-      <li><strong>Cámara de fotos:</strong> Resolución mínima de 5MP con autoenfoque (esencial para el escaneo de facturas por IA).</li>
       <li><strong>Conexión a Internet:</strong> Conexión móvil activa de datos (3G/4G/5G) o Wi-Fi estable para realizar consultas y procesar recibos.</li>
       <li><strong>Registro previo:</strong> Una cuenta activa de correo electrónico o una cuenta Google válida.</li>
-      <li><strong>Permisos del Sistema:</strong> Dar permiso de uso de Cámara y almacenamiento al abrir el escáner de facturas.</li>
+      <li><strong>Comprobantes:</strong> Puedes adjuntar una imagen o PDF de forma opcional al registrar; el formulario no requiere cámara.</li>
     </ul>
   </div>
 
   <!-- 3. PRIMER ACCESO -->
   <div class="page-break no-break" id="3-primer-acceso">
+    <nav class="breadcrumbs" aria-label="Ruta actual"><a href="#consulta">Consulta rápida</a> › Primer acceso</nav>
     <h2>3. Primer acceso</h2>
     <div class="feature-row">
       <div class="feature-text">
-        <p>Al abrir la aplicación por primera vez, verás el asistente de inducción u **onboarding**. Este te guiará en tres simples diapositivas sobre los tres pilares de Freenanzas:</p>
+        <p>Al abrir la aplicación por primera vez, verás el asistente de inducción u <strong>onboarding</strong>. Este te guiará en tres simples diapositivas sobre los tres pilares de Freenanzas:</p>
         <ol>
           <li><strong>El dinero bajo control:</strong> Qué es el balance disponible y cómo te ayuda a gastar con tranquilidad.</li>
-          <li><strong>Clasificación Inteligente (Regla 50/30/20):</strong> Distribuir tus ingresos entre necesidades, gustos y ahorro protegido.</li>
-          <li><strong>Metas financieras tangibles:</strong> Cómo definir tus metas y avanzar paso a paso.</li>
+          <li><strong>Presupuestos:</strong> La introducción presenta la regla 50/30/20 como referencia.</li>
+          <li><strong>Ahorro:</strong> La tercera pantalla presenta el ahorro como una meta personal.</li>
         </ol>
         <p>Desliza lateralmente para navegar por las pantallas de bienvenida hasta llegar al botón final <strong>"Comenzar"</strong>.</p>
       </div>
       <div class="feature-image-container">
         <div class="phone-mockup">
-          <img src="screenshots_manual/01_inicio.png" alt="Bienvenida Freenanzas" />
+          <img src="../docs/images/01-bienvenida.png" alt="Pantalla de bienvenida de Freenanzas" />
         </div>
       </div>
     </div>
@@ -508,11 +551,12 @@
 
   <!-- 4. INICIO DE SESIÓN Y REGISTRO -->
   <div class="page-break no-break" id="4-inicio-registro">
+    <nav class="breadcrumbs" aria-label="Ruta actual"><a href="#consulta">Consulta rápida</a> › Acceso</nav>
     <h2>4. Inicio de sesión y registro</h2>
     <div class="feature-row">
       <div class="feature-image-container">
         <div class="phone-mockup">
-          <img src="screenshots_manual/02_login.png" alt="Acceso Freenanzas" />
+          <img src="../docs/images/02-acceso.png" alt="Pantalla de acceso a Freenanzas" />
         </div>
       </div>
       <div class="feature-text">
@@ -534,6 +578,7 @@
 
   <!-- 5. PANTALLA PRINCIPAL -->
   <div class="page-break no-break" id="5-pantalla-principal">
+    <nav class="breadcrumbs" aria-label="Ruta actual"><a href="#consulta">Consulta rápida</a> › Inicio</nav>
     <h2>5. Pantalla principal</h2>
     <div class="feature-row">
       <div class="feature-text">
@@ -547,7 +592,7 @@
       </div>
       <div class="feature-image-container">
         <div class="phone-mockup">
-          <img src="screenshots_manual/03_dashboard.png" alt="Dashboard Freenanzas" />
+          <img src="../docs/images/03-inicio-dashboard.png" alt="Pantalla Inicio de Freenanzas" />
         </div>
       </div>
     </div>
@@ -555,11 +600,12 @@
 
   <!-- 6. NAVEGACIÓN GENERAL -->
   <div class="page-break no-break" id="6-navegacion-general">
+    <nav class="breadcrumbs" aria-label="Ruta actual"><a href="#consulta">Consulta rápida</a> › Navegación</nav>
     <h2>6. Navegación general</h2>
     <div class="feature-row">
       <div class="feature-image-container">
         <div class="phone-mockup">
-          <img src="screenshots_manual/04_navegacion.png" alt="Menú Navegación" />
+          <img src="../docs/images/04-menu-navegacion.png" alt="Navegación de Freenanzas" />
         </div>
       </div>
       <div class="feature-text">
@@ -582,12 +628,12 @@
             <tr>
               <td><strong>pie_chart</strong></td>
               <td>ANÁLISIS</td>
-              <td>Definir presupuestos (Regla 50/30/20) y ver metas.</td>
+              <td>Consultar ingresos, gastos y categorías.</td>
             </tr>
             <tr>
-              <td><strong>📷</strong></td>
-              <td>CÁMARA</td>
-              <td>Botón central para escanear facturas e ingresar gastos automáticamente.</td>
+              <td><strong>Registrar</strong></td>
+              <td>REGISTRO</td>
+              <td>Abre el formulario rápido para registrar un ingreso o gasto.</td>
             </tr>
             <tr>
               <td><strong>account_balance</strong></td>
@@ -610,18 +656,45 @@
     <h2>7. Funcionalidades principales</h2>
     
     <div class="no-break">
-      <h3>7.1. Registro de Ingresos y Gastos</h3>
-      <p>Registra tus movimientos en segundos. Puedes pulsar los botones rápidos en Inicio o abrir el formulario desde el botón central.</p>
-      <ul>
-        <li><strong>Registro manual:</strong> Ingresa el monto, escoge la categoría y guarda.</li>
-        <li><strong>Escaneo con IA (Premium):</strong> Toma una foto a tu factura o recibo. La IA de Google Gemini extraerá los datos principales e insertará los campos correspondientes de forma automática.</li>
-        <li><strong>Pre-validación de duplicados:</strong> Para evitar cargar dos veces el mismo gasto (por ejemplo, si subes el mismo recibo sin querer), la app te avisará si existe una transacción idéntica en las últimas 24 horas.</li>
-      </ul>
+      <h3 id="registro-movimientos">7.1. Registrar ingresos y gastos</h3>
+      <p class="task-summary"><strong>Qué permite:</strong> guardar un movimiento manual en tu historial. <strong>Necesitas:</strong> haber iniciado sesión y conocer el importe y la fecha.</p>
+      <ol>
+        <li>En Inicio, elige <strong>Ingresos</strong> o <strong>Gastos</strong>, o abre el botón flotante para registrar.</li>
+        <li>En «Registrar movimiento», confirma el tipo, escribe el importe en RD$ y revisa la fecha.</li>
+        <li>Elige una categoría o «Sin clasificar». Abre «Más detalles» solo si deseas añadir nota, comercio o comprobante.</li>
+        <li>Pulsa <strong>Guardar</strong> y espera la confirmación. Luego puedes elegir «Registrar otro».</li>
+      </ol>
+      <p><strong>Resultado:</strong> el movimiento aparece en «Movimientos» y actualiza los totales correspondientes. «Sin clasificar» no cambia el importe.</p>
+      <p><strong>Si no se guarda:</strong> conserva el formulario, comprueba la conexión e intenta de nuevo. Mientras aparece «Guardando», espera antes de pulsar otra vez.</p>
+      <p><a href="#movimientos-historial">Ver el historial</a> · <a href="#consulta">Volver a Consulta rápida</a></p>
     </div>
 
     <div class="no-break">
-      <h3>7.2. Filtro IA Preventivo</h3>
-      <p>Es tu freno antes de compras compulsivas. Al ingresar qué quieres comprar y su precio, el Filtro IA analiza tus deudas, presupuestos y ahorros actuales y te devuelve una recomendación en formato semáforo:</p>
+      <h3 id="importar-csv">7.2. Importar movimientos desde CSV</h3>
+      <p class="task-summary"><strong>Qué permite:</strong> revisar un archivo de movimientos y confirmar las filas seleccionadas. <strong>Necesitas:</strong> un CSV de hasta 5 MB y 100 filas, y una cuenta iniciada.</p>
+      <ol>
+        <li>Abre <strong>Movimientos</strong> y elige <strong>Importar CSV</strong>.</li>
+        <li>Selecciona la fuente o tarjeta, el archivo y los formatos de fecha y decimal. Revisa el separador y el mapeo de columnas.</li>
+        <li>Corrige las filas con errores. La vista previa muestra importes, errores, totales y coincidencias posibles.</li>
+        <li>Marca explícitamente las filas que deseas incorporar. Revisa las exclusiones y el total antes de confirmar.</li>
+        <li>Confirma el lote y espera el resultado. Desde el historial del lote puedes deshacer o restaurar la importación.</li>
+      </ol>
+      <p><strong>Resultado:</strong> cada fila confirmada queda en el historial de movimientos con referencia a su lote. La importación admite DOP; no convierte otras monedas.</p>
+      <p><strong>Si aparecen posibles duplicados:</strong> compara fecha, importe, comercio y fuente. La app propone coincidencias, pero tú decides qué fila incluir. No excluyas una compra legítima solo porque se parece a otra.</p>
+      <p><strong>Foto o voz:</strong> en Importar CSV puedes probar estas opciones voluntarias. Hoy son simulaciones que abren el registro manual; no ejecutan OCR ni transcriben audio.</p>
+      <p><a href="#consulta">Volver a Consulta rápida</a></p>
+    </div>
+
+    <div class="no-break">
+      <h3 id="movimientos-historial">7.3. Consultar movimientos y exportar</h3>
+      <p>Abre <strong>Movimientos</strong> para revisar el historial. Usa los filtros para acotar el periodo, tipo, categoría o importe; abre un registro para ver su detalle. Elige <strong>Exportar</strong> para definir los filtros del informe.</p>
+      <p><strong>Resultado:</strong> ves los movimientos incluidos en el periodo seleccionado. Comprueba los filtros antes de comparar totales o descargar el archivo.</p>
+      <p><a href="#importar-csv">Importar CSV</a> · <a href="#consulta">Volver a Consulta rápida</a></p>
+    </div>
+
+    <div class="no-break">
+      <h3 id="filtro-ia">7.4. Filtro IA Preventivo</h3>
+      <p>En Inicio, abre <strong>Filtro IA</strong> dentro de Herramientas Financieras. Escribe qué quieres comprar y su precio, y pulsa <strong>Analizar Compra</strong>. El análisis local está disponible; las respuestas avanzadas dependen del plan. Lee la recomendación como apoyo y comprueba tus cifras antes de decidir.</p>
       <ul>
         <li><span class="badge badge-teal">Verde 🟢</span> Adelante con la compra. No compromete tu salud financiera.</li>
         <li><span class="badge badge-gold">Amarillo 🟡</span> Piénsalo dos veces. El gasto afectará levemente tus metas.</li>
@@ -630,33 +703,34 @@
     </div>
 
     <div class="no-break">
-      <h3>7.3. Presupuestos y Metas (50/30/20)</h3>
-      <p>Divide tus ingresos bajo la regla 50/30/20 (50% Necesidades, 30% Deseos y 20% Ahorros). Freenanzas te muestra el progreso de tus metas con una barra interactiva de porcentaje a medida que registras transacciones bajo la categoría "Ahorro".</p>
+      <h3 id="presupuestos-metas">7.5. Presupuestos y metas</h3>
+      <p>En <strong>Análisis</strong> y <strong>Presupuesto Mensual</strong> puedes revisar movimientos, límites y ahorro recomendado del periodo. Abre cada sección para editar sus valores y comprueba el periodo antes de comparar importes. La regla 50/30/20 aparece en la bienvenida; la app no aplica una distribución idéntica a todas las cuentas.</p>
     </div>
 
     <div class="no-break">
-      <h3>7.4. Gestión de Tarjetas de Crédito</h3>
-      <p>Evita el pago de intereses no deseados vinculando tus tarjetas de crédito en el perfil de usuario. Define su límite de crédito, fecha de corte y pago. Al registrar transacciones, marca la opción <strong>"¿Pago con Tarjeta?"</strong> para ver tu consumo acumulado y el límite restante en tiempo real.</p>
+      <h3 id="tarjetas-credito">7.6. Gestión de tarjetas de crédito</h3>
+      <p>Abre <strong>Tarjetas de Crédito</strong> para agregar, editar y revisar una tarjeta. Introduce los datos que solicita el formulario. Si asocias un movimiento a una tarjeta, revisa sus detalles antes de guardarlo.</p>
     </div>
 
     <div class="no-break">
-      <h3>7.5. Control de Préstamos y Deudas</h3>
-      <p>Lleva un registro de préstamos activos ingresando la tasa anual y tu cuota mensual. Freenanzas te emitirá sugerencias inteligentes en el dashboard si detecta tasas superiores al 25% anual.</p>
+      <h3 id="prestamos">7.7. Control de préstamos y deudas</h3>
+      <p>En <strong>Préstamos</strong> puedes agregar, editar y revisar tus deudas. Confirma los datos del saldo, tasa y cuota en el formulario antes de guardar.</p>
     </div>
 
     <div class="no-break">
-      <h3>7.6. Gastos Recurrentes</h3>
-      <p>Registra pagos fijos de suscripciones, alquiler o luz. Freenanzas restará preventivamente este dinero del saldo libre del mes, asegurándote que no gastes el dinero de tus facturas.</p>
+      <h3 id="gastos-recurrentes">7.8. Gastos recurrentes</h3>
+      <p>Abre <strong>Gastos recurrentes</strong> para registrar o revisar pagos periódicos y su estado. Una ocurrencia prevista no equivale por sí sola a un movimiento contabilizado; revisa los pagos del periodo en «Presupuesto Mensual».</p>
     </div>
 
     <div class="no-break">
-      <h3>7.7. Asesor IA</h3>
-      <p>Un chat privado con el consultor financiero inteligente Gemini. Puedes pedirle consejos sobre ahorro, reducción de gastos o ideas para salir de deudas basándose únicamente en tus datos históricos anónimos.</p>
+      <h3 id="asesor-ia">7.9. Asesor IA</h3>
+      <p>En <strong>Asesor IA</strong> puedes solicitar análisis de gastos y planes para saldar deudas disponibles en tu cuenta. Revisa los datos y el aviso financiero antes de tomar decisiones. La app no sustituye asesoría profesional.</p>
     </div>
   </div>
 
   <!-- 8. FLUJOS PASO A PASO -->
   <div class="page-break" id="8-flujos-paso-a-paso">
+    <nav class="breadcrumbs" aria-label="Ruta actual"><a href="#consulta">Consulta rápida</a> › Procedimientos</nav>
     <h2>8. Flujos paso a paso</h2>
     
     <div class="no-break">
@@ -670,88 +744,100 @@
     </div>
 
     <div class="no-break">
-      <h3>Flujo B: Configuración del Presupuesto y Metas de Ahorro</h3>
+      <h3>Flujo B: Revisar análisis y presupuesto mensual</h3>
       <ol>
-        <li>Presiona el botón **ANÁLISIS** (icono de gráfico) en el menú inferior.</li>
-        <li>Selecciona **Configurar Presupuesto** e ingresa tus ingresos netos mensuales del mes (ej: RD$ 40,000).</li>
-        <li>Haz clic en **Crear Meta de Ahorro**. Escribe el nombre (ej. *Fondo de Emergencia*), el monto total (ej. *RD$ 15,000*) y selecciona el mes de cumplimiento.</li>
-        <li>Presiona **Guardar**. La app creará tu barra de metas dinámicas.</li>
+        <li>Elige <strong>Análisis</strong> en la navegación inferior para consultar ingresos, gastos y categorías.</li>
+        <li>Desde Inicio, abre la tarjeta <strong>Presupuesto Mensual</strong> para revisar el mes seleccionado.</li>
+        <li>Edita los límites que necesites y revisa los movimientos, pagos recurrentes y categorías incluidos.</li>
+        <li>Si descargas el informe, verifica el mes y los filtros antes de compartirlo.</li>
       </ol>
       <div style="text-align: center; margin: 15px 0;">
         <div class="phone-mockup" style="margin: 0 auto;">
-          <img src="screenshots_manual/07_presupuesto_metas.png" alt="Presupuestos Freenanzas" />
+          <img src="../docs/images/07-progreso-resumen.png" alt="Presupuestos Freenanzas" />
         </div>
       </div>
     </div>
 
     <div class="page-break no-break">
-      <h3>Flujo C: Registro de Gasto con Escaneo IA (PRO)</h3>
+      <h3 id="pasos-registro">Flujo C: Registro de movimiento</h3>
       <ol>
-        <li>Pulsa el botón flotante central de la **Cámara (📷)**.</li>
-        <li>Toma una foto de tu recibo físico, asegurando que la luz sea buena y el monto final esté centrado.</li>
-        <li>El sistema mostrará un progreso de análisis. En 3 segundos completará los campos de: Monto, Nombre del comercio, RNC e identificará la categoría (ej: "Comida" para supermercado).</li>
-        <li>Revisa los datos. Si todo es correcto, haz clic en **Guardar Transacción**.</li>
+        <li>En Inicio, elige <strong>Gastos</strong> o <strong>Ingresos</strong>, o pulsa el botón central para abrir «Registrar movimiento».</li>
+        <li>Completa tipo, importe, fecha y categoría.</li>
+        <li>En «Más detalles» puedes añadir una nota, comercio o comprobante opcional.</li>
+        <li>Pulsa <strong>Guardar</strong> y espera la confirmación.</li>
       </ol>
+      <p>El botón central abre el registro manual. Para evaluar una compra, usa «Filtro IA» en las herramientas de Inicio.</p>
       <div style="text-align: center; margin: 15px 0;">
         <div class="phone-mockup" style="margin: 0 auto;">
-          <img src="screenshots_manual/05_agregar_transaccion.png" alt="Agregar Transacción" />
+          <img src="../docs/images/05-modulo-1.png" alt="Formulario para agregar una transacción" />
         </div>
       </div>
     </div>
 
     <div class="page-break no-break">
-      <h3>Flujo D: Evaluación de compra con Filtro IA</h3>
+      <h3 id="escaneo-recibo">Escanear un recibo en el formulario detallado (PRO)</h3>
       <ol>
-        <li>En la pantalla de inicio, selecciona la herramienta **Filtro IA**.</li>
-        <li>Escribe el producto a comprar (ej: *Zapatos casuales*) y su precio (ej: *RD$ 3,500*).</li>
-        <li>Indica tu nivel de tentación o deseo en la barra del 1 al 10.</li>
-        <li>Haz clic en **Analizar Compra**. El sistema te devolverá una tarjeta en color con su recomendación final.</li>
+        <li>Desde Inicio, abre la herramienta <strong>Filtro IA</strong>; el formulario detallado incluye el control <strong>Escanear</strong>.</li>
+        <li>En una cuenta PRO, selecciona o toma una imagen del recibo. La app intenta extraer el importe, fecha y datos disponibles.</li>
+        <li>Revisa y corrige los campos, incluida la categoría, antes de guardar el movimiento.</li>
+      </ol>
+      <p>El reconocimiento puede equivocarse. No guardes sin comprobar el importe y la fecha. La opción foto/voz dentro de Importar CSV es una simulación distinta y no reconoce documentos.</p>
+      <p><a href="#importar-csv">Ver importación CSV y captura simulada</a> · <a href="#consulta">Volver a Consulta rápida</a></p>
+    </div>
+
+    <div class="page-break no-break">
+      <h3>Flujo D: Evaluar una compra con Filtro IA</h3>
+      <ol>
+        <li>En Inicio, selecciona la herramienta <strong>Filtro IA</strong>.</li>
+        <li>Escribe qué quieres comprar y cuánto cuesta en RD$.</li>
+        <li>Pulsa <strong>Analizar Compra</strong> y revisa el resultado.</li>
       </ol>
       <div style="text-align: center; margin: 15px 0;">
         <div class="phone-mockup" style="margin: 0 auto;">
-          <img src="screenshots_manual/06_filtro_ia.png" alt="Filtro IA" />
+          <img src="../docs/images/06-modulo-2-detalle.png" alt="Filtro IA" />
         </div>
       </div>
     </div>
 
     <div class="no-break">
-      <h3>Flujo E: Registro de Tarjeta de Crédito y Gasto Asociado</h3>
+      <h3 id="pasos-tarjetas">Flujo E: Gestionar una tarjeta</h3>
       <ol>
-        <li>Ve a la pestaña **PERFIL** en el menú de navegación inferior.</li>
-        <li>Selecciona **Administrar Tarjetas de Crédito** y pulsa en **Nueva Tarjeta**.</li>
-        <li>Ingresa el nombre de la tarjeta, límite total, fecha de corte y fecha límite de pago. Presiona Guardar.</li>
-        <li>Para asociar un gasto: Abre el módulo de agregar transacción, ingresa el monto, activa la opción **"¿Pago con Tarjeta?"**, selecciona tu tarjeta de la lista y guarda.</li>
+        <li>En Inicio, abre la herramienta <strong>Tarjetas</strong>.</li>
+        <li>Pulsa <strong>Agregar Tarjeta</strong> y completa los campos disponibles.</li>
+        <li>Confirma los datos y guarda. Cuando registres un movimiento, usa únicamente las opciones de cuenta o tarjeta que aparezcan en ese formulario.</li>
       </ol>
     </div>
 
     <div class="no-break">
       <h3>Flujo F: Cierre de Sesión</h3>
       <ol>
-        <li>Selecciona la pestaña **PERFIL** en el dock inferior.</li>
+        <li>Selecciona la pestaña <strong>PERFIL</strong> en el dock inferior.</li>
         <li>Desplázate hasta el final de las opciones.</li>
-        <li>Presiona el botón rojo **"Cerrar Sesión"**. Volverás a la pantalla de bienvenida de la aplicación.</li>
+        <li>Presiona el botón rojo <strong>"Cerrar Sesión"</strong>. Volverás a la pantalla de bienvenida de la aplicación.</li>
       </ol>
     </div>
   </div>
 
   <!-- 9. CONFIGURACIÓN DEL USUARIO -->
   <div class="page-break no-break" id="9-configuracion">
-    <h2>9. Configuración del usuario</h2>
+    <nav class="breadcrumbs" aria-label="Ruta actual"><a href="#consulta">Consulta rápida</a> › Perfil y ajustes</nav>
+    <h2 id="configuracion-usuario">9. Configuración del usuario</h2>
     <p>Para personalizar Freenanzas a tu medida, la sección de <strong>Perfil</strong> te permite ajustar lo siguiente:</p>
     <ul>
-      <li><strong>Recordatorios diarios de registro:</strong> Activa el recordatorio diario por notificaciones push y elige la hora ideal (por ejemplo, 9:00 PM) para que no olvides registrar las compras del día.</li>
+      <li><strong>Perfil y seguridad:</strong> Revisa la información de tu cuenta, opciones de seguridad, ayuda y enlaces legales.</li>
       <li><strong>Administración de suscripción PRO:</strong> Administra los pagos de tu membresía a través del paywall seguro de la app conectado con los planes de PayPal.</li>
       <li><strong>Información legal:</strong> Consulta los términos de uso, políticas de datos y las notas de descargo de responsabilidad sobre consejos financieros de Inteligencia Artificial.</li>
     </ul>
     <div style="text-align: center; margin: 15px 0;">
       <div class="phone-mockup" style="margin: 0 auto;">
-        <img src="screenshots_manual/08_tarjetas_perfil.png" alt="Ajustes Perfil" />
+          <img src="../docs/images/08-configuracion.png" alt="Ajustes de perfil" />
       </div>
     </div>
   </div>
 
   <!-- 10. PREGUNTAS FRECUENTES -->
   <div class="page-break no-break" id="10-faq">
+    <nav class="breadcrumbs" aria-label="Ruta actual"><a href="#consulta">Consulta rápida</a> › Preguntas frecuentes</nav>
     <h2>10. Preguntas frecuentes</h2>
     
     <table>
@@ -764,11 +850,11 @@
       <tbody>
         <tr>
           <td><strong>¿Mis datos bancarios están seguros?</strong></td>
-          <td>Sí, porque Freenanzas no se conecta a tu banco. Todo registro de transacciones es voluntario por parte del usuario. Los datos guardados en Firestore están cifrados.</td>
+          <td>Freenanzas no conecta una cuenta bancaria automáticamente. Puedes registrar movimientos manualmente o importar un archivo CSV en Movimientos; la importación no accede a tus credenciales bancarias.</td>
         </tr>
         <tr>
           <td><strong>¿Por qué algunas funciones están bloqueadas con candados?</strong></td>
-          <td>El escaneo de facturas por cámara con IA y el Asesor IA conversacional son exclusivos para los miembros del plan <strong>Freenanzas PRO</strong>.</td>
+          <td>Las opciones disponibles dependen del plan de tu cuenta. En Importar CSV, foto y voz son simulaciones y no reconocen contenido. El comprobante adjunto al registro manual no se analiza automáticamente.</td>
         </tr>
         <tr>
           <td><strong>¿El Filtro IA sustituye a un asesor financiero humano certificado?</strong></td>
@@ -780,40 +866,43 @@
 
   <!-- 11. SOLUCIÓN DE PROBLEMAS -->
   <div class="page-break no-break" id="11-solucion-problemas">
+    <nav class="breadcrumbs" aria-label="Ruta actual"><a href="#consulta">Consulta rápida</a> › Solución de problemas</nav>
     <h2>11. Solución de problemas</h2>
     <p>Si experimentas algún comportamiento inesperado en la aplicación, consulta estas soluciones comunes:</p>
     
-    <h3>Problemas con el Escáner de Cámara</h3>
+    <h3 id="problemas-csv">Problemas al importar un CSV</h3>
     <ul>
-      <li><strong>Síntoma:</strong> Al presionar el icono de la cámara la pantalla queda en negro o da error.</li>
-      <li><strong>Causa probable:</strong> La aplicación no tiene permisos de cámara concedidos en tu sistema operativo.</li>
-      <li><strong>Solución:</strong> Ve a la configuración de tu celular, entra a Aplicaciones, busca "Freenanzas" y asegúrate de habilitar los permisos de Cámara.</li>
+      <li><strong>Síntoma:</strong> El archivo no carga o algunas filas no aparecen como válidas.</li>
+      <li><strong>Causa probable:</strong> El archivo excede 5 MB o 100 filas, el separador no coincide con el formato, o falta mapear una columna.</li>
+      <li><strong>Solución:</strong> Selecciona el archivo CSV correcto, revisa el separador y los formatos de fecha/decimal y corrige las filas marcadas antes de confirmar.</li>
     </ul>
     
-    <h3>Errores de Lectura de Recibos por IA</h3>
+    <h3>Errores al guardar o volver a intentar</h3>
     <ul>
-      <li><strong>Síntoma:</strong> El monto extraído no coincide con la factura real o no detecta el comercio.</li>
-      <li><strong>Causa probable:</strong> Luz deficiente, factura doblada o cámara fuera de foco.</li>
-      <li><strong>Solución:</strong> Coloca la factura plana sobre un fondo de color contrastante, asegúrate de tener buena luz y de que las letras del recibo sean legibles en la pantalla antes de capturar.</li>
+      <li><strong>Síntoma:</strong> El lote no confirma o la respuesta tarda.</li>
+      <li><strong>Causa probable:</strong> Conexión interrumpida, sesión vencida o validación pendiente.</li>
+      <li><strong>Solución:</strong> Conserva la revisión, verifica tu sesión y consulta el historial de importaciones antes de reintentar. El mismo lote se procesa con idempotencia para evitar repetirlo.</li>
     </ul>
   </div>
 
   <!-- 12. GLOSARIO -->
   <div class="page-break no-break" id="12-glosario">
+    <nav class="breadcrumbs" aria-label="Ruta actual"><a href="#consulta">Consulta rápida</a> › Glosario</nav>
     <h2>12. Glosario</h2>
     <p>Para facilitar tu comprensión de los términos utilizados en Freenanzas, a continuación detallamos sus definiciones:</p>
     <ul>
       <li><strong>Para Gastar:</strong> Saldo disponible después de descontar de tus ingresos del mes tus gastos fijos (recurrentes) y tus metas de ahorro activas.</li>
       <li><strong>Mis Ahorros:</strong> Saldo protegido que apartas de tu disponible general. Este dinero está enlazado a tus metas de ahorro creadas.</li>
-      <li><strong>RNC:</strong> Registro Nacional de Contribuyentes en República Dominicana. Es el número tributario que la IA lee en las facturas para clasificar e identificar el comercio.</li>
+      <li><strong>CSV:</strong> Archivo de texto con filas y columnas que puede importarse tras revisar sus campos.</li>
       <li><strong>Gasto Hormiga:</strong> Pequeñas compras diarias (cafés, dulces, propinas) que de forma individual parecen insignificantes pero que en conjunto representan una fuga importante en tu presupuesto mensual.</li>
-      <li><strong>Regla 50/30/20:</strong> Modelo de finanzas personales que recomienda destinar un 50% de tus ingresos a necesidades primarias, un 30% a gustos y deseos y un 20% a ahorros de mediano/largo plazo.</li>
-      <li><strong>PWA (Progressive Web App):**</strong> Tecnología web que te permite agregar Freenanzas a la pantalla de inicio de tu celular como si fuera una app nativa, funcionando de forma rápida y sin ocupar espacio.</li>
+      <li><strong>Sin clasificar:</strong> Categoría disponible al guardar un movimiento que todavía no has categorizado.</li>
+      <li><strong>PWA (Progressive Web App):</strong> Tecnología web que te permite agregar Freenanzas a la pantalla de inicio de tu celular como si fuera una app nativa, funcionando de forma rápida y sin ocupar espacio.</li>
     </ul>
   </div>
 
   <!-- 13. SOPORTE -->
   <div class="no-break" id="13-soporte">
+    <nav class="breadcrumbs" aria-label="Ruta actual"><a href="#consulta">Consulta rápida</a> › Soporte</nav>
     <h2>13. Soporte</h2>
     <p>Si experimentas un problema que no se encuentra resuelto en este manual de usuario, por favor ponte en contacto con nuestro equipo de atención:</p>
     <ul>
@@ -825,11 +914,12 @@
 
   <!-- 14. ANEXOS -->
   <div class="no-break" id="14-anexos">
+    <nav class="breadcrumbs" aria-label="Ruta actual"><a href="#consulta">Consulta rápida</a> › Anexos</nav>
     <h2>14. Anexos</h2>
     <p>Información técnica sobre el análisis de documentación y la versión de Freenanzas APP:</p>
     <ul>
-      <li><strong>Versión de la Documentación:</strong> Manual de Usuario Oficial v1.0.</li>
-      <li><strong>Fecha de Elaboración:</strong> Junio de 2026.</li>
+      <li><strong>Fuente vigente:</strong> esta guía web; el archivo HTML fuente se mantiene en el repositorio como <code>manual_usuario_app.html</code>.</li>
+      <li><strong>Archivos anteriores:</strong> las copias Markdown y PDF existentes se conservan como versiones históricas y no se presentan como vigentes.</li>
       <li><strong>Limitaciones de Análisis:</strong> El análisis de las integraciones de pasarelas de pago de PayPal se realizó utilizando credenciales y planes Sandbox según la configuración del entorno local. Para producción real, se debe validar el Runbook y la Checklist de pagos del repositorio.</li>
     </ul>
   </div>

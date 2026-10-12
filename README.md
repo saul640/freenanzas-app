@@ -2,6 +2,10 @@
 
 **URL de Producción:** [https://freenanzas-app.web.app](https://freenanzas-app.web.app)
 
+## Guía de usuario
+
+La guía vigente se publica en [https://freenanzas-app.web.app/guia/](https://freenanzas-app.web.app/guia/). Su única fuente editable es `manual_usuario_app.html`; el build la copia a `dist/guia/index.html`. `manual_usuario_app.pdf` es una salida generada de esa fuente, con índice enlazado y marcadores; para actualizarla ejecuta `npm run build` y luego `npm run guide:pdf` (requiere WeasyPrint). Las rutas HTML antiguas redirigen a la guía vigente. Los archivos `GUIA_USUARIO.*` y `manual_usuario_app.md` se conservan como versiones históricas y no se publican como guías actuales.
+
 App de finanzas personales construida con React + Vite, Firebase (Auth, Firestore, Hosting, Functions) y Gemini AI.
 
 ## Stack Tecnológico

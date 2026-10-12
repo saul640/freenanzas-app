@@ -626,7 +626,7 @@ export default function AddTransaction() {
             <header className="px-6 py-4 flex items-center justify-between">
                 <button onClick={() => { if (isEditMode) { setEditingRecord(null); } navigate(-1); }} className="text-sm text-gray-500 font-medium">{isEditMode ? 'Cancelar Edición' : 'Cancelar'}</button>
                 <h1 className="text-lg font-bold">{isEditMode ? 'Editar Transacción' : 'Añadir Transacción'}</h1>
-                <div className="w-16" />
+                <a href="/guia/#filtro-ia" className="text-xs font-semibold text-emerald-800 underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">Ayuda</a>
             </header>
 
             <form onSubmit={handleSubmit} className="flex-1 flex flex-col">

@@ -101,4 +101,10 @@ describe('Dashboard', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Importar movimientos desde CSV' }));
         expect(navigate).toHaveBeenCalledWith('/transactions/import');
     });
+
+    it('abre el formulario avanzado desde el acceso Filtro IA', () => {
+        render(<Dashboard />);
+        fireEvent.click(screen.getByRole('button', { name: /Filtro IA/ }));
+        expect(navigate).toHaveBeenCalledWith('/add-advanced');
+    });
 });

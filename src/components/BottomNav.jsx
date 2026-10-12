@@ -14,6 +14,29 @@ const BottomNav = () => {
     return false;
   };
 
+  const helpByRoute = [
+    ['/transactions/import', '/guia/#importar-csv'],
+    ['/transactions', '/guia/#movimientos-historial'],
+    ['/expenses', '/guia/#movimientos-historial'],
+    ['/budgets', '/guia/#presupuestos-metas'],
+    ['/budget', '/guia/#presupuestos-metas'],
+    ['/cards', '/guia/#tarjetas-credito'],
+    ['/loans', '/guia/#prestamos'],
+    ['/recurring', '/guia/#gastos-recurrentes'],
+    ['/advisor', '/guia/#asesor-ia'],
+    ['/profile', '/guia/#configuracion-usuario'],
+  ];
+  const helpHref = location.pathname === '/' ? '/guia/#5-pantalla-principal' :
+    helpByRoute.find(([path]) => location.pathname.startsWith(path))?.[1] || '/guia/#consulta';
+  const helpLabel = location.pathname.startsWith('/transactions/import') ? 'Ayuda: importar CSV' :
+    location.pathname.startsWith('/transactions') || location.pathname.startsWith('/expenses') ? 'Ayuda: movimientos' :
+      location.pathname.startsWith('/budgets') || location.pathname.startsWith('/budget') ? 'Ayuda: presupuestos y metas' :
+        location.pathname.startsWith('/cards') ? 'Ayuda: tarjetas' :
+          location.pathname.startsWith('/loans') ? 'Ayuda: préstamos' :
+            location.pathname.startsWith('/recurring') ? 'Ayuda: gastos recurrentes' :
+              location.pathname.startsWith('/advisor') ? 'Ayuda: Asesor IA' :
+                location.pathname.startsWith('/profile') ? 'Ayuda: perfil' : 'Ayuda de Freenanzas';
+
   return (
     <>
       {/* Floating Action Button (Centrado en el dock) */}
@@ -65,6 +88,15 @@ const BottomNav = () => {
           <span className={`material-symbols-rounded text-[24px]`}>person</span>
           <span className={`text-[10px] ${isActive('/profile') ? 'font-bold' : 'font-medium uppercase'}`}>PERFIL</span>
         </button>
+
+        <a
+          href={helpHref}
+          aria-label={helpLabel}
+          className="flex flex-col items-center gap-1 text-gray-500 hover:text-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800"
+        >
+          <span aria-hidden="true" className="material-symbols-rounded text-[24px]">help</span>
+          <span className="text-[10px] font-medium uppercase">AYUDA</span>
+        </a>
       </nav>
     </>
   );
