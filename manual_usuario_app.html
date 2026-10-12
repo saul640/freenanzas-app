@@ -109,6 +109,14 @@
     .breadcrumbs a, .back-index { font-weight: 700; }
     .back-index { display: inline-block; margin: 12px 0 20px; font-size: 13px; }
     .task-summary { padding: 12px 16px; border-left: 4px solid var(--primary-teal); background: var(--gray-light); border-radius: 0 10px 10px 0; }
+    .privacy-advice { margin-top: 18px; padding: 16px; border: 1px solid #b7d8ce; border-left: 4px solid #2f7f6d; border-radius: 12px; background: #f1faf6; color: #1f2933; }
+    .privacy-advice > p { margin-bottom: 12px; }
+    .privacy-states { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .privacy-state { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; }
+    .privacy-state-icon { flex: 0 0 auto; display: block; width: 48px; height: 48px; object-fit: contain; }
+    .privacy-state-label { display: block; margin-bottom: 2px; font-weight: 700; }
+    .privacy-state-copy { display: block; font-size: 13px; line-height: 1.4; }
+    .privacy-limit { margin-top: 12px !important; font-size: 13px; }
 
     @media (max-width: 620px) {
       body { padding: 0; font-size: 16px; }
@@ -120,6 +128,7 @@
       .feature-image-container { flex-basis: 100%; }
       .feature-text { min-width: 0; }
       table { display: block; max-width: 100%; overflow-x: auto; box-sizing: border-box; }
+      .privacy-states { grid-template-columns: 1fr; }
     }
 
     /* Main Container (A4 / Letter feel) */
@@ -586,14 +595,23 @@
         <ul>
           <li><strong>Balance "Para Gastar":</strong> Es tu saldo libre real. Muestra el dinero que te queda tras descontar tus metas de ahorro y tus facturas recurrentes del mes. ¡Gasta este monto sin remordimientos!</li>
           <li><strong>Balance "Mis Ahorros":</strong> Dinero protegido reservado para tus proyectos futuros y tu Fondo de Emergencia.</li>
-          <li><strong>Ocultar Monto (👁️):</strong> Pulsa el icono de ojo para enmascarar tus saldos, ideal si usas la app en público.</li>
+          <li><strong>Privacidad:</strong> el control de cada tarjeta alterna la visibilidad de las cifras principales de «Para Gastar» y «Mis Ahorros».</li>
           <li><strong>Insight de IA:</strong> Mensajes cortos y motivadores que aparecen en una tarjeta superior, dándote consejos prácticos basados en tus hábitos de la semana.</li>
         </ul>
-      </div>
-      <div class="feature-image-container">
-        <div class="phone-mockup">
-          <img src="../docs/images/03-inicio-dashboard.png" alt="Pantalla Inicio de Freenanzas" />
-        </div>
+        <aside class="privacy-advice" aria-label="Consejo de privacidad del Dashboard">
+          <p><strong>Privacidad:</strong> pulsa el control de ojo para ocultar las cifras principales del Dashboard. Vuelve a pulsarlo para mostrarlas.</p>
+          <div class="privacy-states">
+            <div class="privacy-state">
+              <img aria-hidden="true" class="privacy-state-icon" src="../docs/images/privacy-visibility.png" alt="" />
+              <span><span class="privacy-state-label">Cifras principales visibles</span><span class="privacy-state-copy">Estado inicial. Al pulsar, estas cifras se ocultan.</span></span>
+            </div>
+            <div class="privacy-state">
+              <img aria-hidden="true" class="privacy-state-icon" src="../docs/images/privacy-visibility-off.png" alt="" />
+              <span><span class="privacy-state-label">Cifras principales ocultas</span><span class="privacy-state-copy">Al pulsar de nuevo, estas cifras se muestran.</span></span>
+            </div>
+          </div>
+          <p class="privacy-limit">El control sustituye solo las cifras principales de esas tarjetas por puntos. Otros importes secundarios del Dashboard pueden seguir visibles; esto no cifra los datos ni los oculta en otras pantallas o exportaciones.</p>
+        </aside>
       </div>
     </div>
   </div>

@@ -26,6 +26,18 @@ test('las anclas directas existen y no se repiten', () => {
   }
 });
 
+test('el consejo de privacidad documenta ambos iconos y el alcance real', () => {
+  const advice = source.match(/<aside class="privacy-advice"[\s\S]*?<\/aside>/)?.[0] || '';
+  assert.match(advice, /privacy-visibility\.png/);
+  assert.match(advice, /privacy-visibility-off\.png/);
+  assert.match(advice, /aria-hidden="true"/);
+  assert.match(advice, /cifras principales visibles/i);
+  assert.match(advice, /cifras principales ocultas/i);
+  assert.match(advice, /Otros importes secundarios del Dashboard pueden seguir visibles/);
+  assert.doesNotMatch(advice, /<button|<input/);
+  assert.doesNotMatch(source, /Ocultar Monto \(👁️\)/);
+});
+
 test('las capturas publicadas existen y el contenido separa simulación y OCR', () => {
   for (const [, imagePath] of source.matchAll(/<img[^>]+src=["']\.\.\/docs\/images\/([^"']+)["']/g)) {
     assert.ok(existsSync(path.join(root, 'public', 'docs', 'images', imagePath)), `Falta la captura ${imagePath}`);
@@ -42,6 +54,8 @@ test('el build publica la página, los alias, las imágenes y el PDF vigente', (
     'dist/guide-redirect.js',
     'dist/manual_usuario_app.pdf',
     'dist/docs/images/01-bienvenida.png',
+    'dist/docs/images/privacy-visibility.png',
+    'dist/docs/images/privacy-visibility-off.png',
   ]) {
     assert.ok(existsSync(path.join(root, file)), `Falta el archivo publicado ${file}`);
   }
@@ -49,5 +63,6 @@ test('el build publica la página, los alias, las imágenes y el PDF vigente', (
   assert.match(readFileSync(path.join(root, 'dist/GUIA_USUARIO.html'), 'utf8'), /guide-redirect\.js/);
   assert.match(readFileSync(path.join(root, 'dist/guide-redirect.js'), 'utf8'), /location\.hash/);
   assert.match(readFileSync(path.join(root, 'dist/guia/index.html'), 'utf8'), /id="importar-csv"/);
+  assert.match(readFileSync(path.join(root, 'dist/guia/index.html'), 'utf8'), /privacy-visibility-off\.png/);
   assert.ok(readFileSync(path.join(root, 'dist/manual_usuario_app.pdf')).length > 50_000);
 });

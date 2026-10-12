@@ -102,6 +102,19 @@ describe('Dashboard', () => {
         expect(navigate).toHaveBeenCalledWith('/transactions/import');
     });
 
+    it('alterna las cifras principales y el icono de privacidad en ambas tarjetas', async () => {
+        render(<Dashboard />);
+        await waitFor(() => expect(screen.getAllByText('visibility')).toHaveLength(2));
+
+        fireEvent.click(screen.getAllByText('visibility')[0].closest('button'));
+        expect(screen.getAllByText('visibility_off')).toHaveLength(2);
+        expect(screen.getAllByText(/••••••/)).toHaveLength(2);
+
+        fireEvent.click(screen.getAllByText('visibility_off')[0].closest('button'));
+        expect(screen.getAllByText('visibility')).toHaveLength(2);
+        expect(screen.queryByText(/••••••/)).toBeNull();
+    });
+
     it('abre el formulario avanzado desde el acceso Filtro IA', () => {
         render(<Dashboard />);
         fireEvent.click(screen.getByRole('button', { name: /Filtro IA/ }));
