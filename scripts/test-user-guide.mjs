@@ -39,12 +39,15 @@ test('el build publica la página, los alias, las imágenes y el PDF vigente', (
     'dist/guia/index.html',
     'dist/GUIA_USUARIO.html',
     'dist/manual_usuario_app.html',
+    'dist/guide-redirect.js',
     'dist/manual_usuario_app.pdf',
     'dist/docs/images/01-bienvenida.png',
   ]) {
     assert.ok(existsSync(path.join(root, file)), `Falta el archivo publicado ${file}`);
   }
   assert.match(readFileSync(path.join(root, 'dist/GUIA_USUARIO.html'), 'utf8'), /\/guia\//);
+  assert.match(readFileSync(path.join(root, 'dist/GUIA_USUARIO.html'), 'utf8'), /guide-redirect\.js/);
+  assert.match(readFileSync(path.join(root, 'dist/guide-redirect.js'), 'utf8'), /location\.hash/);
   assert.match(readFileSync(path.join(root, 'dist/guia/index.html'), 'utf8'), /id="importar-csv"/);
   assert.ok(readFileSync(path.join(root, 'dist/manual_usuario_app.pdf')).length > 50_000);
 });
