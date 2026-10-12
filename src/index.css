@@ -44,7 +44,20 @@ body {
 }
 
 main:has(.quick-transaction-screen) {
+  box-sizing: border-box;
+  width: min(100vw, 48rem);
   max-width: 48rem;
+  margin-inline: auto;
+}
+
+.quick-transaction-screen,
+.quick-transaction-screen * {
+  box-sizing: border-box;
+}
+
+.quick-transaction-screen form {
+  min-width: 0;
+  width: 100%;
 }
 
 /* Remove number input spinners */

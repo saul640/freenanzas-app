@@ -224,7 +224,7 @@ export default function QuickAddTransaction() {
         )}
         {draftWarning && <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:bg-amber-950/40 dark:text-amber-100">{draftWarning}</div>}
 
-        <fieldset disabled={disabled || Boolean(saved)} className="space-y-5 disabled:opacity-90">
+        <fieldset disabled={disabled || Boolean(saved)} className="min-w-0 space-y-5 disabled:opacity-90">
           <legend className="sr-only">Tipo de movimiento</legend>
           <div className="grid grid-cols-2 rounded-2xl bg-slate-200/70 dark:bg-slate-800 p-1.5" role="group" aria-label="Tipo de movimiento">
             {['expense', 'income'].map((type) => (
@@ -253,12 +253,12 @@ export default function QuickAddTransaction() {
               className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-3 dark:border-slate-600 dark:bg-slate-800" disabled={disabled || Boolean(saved)} />
           </div>
 
-          <fieldset>
+          <fieldset className="min-w-0">
             <legend className="block text-sm font-semibold mb-2">Categoría</legend>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2" role="group" aria-label="Categoría del movimiento">
+            <div className="grid min-w-0 grid-cols-2 sm:grid-cols-3 gap-2" role="group" aria-label="Categoría del movimiento">
               {categories.map((category) => (
                 <button key={category} type="button" aria-pressed={draft.category === category} onClick={() => updateDraft({ category })}
-                  className={`min-h-11 rounded-xl border px-3 text-sm font-medium text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${draft.category === category ? 'border-emerald-700 bg-emerald-50 text-emerald-950 dark:bg-emerald-950/50 dark:text-emerald-100' : 'border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800'}`}>
+                className={`min-h-11 min-w-0 rounded-xl border px-3 text-sm font-medium text-left break-words focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${draft.category === category ? 'border-emerald-700 bg-emerald-50 text-emerald-950 dark:bg-emerald-950/50 dark:text-emerald-100' : 'border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800'}`}>
                   {category}
                 </button>
               ))}
