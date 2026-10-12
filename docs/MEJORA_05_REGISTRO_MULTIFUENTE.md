@@ -37,7 +37,9 @@ Verificación final en la rama de entrega:
 - `cd functions && npm test`: 10 pruebas aprobadas; `npm run lint` (comprobación de sintaxis) aprobado.
 - Lint completo del repositorio: falla por 23 errores y 1 advertencia en archivos de configuración/código existentes (incluye `AuthAction.jsx`, `gemini.js`, `errorReporting.js` y scripts). No se amplió esta entrega para corregir deuda ajena.
 - Firebase CLI dry-run para Hosting y las cinco Functions de importación: aprobado en `freenanzas-app`. El dry-run no confirma una publicación ni una ejecución real contra Firestore.
+- Publicación posterior: commit `c99629b` subido a `origin/main`; Firebase reportó `Deploy complete` para Hosting y `previewCsvImport`, `confirmCsvImport`, `listCsvImportBatches`, `undoCsvImportBatch` y `restoreCsvImportBatch` (Node.js 22, `us-central1`). La URL pública respondió HTTP 200 y el HTML sirvió el bundle de esta versión con la ruta de importación.
+- Prueba básica posterior al despliegue: verificados el HTML y el asset JS públicos. No se ejecutó un lote autenticado de prueba ni se escribieron datos en producción; el backend se validó con pruebas simuladas.
 
 El proyecto de destino configurado es `freenanzas-app` y la instancia Firestore elegida es `(default)`, Standard, ubicación `nam5`. No se requiere cambiar reglas de Firestore para esta entrega: los lotes solo los leen/escriben Functions con identidad autenticada y la lista se devuelve al propietario. El despliegue debe limitarse a Hosting y las Functions de importación; no despliega reglas de Firestore ni Storage.
 
-**Estado:** primera entrega CSV implementada y probada técnicamente; pendiente de validación con usuarios y de conciliación multifuente completa. OCR/transcripción reales e integración bancaria no están activos.
+**Estado:** primera entrega CSV implementada y probada técnicamente; desplegada en `https://freenanzas-app.web.app`; pendiente de validación con usuarios y de conciliación multifuente completa. OCR/transcripción reales e integración bancaria no están activos.
